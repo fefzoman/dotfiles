@@ -212,6 +212,25 @@ if ! grep -qE '^[[:space:]]*export[[:space:]]+BASH_SILENCE_DEPRECATION_WARNING='
   printf '\nexport BASH_SILENCE_DEPRECATION_WARNING=1\n' >> "$HOME/.bashrc"
 fi
 
+# Add pbcopy alias (Linux) if pbcopy doesn't exist
+# - On macOS pbcopy already exists, so we do nothing.
+# - On Linux we map pbcopy to xclip or wl-copy if available.
+if ! grep -qE '^[[:space:]]*alias[[:space:]]+pbcopy=' "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" <<'EOF'
+
+# pbcopy compatibility (managed)
+if ! command -v pbcopy >/dev/null 2>&1; then
+  if command -v wl-copy >/dev/null 2>&1; then
+    alias pbcopy='wl-copy'
+  elif command -v xclip >/dev/null 2>&1; then
+    alias pbcopy='xclip -selection clipboard'
+  elif command -v xsel >/dev/null 2>&1; then
+    alias pbcopy='xsel --clipboard --input'
+  fi
+fi
+EOF
+fi
+
 # Set Oh My Bash theme to 'pure'
 if grep -qE '^[[:space:]]*OSH_THEME=' "$HOME/.bashrc"; then
   sed -i.bak -E 's|^[[:space:]]*OSH_THEME=.*$|OSH_THEME="pure"|' "$HOME/.bashrc"
@@ -268,7 +287,7 @@ fi
 EOF
 fi
 
-# --- Nerd Font install (moved BEFORE terminal theme import) ---
+# --- Nerd Font install (before terminal theme import) ---
 if [[ "$(uname -s)" == "Darwin" ]]; then
   if command -v brew >/dev/null 2>&1; then
     bold "Installing Nerd Font (JetBrainsMono Nerd Font) via Homebrew..."
