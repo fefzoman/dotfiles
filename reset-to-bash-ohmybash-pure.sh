@@ -55,6 +55,88 @@ install_pkgs() {
   fi
 }
 
+# --- Hex (#RRGGBB) -> GNOME Terminal rgb(r,g,b) ---
+hex_to_rgb() {
+  local h="${1#\#}"
+  [[ ${#h} -eq 6 ]] || { echo "rgb(0,0,0)"; return 0; }
+  local r="${h:0:2}" g="${h:2:2}" b="${h:4:2}"
+  printf "rgb(%d,%d,%d)" "$((16#$r))" "$((16#$g))" "$((16#$b))"
+}
+
+# --- Import GNOME Terminal profiles from Basic.terminal (same directory as this script) ---
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BASIC_TERMINAL_FILE="$SCRIPT_DIR/Basic.terminal"
+
+import_basic_terminal_profile() {
+  local f="$1"
+  [[ -f "$f" ]] || return 1
+  have dconf || return 1
+  have gsettings || return 1
+
+  bold "Found: $f"
+  bold "Backing up current GNOME Terminal profiles..."
+  dconf dump /org/gnome/terminal/legacy/profiles:/ > "$BACKUP_DIR/gnome-terminal-profiles.before.dconf" 2>/dev/null || true
+
+  bold "Importing GNOME Terminal profile(s) via: dconf load /org/gnome/terminal/legacy/profiles:/ < $f"
+  dconf load /org/gnome/terminal/legacy/profiles:/ < "$f"
+
+  # If the imported dump contains a profile with visible-name 'Basic', set it as default.
+  local entry uuid name
+  while read -r entry; do
+    uuid="${entry#:}"; uuid="${uuid%/}"
+    name="$(dconf read "/org/gnome/terminal/legacy/profiles:/:$uuid/visible-name" 2>/dev/null | tr -d "'")" || true
+    if [[ "$name" == "Basic" ]]; then
+      gsettings set org.gnome.Terminal.ProfilesList default "'$uuid'" || true
+      ok "Set GNOME Terminal default profile to: Basic ($uuid)"
+      return 0
+    fi
+  done < <(dconf list /org/gnome/terminal/legacy/profiles:/ 2>/dev/null || true)
+
+  ok "Imported profile(s). (No visible-name='Basic' found to auto-set default.)"
+  return 0
+}
+
+apply_gnome_terminal_colors_manual() {
+  have gsettings || { warn "gsettings not found; skipping GNOME Terminal setup."; return 0; }
+  have dconf     || { warn "dconf not found; skipping GNOME Terminal setup."; return 0; }
+
+  local default_profile
+  default_profile="$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")" || true
+  if [[ -z "${default_profile:-}" || "${default_profile:-}" == "''" ]]; then
+    warn "GNOME Terminal default profile not detected; skipping manual color setup."
+    return 0
+  fi
+
+  bold "Applying GNOME Terminal colors to default profile: $default_profile"
+  local base="/org/gnome/terminal/legacy/profiles:/:${default_profile}/"
+
+  local bg_rgb fg_rgb bb_rgb cy_rgb mg_rgb
+  bg_rgb="$(hex_to_rgb "$BG")"
+  fg_rgb="$(hex_to_rgb "$FG")"
+  bb_rgb="$(hex_to_rgb "$BB")"
+  cy_rgb="$(hex_to_rgb "$CY")"
+  mg_rgb="$(hex_to_rgb "$MG")"
+
+  dconf write "${base}use-theme-colors" "false" || true
+  dconf write "${base}use-theme-background" "false" || true
+  dconf write "${base}background-color" "'$bg_rgb'" || true
+  dconf write "${base}foreground-color" "'$fg_rgb'" || true
+  dconf write "${base}bold-color-same-as-fg" "true" || true
+  dconf write "${base}cursor-colors-set" "true" || true
+  dconf write "${base}cursor-background-color" "'$fg_rgb'" || true
+  dconf write "${base}cursor-foreground-color" "'$bg_rgb'" || true
+
+  # 16-color palette as rgb(...) strings (GNOME Terminal expects rgb format)
+  local palette
+  palette="[
+    '$bg_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb', '$cy_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb',
+    '$bb_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb', '$cy_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb'
+  ]"
+  dconf write "${base}palette" "${palette}" || true
+
+  ok "GNOME Terminal color profile updated (manual fallback)."
+}
+
 bold "=== 1) Reset Bash/Zsh customizations (backup + clean start) ==="
 # Bash dotfiles
 move_to_backup "$HOME/.bashrc"
@@ -83,7 +165,7 @@ move_to_backup "$HOME/.bash_it"
 ok "Backups stored in: $BACKUP_DIR"
 warn "If you use chezmoi (or similar), it may re-apply old dotfiles after this."
 
-bold "\n=== 2) Switch login shell to Bash (disable Zsh as default) ==="
+bold $'\n=== 2) Switch login shell to Bash (disable Zsh as default) ==='
 BASH_PATH="$(command -v bash || true)"
 if [[ -z "${BASH_PATH}" ]]; then
   warn "bash not found in PATH. Aborting."
@@ -106,9 +188,8 @@ else
   ok "Your \$SHELL already points to bash."
 fi
 
-bold "\n=== 3) Install Oh My Bash + enable 'pure' + apply prompt + set terminal colors ==="
+bold $'\n=== 3) Install Oh My Bash + enable pure + apply prompt + install Nerd Font + import terminal colors ==='
 
-# Dependencies
 bold "Installing dependencies (git, curl, wget, dconf-cli if possible)..."
 install_pkgs git curl wget dconf-cli
 
@@ -126,6 +207,11 @@ fi
 # Ensure ~/.bashrc exists
 touch "$HOME/.bashrc"
 
+# Persist silence deprecation warning (macOS) in bashrc (instead of exporting only in this script)
+if ! grep -qE '^[[:space:]]*export[[:space:]]+BASH_SILENCE_DEPRECATION_WARNING=' "$HOME/.bashrc" 2>/dev/null; then
+  printf '\nexport BASH_SILENCE_DEPRECATION_WARNING=1\n' >> "$HOME/.bashrc"
+fi
+
 # Set Oh My Bash theme to 'pure'
 if grep -qE '^[[:space:]]*OSH_THEME=' "$HOME/.bashrc"; then
   sed -i.bak -E 's|^[[:space:]]*OSH_THEME=.*$|OSH_THEME="pure"|' "$HOME/.bashrc"
@@ -134,9 +220,7 @@ else
 fi
 
 # Append our "Pure-style 2-line prompt" override (matches screenshot layout)
-# We do this AFTER Oh My Bash loads so it can't overwrite the prompt.
 MARK_BEGIN="# >>> pure-screenshot-prompt (managed) >>>"
-MARK_END="# <<< pure-screenshot-prompt (managed) <<<"
 if ! grep -qF "$MARK_BEGIN" "$HOME/.bashrc"; then
   cat >> "$HOME/.bashrc" <<'EOF'
 
@@ -184,39 +268,32 @@ fi
 EOF
 fi
 
-# Apply GNOME Terminal color profile automatically (if possible)
-if have gsettings && have dconf; then
-  default_profile="$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")" || true
-  if [[ -n "${default_profile:-}" && "${default_profile:-}" != "''" ]]; then
-    bold "Applying GNOME Terminal colors to default profile: $default_profile"
-    base="/org/gnome/terminal/legacy/profiles:/:${default_profile}/"
-
-    dconf write "${base}use-theme-colors" "false" || true
-    dconf write "${base}use-theme-background" "false" || true
-    dconf write "${base}background-color" "'$BG'" || true
-    dconf write "${base}foreground-color" "'$FG'" || true
-    dconf write "${base}bold-color-same-as-fg" "true" || true
-    dconf write "${base}cursor-colors-set" "true" || true
-    dconf write "${base}cursor-background-color" "'$FG'" || true
-    dconf write "${base}cursor-foreground-color" "'$BG'" || true
-
-    # Full 16-color palette:
-    # Exact-matched slots: background/foreground/cursor + brightBlack + cyan + magenta + whites
-    # Other slots are conservative defaults (not visible in your screenshot).
-    palette="[
-      '$BG', '$MG', '$CY', '$FG', '$CY', '$MG', '$CY', '$FG',
-      '$BB', '$MG', '$CY', '$FG', '$CY', '$MG', '$CY', '$FG'
-    ]"
-    dconf write "${base}palette" "${palette}" || true
-    ok "GNOME Terminal color profile updated."
+# --- Nerd Font install (moved BEFORE terminal theme import) ---
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  if command -v brew >/dev/null 2>&1; then
+    bold "Installing Nerd Font (JetBrainsMono Nerd Font) via Homebrew..."
+    brew install --cask font-jetbrains-mono-nerd-font || true
   else
-    warn "GNOME Terminal profile not detected; skipping auto color setup."
+    warn "Homebrew not found. Install a Nerd Font manually (JetBrainsMono Nerd Font) on macOS."
   fi
-else
-  warn "gsettings/dconf not found; skipping GNOME Terminal auto color setup."
 fi
 
-bold "\n=== Done ==="
+# 3a) Prefer importing GNOME Terminal colors from Basic.terminal (same folder as this script)
+IMPORTED_BASIC_PROFILE=0
+if import_basic_terminal_profile "$BASIC_TERMINAL_FILE"; then
+  IMPORTED_BASIC_PROFILE=1
+  ok "Basic.terminal imported. Close/reopen GNOME Terminal to see changes."
+else
+  warn "Basic.terminal not found (expected: $BASIC_TERMINAL_FILE) or dconf/gsettings missing."
+  warn "Falling back to manual GNOME Terminal color setup."
+fi
+
+# 3b) Manual GNOME Terminal color setup (fallback only)
+if (( IMPORTED_BASIC_PROFILE == 0 )); then
+  apply_gnome_terminal_colors_manual
+fi
+
+bold $'\n=== Done ==='
 ok "1) Close ALL terminals and reopen."
 ok "2) Log out/in to ensure your login shell is bash."
 ok "3) Verify:"
@@ -229,14 +306,3 @@ warn "If you want to restore: copy files back from that folder into \$HOME."
 # That suppresses the “Last login” banner in new Terminal sessions.
 touch ~/.hushlogin
 
-export BASH_SILENCE_DEPRECATION_WARNING=1
-
-
-# --- Nerd Font install ---
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  if command -v brew >/dev/null 2>&1; then
-    brew install --cask font-jetbrains-mono-nerd-font || true
-  else
-    echo "Homebrew not found. Install a Nerd Font manually (JetBrainsMono Nerd Font) on macOS."
-  fi
-fi
