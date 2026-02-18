@@ -105,3 +105,10 @@ echo "To apply tmux config immediately in an existing tmux session, run:"
 echo "  tmux source-file ~/.tmux.conf"
 echo "Or restart tmux."
 
+echo "Install the Codex CLI with Homebrew."
+brew install codex
+echo "✅ Done."
+
+echo "Install the btop with Homebrew."
+brew install btop
+echo "✅ Done."
