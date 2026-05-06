@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ====== Settings (the exact colors you requested) ======
-BG="#2D2D2D"
-FG="#EBE0BB"
-BB="#767676"        # bright black (used for user@host)
-CY="#68847F"        # cyan/teal (used for path)
-MG="#A9758C"        # magenta/pink (used for prompt symbol)
-# =======================================================
-
 ts="$(date +%Y%m%d%H%M%S)"
 BACKUP_DIR="$HOME/.shell-reset-backup/$ts"
 mkdir -p "$BACKUP_DIR"
@@ -53,88 +45,6 @@ install_pkgs() {
   else
     warn "No supported package manager detected. Install dependencies manually: git curl wget dconf-cli"
   fi
-}
-
-# --- Hex (#RRGGBB) -> GNOME Terminal rgb(r,g,b) ---
-hex_to_rgb() {
-  local h="${1#\#}"
-  [[ ${#h} -eq 6 ]] || { echo "rgb(0,0,0)"; return 0; }
-  local r="${h:0:2}" g="${h:2:2}" b="${h:4:2}"
-  printf "rgb(%d,%d,%d)" "$((16#$r))" "$((16#$g))" "$((16#$b))"
-}
-
-# --- Import GNOME Terminal profiles from Basic.terminal (same directory as this script) ---
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-BASIC_TERMINAL_FILE="$SCRIPT_DIR/Basic.terminal"
-
-import_basic_terminal_profile() {
-  local f="$1"
-  [[ -f "$f" ]] || return 1
-  have dconf || return 1
-  have gsettings || return 1
-
-  bold "Found: $f"
-  bold "Backing up current GNOME Terminal profiles..."
-  dconf dump /org/gnome/terminal/legacy/profiles:/ > "$BACKUP_DIR/gnome-terminal-profiles.before.dconf" 2>/dev/null || true
-
-  bold "Importing GNOME Terminal profile(s) via: dconf load /org/gnome/terminal/legacy/profiles:/ < $f"
-  dconf load /org/gnome/terminal/legacy/profiles:/ < "$f"
-
-  # If the imported dump contains a profile with visible-name 'Basic', set it as default.
-  local entry uuid name
-  while read -r entry; do
-    uuid="${entry#:}"; uuid="${uuid%/}"
-    name="$(dconf read "/org/gnome/terminal/legacy/profiles:/:$uuid/visible-name" 2>/dev/null | tr -d "'")" || true
-    if [[ "$name" == "Basic" ]]; then
-      gsettings set org.gnome.Terminal.ProfilesList default "'$uuid'" || true
-      ok "Set GNOME Terminal default profile to: Basic ($uuid)"
-      return 0
-    fi
-  done < <(dconf list /org/gnome/terminal/legacy/profiles:/ 2>/dev/null || true)
-
-  ok "Imported profile(s). (No visible-name='Basic' found to auto-set default.)"
-  return 0
-}
-
-apply_gnome_terminal_colors_manual() {
-  have gsettings || { warn "gsettings not found; skipping GNOME Terminal setup."; return 0; }
-  have dconf     || { warn "dconf not found; skipping GNOME Terminal setup."; return 0; }
-
-  local default_profile
-  default_profile="$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")" || true
-  if [[ -z "${default_profile:-}" || "${default_profile:-}" == "''" ]]; then
-    warn "GNOME Terminal default profile not detected; skipping manual color setup."
-    return 0
-  fi
-
-  bold "Applying GNOME Terminal colors to default profile: $default_profile"
-  local base="/org/gnome/terminal/legacy/profiles:/:${default_profile}/"
-
-  local bg_rgb fg_rgb bb_rgb cy_rgb mg_rgb
-  bg_rgb="$(hex_to_rgb "$BG")"
-  fg_rgb="$(hex_to_rgb "$FG")"
-  bb_rgb="$(hex_to_rgb "$BB")"
-  cy_rgb="$(hex_to_rgb "$CY")"
-  mg_rgb="$(hex_to_rgb "$MG")"
-
-  dconf write "${base}use-theme-colors" "false" || true
-  dconf write "${base}use-theme-background" "false" || true
-  dconf write "${base}background-color" "'$bg_rgb'" || true
-  dconf write "${base}foreground-color" "'$fg_rgb'" || true
-  dconf write "${base}bold-color-same-as-fg" "true" || true
-  dconf write "${base}cursor-colors-set" "true" || true
-  dconf write "${base}cursor-background-color" "'$fg_rgb'" || true
-  dconf write "${base}cursor-foreground-color" "'$bg_rgb'" || true
-
-  # 16-color palette as rgb(...) strings (GNOME Terminal expects rgb format)
-  local palette
-  palette="[
-    '$bg_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb', '$cy_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb',
-    '$bb_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb', '$cy_rgb', '$mg_rgb', '$cy_rgb', '$fg_rgb'
-  ]"
-  dconf write "${base}palette" "${palette}" || true
-
-  ok "GNOME Terminal color profile updated (manual fallback)."
 }
 
 bold "=== 1) Reset Bash/Zsh customizations (backup + clean start) ==="
@@ -231,62 +141,6 @@ fi
 EOF
 fi
 
-# Set Oh My Bash theme to 'pure'
-if grep -qE '^[[:space:]]*OSH_THEME=' "$HOME/.bashrc"; then
-  sed -i.bak -E 's|^[[:space:]]*OSH_THEME=.*$|OSH_THEME="pure"|' "$HOME/.bashrc"
-else
-  printf '\nOSH_THEME="pure"\n' >> "$HOME/.bashrc"
-fi
-
-# Append our "Pure-style 2-line prompt" override (matches screenshot layout)
-MARK_BEGIN="# >>> pure-screenshot-prompt (managed) >>>"
-if ! grep -qF "$MARK_BEGIN" "$HOME/.bashrc"; then
-  cat >> "$HOME/.bashrc" <<'EOF'
-
-# >>> pure-screenshot-prompt (managed) >>>
-# This overrides PS1 to match the 2-line Pure-style look:
-#   user@host  ~/path (gitbranch)
-#   ❯
-__pureish_git_branch() {
-  command -v git >/dev/null 2>&1 || return 0
-  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-  git branch --show-current 2>/dev/null || true
-}
-
-__pureish_prompt() {
-  local exit_code=$?
-  local c_reset="\[$(tput sgr0)\]"
-  local c_bb="\[$(tput setaf 8)\]"     # bright black
-  local c_cy="\[$(tput setaf 6)\]"     # cyan
-  local c_mg="\[$(tput setaf 13)\]"    # bright magenta
-  local c_rd="\[$(tput setaf 1)\]"     # red
-
-  local userhost="${c_bb}\u@\h${c_reset}"
-  local path="${c_cy}\w${c_reset}"
-
-  local gitb="$(__pureish_git_branch)"
-  local gitpart=""
-  if [[ -n "$gitb" ]]; then
-    gitpart=" ${c_bb}${gitb}${c_reset}"
-  fi
-
-  local sym_color="$c_mg"
-  if [[ $exit_code -ne 0 ]]; then sym_color="$c_rd"; fi
-
-  PS1="${userhost} ${path}${gitpart}\n${sym_color}❯${c_reset} "
-}
-
-# Chain after any existing PROMPT_COMMAND, and run our prompt last.
-__PUREISH_OLD_PROMPT_COMMAND="${PROMPT_COMMAND-}"
-if [[ -n "${__PUREISH_OLD_PROMPT_COMMAND}" ]]; then
-  PROMPT_COMMAND="${__PUREISH_OLD_PROMPT_COMMAND}; __pureish_prompt"
-else
-  PROMPT_COMMAND="__pureish_prompt"
-fi
-# <<< pure-screenshot-prompt (managed) <<<
-EOF
-fi
-
 # --- Nerd Font install (before terminal theme import) ---
 if [[ "$(uname -s)" == "Darwin" ]]; then
   if command -v brew >/dev/null 2>&1; then
@@ -297,20 +151,6 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   fi
 fi
 
-# 3a) Prefer importing GNOME Terminal colors from Basic.terminal (same folder as this script)
-IMPORTED_BASIC_PROFILE=0
-if import_basic_terminal_profile "$BASIC_TERMINAL_FILE"; then
-  IMPORTED_BASIC_PROFILE=1
-  ok "Basic.terminal imported. Close/reopen GNOME Terminal to see changes."
-else
-  warn "Basic.terminal not found (expected: $BASIC_TERMINAL_FILE) or dconf/gsettings missing."
-  warn "Falling back to manual GNOME Terminal color setup."
-fi
-
-# 3b) Manual GNOME Terminal color setup (fallback only)
-if (( IMPORTED_BASIC_PROFILE == 0 )); then
-  apply_gnome_terminal_colors_manual
-fi
 
 bold $'\n=== Done ==='
 ok "1) Close ALL terminals and reopen."
