@@ -24,7 +24,7 @@ brew tap hashicorp/tap
 brew install hashicorp/tap/terraform
 
 echo "==> Installing Alacritty..."
-brew install --cask alacritty
+brew install --cask --force alacritty
 
 echo "==> Installing Lazygit ..."
 brew install lazygit ripgrep fd
@@ -69,6 +69,9 @@ family = "JetBrainsMono Nerd Font"
 [cursor]
 style = "Beam"
 thickness = 0.45
+
+[terminal]
+shell = { program = "${TMUX_BIN}", args = ["new-session", "-A", "-s", "main"] }
 ALACRITTY
 
 echo "==> Setting Alacritty as main terminal helper..."
@@ -150,16 +153,24 @@ Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
 
 call plug#end()
 
-" ===== Telescope keymaps =====
+let mapleader = " "
+
+" ===== Telescope / Neo-tree / LazyGit config =====
 lua << EOF
-local builtin = require('telescope.builtin')
+local ok_telescope, builtin = pcall(require, 'telescope.builtin')
 
-vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Find files' })
-vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Search text' })
-vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Find buffers' })
-vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Find help' })
+if ok_telescope then
+  vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Find files' })
+  vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Search text' })
+  vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Find buffers' })
+  vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Find help' })
+end
 
-require('neo-tree').setup({})
+local ok_neotree, neotree = pcall(require, 'neo-tree')
+
+if ok_neotree then
+  neotree.setup({})
+end
 EOF
 
 " ===== Neo-tree keymap =====
