@@ -173,17 +173,19 @@ __codex_answer () {
 
   if [ $# -gt 0 ]; then
     codex --ask-for-approval never exec \
+      --model gpt-5.5 \
+      -c model_reasoning_effort=\"medium\" \
       --sandbox read-only \
       --skip-git-repo-check \
-      --ephemeral \
       --output-last-message "$out" \
       "$*" \
       >/dev/null 2>"$err"
   else
     codex --ask-for-approval never exec \
+      --model gpt-5.5 \
+      -c model_reasoning_effort=\"medium\" \
       --sandbox read-only \
       --skip-git-repo-check \
-      --ephemeral \
       --output-last-message "$out" \
       - \
       >/dev/null 2>"$err"
