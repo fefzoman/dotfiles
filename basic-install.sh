@@ -167,6 +167,7 @@ set -g status-style "bg=default,fg=white"
 setw -g window-status-style "bg=default,fg=white"
 setw -g window-status-current-style "bg=default,fg=cyan"
 set -g message-style "bg=default,fg=white"
+set -g status-right ""
 
 # Vertical split: Prefix + ,
 unbind '"'
