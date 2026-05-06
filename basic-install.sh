@@ -161,12 +161,6 @@ Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
 
 call plug#end()
 
-"insert mode = beam
-let &t_SI = "\\e[6 q"
-
-"normal mode = block
-let &t_EI = "\\e[2 q"
-
 let mapleader = " "
 
 " ===== Telescope / Neo-tree / LazyGit config =====
@@ -226,19 +220,15 @@ setw -g window-status-current-style "bg=default,fg=cyan"
 set -g message-style "bg=default,fg=white"
 set -g status-right ""
 
-# Vertical split: Prefix + ,
-unbind '"'
-bind , split-window -h
+# Pane movement: Prefix + arrow keys
+bind-key -r Left  select-pane -L
+bind-key -r Right select-pane -R
+bind-key -r Up    select-pane -U
+bind-key -r Down  select-pane -D
 
-# Horizontal split: Prefix + .
-unbind %
-bind . split-window -v
+# Kill current session: Prefix + k
+bind k confirm-before -p "kill session #S? (y/n)" kill-session
 
-# Cursor shape inside tmux
-set -g cursor-style bar
-
-# Let apps like Neovim change cursor shape correctly inside tmux
-set -ga terminal-overrides ",*:Ss=\E[%p1%d q:Se=\E[2 q"
 TMUXCONF
 
 echo ""
