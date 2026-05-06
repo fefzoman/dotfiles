@@ -26,6 +26,9 @@ brew install hashicorp/tap/terraform
 echo "==> Installing Alacritty..."
 brew install --cask alacritty
 
+echo "==> Installing Lazygit ..."
+brew install lazygit ripgrep fd
+
 echo "==> Installing JetBrainsMono Nerd Font..."
 brew install --cask font-jetbrains-mono-nerd-font
 
@@ -131,8 +134,19 @@ call plug#begin('~/.local/share/nvim/plugged')
 
 Plug 'vim-airline/vim-airline'
 Plug 'ashfinal/vim-colors-violet'
-Plug 'preservim/nerdtree'
 Plug 'ryanoasis/vim-devicons'
+
+" = Telescope =
+Plug 'nvim-lua/plenary.nvim'
+Plug 'nvim-telescope/telescope.nvim', { 'tag': '*' }
+
+" = LazyGit inside Neovim =
+Plug 'kdheepak/lazygit.nvim'
+
+" = Neo-tree =
+Plug 'MunifTanjim/nui.nvim'
+Plug 'nvim-tree/nvim-web-devicons'
+Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
 
 call plug#end()
 
