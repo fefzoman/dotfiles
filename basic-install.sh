@@ -47,7 +47,14 @@ if [[ -f "${HOME}/.config/alacritty/alacritty.toml" ]]; then
   cp "${HOME}/.config/alacritty/alacritty.toml" "${HOME}/.config/alacritty/alacritty.toml.bak.$(date +%Y%m%d%H%M%S)"
 fi
 
-cat > "${HOME}/.config/alacritty/alacritty.toml" <<'ALACRITTY'
+TMUX_BIN="$(command -v tmux)"
+
+if [[ -z "${TMUX_BIN}" ]]; then
+  echo "tmux was not found. Install tmux first."
+  exit 1
+fi
+
+cat > "${HOME}/.config/alacritty/alacritty.toml" <<ALACRITTY
 [general]
 import = [
   "~/.config/alacritty/themes/themes/gruvbox_dark.toml"
