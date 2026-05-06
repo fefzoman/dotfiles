@@ -74,8 +74,9 @@ foreground = "#BAB7AD"
 family = "JetBrainsMono Nerd Font"
 
 [cursor]
-style = "Beam"
+style = { shape = "Beam", blinking = "Off" }
 thickness = 0.45
+unfocused_hollow = false
 
 [terminal]
 shell = { program = "${TMUX_BIN}", args = ["new-session", "-A", "-s", "main"] }
@@ -160,6 +161,12 @@ Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
 
 call plug#end()
 
+"insert mode = beam
+let &t_SI = "\\e[6 q"
+
+"normal mode = block
+let &t_EI = "\\e[2 q"
+
 let mapleader = " "
 
 " ===== Telescope / Neo-tree / LazyGit config =====
@@ -226,6 +233,12 @@ bind , split-window -h
 # Horizontal split: Prefix + .
 unbind %
 bind . split-window -v
+
+# Cursor shape inside tmux
+set -g cursor-style bar
+
+# Let apps like Neovim change cursor shape correctly inside tmux
+set -ga terminal-overrides ",*:Ss=\E[%p1%d q:Se=\E[2 q"
 TMUXCONF
 
 echo ""
