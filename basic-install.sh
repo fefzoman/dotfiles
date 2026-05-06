@@ -150,6 +150,24 @@ Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
 
 call plug#end()
 
+" ===== Telescope keymaps =====
+lua << EOF
+local builtin = require('telescope.builtin')
+
+vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Find files' })
+vim.keymap.set('n', '<leader>fg', builtin.live_grep, { desc = 'Search text' })
+vim.keymap.set('n', '<leader>fb', builtin.buffers, { desc = 'Find buffers' })
+vim.keymap.set('n', '<leader>fh', builtin.help_tags, { desc = 'Find help' })
+
+require('neo-tree').setup({})
+EOF
+
+" ===== Neo-tree keymap =====
+nnoremap <leader>e :Neotree toggle<CR>
+
+" ===== LazyGit keymap =====
+nnoremap <leader>lg :LazyGit<CR>
+
 " ===== Theme =====
 if !empty(globpath(&rtp, 'colors/violet.vim'))
   colorscheme violet
