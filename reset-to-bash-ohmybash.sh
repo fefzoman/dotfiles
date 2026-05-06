@@ -199,4 +199,4 @@ __codex_answer () {
 }
 
 alias '??'='__codex_answer'
-
+alias tf='terraform'
