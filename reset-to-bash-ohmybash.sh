@@ -216,6 +216,50 @@ fi
 EOF
 fi
 
+cat >> "$HOME/.bashrc" <<'EOF'
+
+__codex_answer () {
+  local d out err rc
+  d="$(mktemp -d -t codex.XXXXXX)"
+  out="$d/answer.txt"
+  err="$d/stderr.log"
+
+  if [ $# -gt 0 ]; then
+    codex --ask-for-approval never exec \
+      --model gpt-5.4-mini \
+      -c model_reasoning_effort=\"medium\" \
+      --sandbox read-only \
+      --skip-git-repo-check \
+      --output-last-message "$out" \
+      "$*" \
+      >/dev/null 2>"$err"
+  else
+    codex --ask-for-approval never exec \
+      --model gpt-5.4-mini \
+      -c model_reasoning_effort=\"medium\" \
+      --sandbox read-only \
+      --skip-git-repo-check \
+      --output-last-message "$out" \
+      - \
+      >/dev/null 2>"$err"
+  fi
+
+  rc=$?
+  [ -s "$out" ] && cat "$out"
+  if [ $rc -ne 0 ] && [ -s "$err" ]; then
+    cat "$err" >&2
+  fi
+  rm -rf "$d"
+  return $rc
+}
+
+alias '??'='__codex_answer'
+alias tf='terraform'
+alias v='nvim'
+
+EOF
+
+
 # --- Nerd Font install (before terminal theme import) ---
 if [[ "$(uname -s)" == "Darwin" ]]; then
   if command -v brew >/dev/null 2>&1; then
@@ -239,42 +283,3 @@ warn "If you want to restore: copy files back from that folder into \$HOME."
 
 # That suppresses the “Last login” banner in new Terminal sessions.
 touch ~/.hushlogin
-
-__codex_answer () {
-  local d out err rc
-  d="$(mktemp -d -t codex.XXXXXX)"
-  out="$d/answer.txt"
-  err="$d/stderr.log"
-
-  if [ $# -gt 0 ]; then
-    codex --ask-for-approval never exec \
-      --model gpt-5.5 \
-      -c model_reasoning_effort=\"medium\" \
-      --sandbox read-only \
-      --skip-git-repo-check \
-      --output-last-message "$out" \
-      "$*" \
-      >/dev/null 2>"$err"
-  else
-    codex --ask-for-approval never exec \
-      --model gpt-5.5 \
-      -c model_reasoning_effort=\"medium\" \
-      --sandbox read-only \
-      --skip-git-repo-check \
-      --output-last-message "$out" \
-      - \
-      >/dev/null 2>"$err"
-  fi
-
-  rc=$?
-  [ -s "$out" ] && cat "$out"
-  if [ $rc -ne 0 ] && [ -s "$err" ]; then
-    cat "$err" >&2
-  fi
-  rm -rf "$d"
-  return $rc
-}
-
-alias '??'='__codex_answer'
-alias tf='terraform'
-alias v='nvim'
