@@ -155,9 +155,9 @@ function _omb_theme_PROMPT_COMMAND() {
   local ret_status
 
   if [[ ${RC} == 0 ]]; then
-    ret_status="${_omb_prompt_purple}➤"
+    ret_status="${_omb_prompt_purple}⇝"
   else
-    ret_status="${_omb_prompt_brown}➤"
+    ret_status="${_omb_prompt_brown}⇝"
   fi
 
   history -a

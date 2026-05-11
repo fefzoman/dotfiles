@@ -65,13 +65,19 @@ decorations = "Buttonless"
 padding = { x = 10, y = 10 }
 
 [font]
-size = 16
+size = 15
 
 [colors.primary]
 foreground = "#BAB7AD"
 
 [font.normal]
 family = "JetBrainsMono Nerd Font"
+style = "Regular"
+
+[font.bold]
+family = "JetBrainsMono Nerd Font"
+style = "Bold"
+
 
 [cursor]
 style = { shape = "Beam", blinking = "Off" }
