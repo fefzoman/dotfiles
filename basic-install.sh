@@ -232,6 +232,10 @@ bind-key -r Right select-pane -R
 bind-key -r Up    select-pane -U
 bind-key -r Down  select-pane -D
 
+# Pane splits: Prefix + , / .
+bind-key , split-window -h
+bind-key . split-window -v
+
 # Kill current session: Prefix + k
 bind k confirm-before -p "kill session #S? (y/n)" kill-session
 
