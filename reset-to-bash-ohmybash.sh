@@ -121,7 +121,6 @@ THEME_SHOW_CLOCK=${THEME_SHOW_CLOCK:-"true"}
 THEME_CLOCK_COLOR=${THEME_CLOCK_COLOR:-"$_omb_prompt_gray"}
 THEME_CLOCK_FORMAT=${THEME_CLOCK_FORMAT:-"%I:%M:%S"}
 OMB_PROMPT_VIRTUALENV_FORMAT='(%s) '
-OMB_PROMPT_CONDAENV_FORMAT='(%s) '
 OMB_PROMPT_SHOW_PYTHON_VENV=${OMB_PROMPT_SHOW_PYTHON_VENV:=true}
 
 function _omb_theme_git_branch_suffix() {
@@ -168,6 +167,24 @@ _omb_util_add_prompt_command _omb_theme_PROMPT_COMMAND
 EOF
 }
 
+write_extra_completions() {
+  local custom_dir="$HOME/.oh-my-bash/custom"
+
+  mkdir -p "$custom_dir"
+
+  cat > "$custom_dir/codex-completions.sh" <<'EOF'
+#! bash oh-my-bash.module
+#
+# Extra completions for cloud, Terraform, Kubernetes, and Python tooling.
+#
+
+if declare -F _omb_module_require_completion >/dev/null 2>&1; then
+  _omb_module_require_completion awscli terraform kubectl helm minikube pip pip3 uv
+fi
+
+EOF
+}
+
 # Install Oh My Bash (official installer)
 if [[ ! -d "$HOME/.oh-my-bash" ]]; then
   bold "Installing Oh My Bash..."
@@ -180,6 +197,7 @@ else
 fi
 
 write_two_line_font_theme
+write_extra_completions
 
 # Ensure ~/.bashrc exists
 touch "$HOME/.bashrc"
@@ -258,6 +276,22 @@ alias tf='terraform'
 alias v='nvim'
 
 EOF
+
+if ! grep -q "BEGIN CODEX READLINE KEYBINDINGS" "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" <<'EOF'
+
+# BEGIN CODEX READLINE KEYBINDINGS
+if [[ $- == *i* ]]; then
+  bind '"\e[1;5D": backward-word'
+  bind '"\e[5D": backward-word'
+  bind '"\e[1;5C": forward-word'
+  bind '"\e[5C": forward-word'
+  bind '"\e[1;3D": backward-word'
+  bind '"\e[1;3C": forward-word'
+fi
+# END CODEX READLINE KEYBINDINGS
+EOF
+fi
 
 
 # --- Nerd Font install (before terminal theme import) ---
