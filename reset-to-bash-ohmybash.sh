@@ -277,6 +277,20 @@ alias v='nvim'
 
 EOF
 
+if ! grep -q "BEGIN MAIN TERMINAL SETUP" "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" <<'EOF'
+
+# BEGIN MAIN TERMINAL SETUP
+export PATH="$HOME/.local/bin:$PATH"
+export TERMINAL="alacritty"
+
+alias term="alacritty"
+alias terminal="alacritty"
+alias alac="alacritty"
+# END MAIN TERMINAL SETUP
+EOF
+fi
+
 if ! grep -q "BEGIN CODEX READLINE KEYBINDINGS" "$HOME/.bashrc" 2>/dev/null; then
   cat >> "$HOME/.bashrc" <<'EOF'
 

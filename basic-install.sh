@@ -16,6 +16,125 @@ fi
 echo "==> Updating Homebrew..."
 brew update
 
+# Python's current security-only branch is 3.12 on the official status page:
+# https://devguide.python.org/versions/
+TARGET_PYTHON_MAJOR=3
+TARGET_PYTHON_MINOR=12
+TARGET_PYTHON_FORMULA="python@${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+FORCE_REMOVE_PYTHON=${FORCE_REMOVE_PYTHON:-0}
+
+python_version_at_least_target() {
+  local version="$1"
+  local major minor patch
+
+  IFS=. read -r major minor patch <<<"$version"
+  [[ -n "${major:-}" && -n "${minor:-}" ]] || return 1
+
+  if (( major > TARGET_PYTHON_MAJOR )); then
+    return 0
+  fi
+
+  if (( major < TARGET_PYTHON_MAJOR )); then
+    return 1
+  fi
+
+  (( minor >= TARGET_PYTHON_MINOR ))
+}
+
+current_python_version() {
+  local py_cmd
+
+  for py_cmd in python python3; do
+    if command -v "$py_cmd" >/dev/null 2>&1; then
+      "$py_cmd" --version 2>&1 | awk '{print $2}'
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+install_python_runtime() {
+  local current_version=""
+  local python_prefix python_bin
+
+  current_version="$(current_python_version 2>/dev/null || true)"
+
+  if [[ -n "$current_version" ]] && python_version_at_least_target "$current_version"; then
+    echo "==> Python ${current_version} is already at or above the security target ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}."
+  else
+    echo "==> Python ${current_version:-missing} is below the security target ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}."
+  fi
+
+  echo "==> Installing Python ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}..."
+  brew install "$TARGET_PYTHON_FORMULA"
+
+  echo "==> Removing other user-managed Python installs..."
+
+  if command -v pyenv >/dev/null 2>&1; then
+    while IFS= read -r py_version; do
+      [[ -n "$py_version" ]] || continue
+      pyenv uninstall -f "$py_version" || true
+    done < <(pyenv versions --bare 2>/dev/null | grep -v '^system$' || true)
+  fi
+
+  while IFS= read -r formula; do
+    [[ -n "$formula" ]] || continue
+    [[ "$formula" == "$TARGET_PYTHON_FORMULA" ]] && continue
+    if [[ "$FORCE_REMOVE_PYTHON" == "1" ]]; then
+      brew uninstall --ignore-dependencies "$formula" || true
+      continue
+    fi
+
+    local local_dependents=""
+    local_dependents="$(brew uses --installed --formula "$formula" 2>/dev/null || true)"
+    if [[ -n "$local_dependents" ]]; then
+      echo "==> Skipping $formula; required by: ${local_dependents//$'\n'/, }"
+      continue
+    fi
+
+    brew uninstall "$formula" || true
+  done < <(brew list --formula 2>/dev/null | grep -E '^python(@|$)' || true)
+
+  python_prefix="$(brew --prefix "$TARGET_PYTHON_FORMULA")"
+  python_bin="${python_prefix}/bin/python${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+
+  if [[ ! -x "$python_bin" ]]; then
+    echo "Expected Python binary is missing: $python_bin" >&2
+    exit 1
+  fi
+
+  mkdir -p "${HOME}/.local/bin"
+
+  cat > "${HOME}/.local/bin/python" <<EOF
+#!/usr/bin/env bash
+exec "${python_bin}" "\$@"
+EOF
+  chmod +x "${HOME}/.local/bin/python"
+
+  cat > "${HOME}/.local/bin/pip" <<EOF
+#!/usr/bin/env bash
+exec "${python_bin}" -m pip "\$@"
+EOF
+  chmod +x "${HOME}/.local/bin/pip"
+
+  cat > "${HOME}/.local/bin/python3" <<EOF
+#!/usr/bin/env bash
+exec "${python_bin}" "\$@"
+EOF
+  chmod +x "${HOME}/.local/bin/python3"
+
+  cat > "${HOME}/.local/bin/pip3" <<EOF
+#!/usr/bin/env bash
+exec "${python_bin}" -m pip "\$@"
+EOF
+  chmod +x "${HOME}/.local/bin/pip3"
+
+  echo "==> Python shims installed: python, pip, python3, pip3 -> ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+}
+
+install_python_runtime
+
 echo "==> Installing CLI tools..."
 brew install tmux neovim git curl btop codex
 
