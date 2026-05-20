@@ -114,7 +114,7 @@ EOF
 
   cat > "${HOME}/.local/bin/pip" <<EOF
 #!/usr/bin/env bash
-exec "${python_bin}" -m pip "\$@"
+exec env PIP_BREAK_SYSTEM_PACKAGES=1 "${python_bin}" -m pip "\$@"
 EOF
   chmod +x "${HOME}/.local/bin/pip"
 
@@ -126,11 +126,19 @@ EOF
 
   cat > "${HOME}/.local/bin/pip3" <<EOF
 #!/usr/bin/env bash
-exec "${python_bin}" -m pip "\$@"
+exec env PIP_BREAK_SYSTEM_PACKAGES=1 "${python_bin}" -m pip "\$@"
 EOF
   chmod +x "${HOME}/.local/bin/pip3"
 
+  mkdir -p "${HOME}/.config/pip" "${HOME}/.pip"
+  cat > "${HOME}/.config/pip/pip.conf" <<'EOF'
+[global]
+break-system-packages = true
+EOF
+  cp "${HOME}/.config/pip/pip.conf" "${HOME}/.pip/pip.conf"
+
   echo "==> Python shims installed: python, pip, python3, pip3 -> ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+  echo "==> Pip config set: break-system-packages = true"
 }
 
 install_python_runtime
