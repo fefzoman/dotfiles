@@ -47,6 +47,40 @@ install_pkgs() {
   fi
 }
 
+latest_stable_bash_path() {
+  local brew_bash
+
+  if have brew; then
+    brew update >/dev/null 2>&1 || true
+    brew install bash >/dev/null 2>&1 || true
+    brew upgrade bash >/dev/null 2>&1 || true
+    brew_bash="$(brew --prefix bash 2>/dev/null || true)"
+    if [[ -n "$brew_bash" && -x "${brew_bash}/bin/bash" ]]; then
+      printf '%s\n' "${brew_bash}/bin/bash"
+      return 0
+    fi
+  fi
+
+  command -v bash || true
+}
+
+ensure_login_shell_registered() {
+  local shell_path="$1"
+
+  [[ -f /etc/shells ]] || return 0
+  grep -Fxq "$shell_path" /etc/shells 2>/dev/null && return 0
+
+  bold "Registering login shell: $shell_path"
+  if [[ -w /etc/shells ]]; then
+    printf '%s\n' "$shell_path" >> /etc/shells
+  elif have sudo; then
+    printf '%s\n' "$shell_path" | sudo tee -a /etc/shells >/dev/null
+  else
+    warn "Cannot update /etc/shells. Run manually:"
+    warn "  echo '$shell_path' | sudo tee -a /etc/shells"
+  fi
+}
+
 bold "=== 1) Reset Bash/Zsh customizations (backup + clean start) ==="
 # Bash dotfiles
 move_to_backup "$HOME/.bashrc"
@@ -76,11 +110,13 @@ ok "Backups stored in: $BACKUP_DIR"
 warn "If you use chezmoi (or similar), it may re-apply old dotfiles after this."
 
 bold $'\n=== 2) Switch login shell to Bash (disable Zsh as default) ==='
-BASH_PATH="$(command -v bash || true)"
+BASH_PATH="$(latest_stable_bash_path)"
 if [[ -z "${BASH_PATH}" ]]; then
   warn "bash not found in PATH. Aborting."
   exit 1
 fi
+
+ensure_login_shell_registered "$BASH_PATH"
 
 if [[ "${SHELL:-}" != "$BASH_PATH" ]]; then
   if have chsh; then

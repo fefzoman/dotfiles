@@ -143,6 +143,10 @@ EOF
 
 install_python_runtime
 
+echo "==> Installing latest stable Bash..."
+brew install bash
+brew upgrade bash || true
+
 echo "==> Installing CLI tools..."
 brew install tmux neovim git curl btop codex
 

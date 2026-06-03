@@ -30,7 +30,20 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 echo "==> Resetting to Bash + Oh My Bash..."
-bash "$RESET_SCRIPT"
+BASH_BIN="$(command -v bash || true)"
+if command -v brew >/dev/null 2>&1; then
+  BREW_BASH_PREFIX="$(brew --prefix bash 2>/dev/null || true)"
+  if [[ -n "$BREW_BASH_PREFIX" && -x "${BREW_BASH_PREFIX}/bin/bash" ]]; then
+    BASH_BIN="${BREW_BASH_PREFIX}/bin/bash"
+  fi
+fi
+
+if [[ -z "$BASH_BIN" ]]; then
+  echo "bash not found in PATH." >&2
+  exit 1
+fi
+
+"$BASH_BIN" "$RESET_SCRIPT"
 
 echo "==> Combined setup complete."
 
