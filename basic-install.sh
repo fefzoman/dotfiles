@@ -148,7 +148,7 @@ brew install bash
 brew upgrade bash || true
 
 echo "==> Installing CLI tools..."
-brew install tmux neovim git curl btop codex
+brew install tmux neovim git curl btop codex kubectl
 
 echo "==> Installing Terraform..."
 brew tap hashicorp/tap
@@ -296,6 +296,12 @@ Plug 'MunifTanjim/nui.nvim'
 Plug 'nvim-tree/nvim-web-devicons'
 Plug 'nvim-neo-tree/neo-tree.nvim', { 'branch': 'v3.x' }
 
+" = Infrastructure formats =
+Plug 'stephpy/vim-yaml'
+Plug 'andrewstuart/vim-kubernetes'
+Plug 'towolf/vim-helm'
+Plug 'hashivim/vim-terraform'
+
 call plug#end()
 
 let mapleader = " "
@@ -323,6 +329,13 @@ nnoremap <leader>e :Neotree toggle<CR>
 
 " ===== LazyGit keymap =====
 nnoremap <leader>lg :LazyGit<CR>
+
+" ===== Infrastructure filetype defaults =====
+let g:terraform_fmt_on_save = 1
+let g:terraform_align = 1
+autocmd BufRead,BufNewFile *.tf,*.tfvars set filetype=terraform
+autocmd BufRead,BufNewFile *.hcl set filetype=hcl
+autocmd BufRead,BufNewFile Chart.yaml,values.yaml,*.yaml,*.yml set filetype=yaml
 
 " ===== Theme =====
 if !empty(globpath(&rtp, 'colors/violet.vim'))

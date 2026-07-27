@@ -280,7 +280,7 @@ __codex_answer () {
 
   if [ $# -gt 0 ]; then
     codex --ask-for-approval never exec \
-      --model gpt-5.4-mini \
+      --model gpt-5.6-luna \
       -c model_reasoning_effort=\"medium\" \
       --sandbox read-only \
       --skip-git-repo-check \
@@ -289,7 +289,7 @@ __codex_answer () {
       >/dev/null 2>"$err"
   else
     codex --ask-for-approval never exec \
-      --model gpt-5.4-mini \
+      --model gpt-5.6-luna \
       -c model_reasoning_effort=\"medium\" \
       --sandbox read-only \
       --skip-git-repo-check \
@@ -308,6 +308,7 @@ __codex_answer () {
 }
 
 alias '??'='__codex_answer'
+alias k='kubectl'
 alias tf='terraform'
 alias v='nvim'
 
