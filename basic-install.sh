@@ -16,10 +16,10 @@ fi
 echo "==> Updating Homebrew..."
 brew update
 
-# Python's current security-only branch is 3.12 on the official status page:
+# Python's selected security-supported branch is 3.13:
 # https://devguide.python.org/versions/
 TARGET_PYTHON_MAJOR=3
-TARGET_PYTHON_MINOR=12
+TARGET_PYTHON_MINOR=13
 TARGET_PYTHON_FORMULA="python@${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
 FORCE_REMOVE_PYTHON=${FORCE_REMOVE_PYTHON:-0}
 
