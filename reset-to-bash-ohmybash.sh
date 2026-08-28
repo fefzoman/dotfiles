@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
+
 ts="$(date +%Y%m%d%H%M%S)"
 BACKUP_DIR="$HOME/.shell-reset-backup/$ts"
 mkdir -p "$BACKUP_DIR"
@@ -10,40 +13,42 @@ warn() { printf "\033[33m%s\033[0m\n" "$*"; }
 ok()   { printf "\033[32m%s\033[0m\n" "$*"; }
 
 move_to_backup() {
-  local p="$1"
-  if [[ -e "$p" || -L "$p" ]]; then
-    mkdir -p "$BACKUP_DIR/$(dirname "${p#$HOME/}")" 2>/dev/null || true
-    bold "Backing up: $p  ->  $BACKUP_DIR/"
-    mv -f "$p" "$BACKUP_DIR/" || true
-  fi
+  local source="$1" target="$BACKUP_DIR/${1#"$HOME"/}"
+  [[ -e "$source" || -L "$source" ]] || return 0
+  mkdir -p "$(dirname "$target")"
+  bold "Backing up: $source"
+  mv "$source" "$target"
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-install_pkgs() {
-  local pkgs=("$@")
-  local sudo=""
-  if [[ $EUID -ne 0 ]]; then
-    have sudo && sudo="sudo" || sudo=""
-  fi
-
-  if have apt-get; then
-    [[ -n "$sudo" ]] || warn "No sudo found; dependency install may fail."
-    $sudo apt-get update -y || true
-    $sudo apt-get install -y "${pkgs[@]}" || true
-  elif have dnf; then
-    [[ -n "$sudo" ]] || warn "No sudo found; dependency install may fail."
-    $sudo dnf install -y "${pkgs[@]}" || true
-  elif have pacman; then
-    [[ -n "$sudo" ]] || warn "No sudo found; dependency install may fail."
-    $sudo pacman -Sy --noconfirm "${pkgs[@]}" || true
-  elif have zypper; then
-    [[ -n "$sudo" ]] || warn "No sudo found; dependency install may fail."
-    $sudo zypper install -y "${pkgs[@]}" || true
-  elif have brew; then
-    brew install "${pkgs[@]}" || true
+run_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  elif ! have sudo; then
+    warn "sudo is unavailable; skipped: $*"
+    return 1
+  elif [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
+    sudo -n "$@"
   else
-    warn "No supported package manager detected. Install dependencies manually: git curl wget dconf-cli"
+    sudo "$@"
+  fi
+}
+
+install_pkgs() {
+  if have apt-get; then
+    run_root env DEBIAN_FRONTEND=noninteractive apt-get update -y || true
+    run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" || true
+  elif have dnf; then
+    run_root dnf install -y "$@" || true
+  elif have pacman; then
+    run_root pacman -Sy --noconfirm "$@" || true
+  elif have zypper; then
+    run_root zypper install -y "$@" || true
+  elif have brew; then
+    brew install "$@" || true
+  else
+    warn "No supported package manager; install manually: $*"
   fi
 }
 
@@ -51,7 +56,6 @@ latest_stable_bash_path() {
   local brew_bash
 
   if have brew; then
-    brew update >/dev/null 2>&1 || true
     brew install bash >/dev/null 2>&1 || true
     brew upgrade bash >/dev/null 2>&1 || true
     brew_bash="$(brew --prefix bash 2>/dev/null || true)"
@@ -73,59 +77,44 @@ ensure_login_shell_registered() {
   bold "Registering login shell: $shell_path"
   if [[ -w /etc/shells ]]; then
     printf '%s\n' "$shell_path" >> /etc/shells
-  elif have sudo; then
-    printf '%s\n' "$shell_path" | sudo tee -a /etc/shells >/dev/null
+  elif ! printf '%s\n' "$shell_path" | run_root tee -a /etc/shells >/dev/null; then
+    warn "Cannot update /etc/shells; run: echo '$shell_path' | sudo tee -a /etc/shells"
+  fi
+}
+
+change_login_shell() {
+  local shell_path="$1" login_user="${SUDO_USER:-${USER:-$(id -un)}}"
+  if [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
+    run_root chsh -s "$shell_path" "$login_user"
   else
-    warn "Cannot update /etc/shells. Run manually:"
-    warn "  echo '$shell_path' | sudo tee -a /etc/shells"
+    chsh -s "$shell_path"
   fi
 }
 
 bold "=== 1) Reset Bash/Zsh customizations (backup + clean start) ==="
-# Bash dotfiles
-move_to_backup "$HOME/.bashrc"
-move_to_backup "$HOME/.bash_profile"
-move_to_backup "$HOME/.bash_login"
-move_to_backup "$HOME/.profile"
-move_to_backup "$HOME/.inputrc"
-move_to_backup "$HOME/.bash_aliases"
-
-# Zsh dotfiles / frameworks
-move_to_backup "$HOME/.zshrc"
-move_to_backup "$HOME/.zprofile"
-move_to_backup "$HOME/.zshenv"
-move_to_backup "$HOME/.zlogin"
-move_to_backup "$HOME/.zlogout"
-move_to_backup "$HOME/.oh-my-zsh"
-move_to_backup "$HOME/.zinit"
-move_to_backup "$HOME/.antigen"
-move_to_backup "$HOME/.p10k.zsh"
-move_to_backup "$HOME/.config/starship.toml"
-
-# Bash frameworks
-move_to_backup "$HOME/.oh-my-bash"
-move_to_backup "$HOME/.bash_it"
+for path in \
+  .bashrc .bash_profile .bash_login .profile .inputrc .bash_aliases \
+  .zshrc .zprofile .zshenv .zlogin .zlogout .oh-my-zsh .zinit .antigen .p10k.zsh \
+  .config/starship.toml .oh-my-bash .bash_it; do
+  move_to_backup "$HOME/$path"
+done
 
 ok "Backups stored in: $BACKUP_DIR"
 warn "If you use chezmoi (or similar), it may re-apply old dotfiles after this."
 
 bold $'\n=== 2) Switch login shell to Bash (disable Zsh as default) ==='
 BASH_PATH="$(latest_stable_bash_path)"
-if [[ -z "${BASH_PATH}" ]]; then
-  warn "bash not found in PATH. Aborting."
-  exit 1
-fi
+[[ -n "$BASH_PATH" ]] || { warn "bash not found in PATH."; exit 1; }
 
 ensure_login_shell_registered "$BASH_PATH"
 
 if [[ "${SHELL:-}" != "$BASH_PATH" ]]; then
   if have chsh; then
     bold "Attempting: chsh -s $BASH_PATH"
-    if chsh -s "$BASH_PATH" >/dev/null 2>&1; then
+    if change_login_shell "$BASH_PATH" >/dev/null 2>&1; then
       ok "Login shell set to bash. (You must log out/in for it to fully take effect.)"
     else
-      warn "chsh failed (often needs your password or admin policy). Run manually:"
-      warn "  chsh -s $BASH_PATH"
+      warn "chsh needs authentication or admin permission; run: chsh -s $BASH_PATH"
     fi
   else
     warn "chsh not available. Set your default shell to bash manually."
@@ -196,7 +185,9 @@ function _omb_theme_PROMPT_COMMAND() {
   fi
 
   history -a
-  PS1="$(clock_prompt)$python_venv${hostname} ${_omb_prompt_teal}\W${git_branch}\n${ret_status} ${_omb_prompt_normal}"
+  # Keep the prompt and command output thin, but type commands at medium weight.
+  PS1="$(clock_prompt)$python_venv${hostname} ${_omb_prompt_teal}\W${git_branch}\n${ret_status} ${_omb_prompt_normal}\[\e[1m\]"
+  PS0='\[\e[0m\]'
 }
 
 _omb_util_add_prompt_command _omb_theme_PROMPT_COMMAND
@@ -273,11 +264,6 @@ fi
 cat >> "$HOME/.bashrc" <<'EOF'
 
 __codex_answer () {
-  local d out err rc
-  d="$(mktemp -d -t codex.XXXXXX)"
-  out="$d/answer.txt"
-  err="$d/stderr.log"
-
   if [ $# -gt 0 ]; then
     codex --ask-for-approval never exec \
       --model gpt-5.6-luna \

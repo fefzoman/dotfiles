@@ -1,31 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+
+usage() { echo "Usage: $0 [auto-approve]" >&2; exit 2; }
+(( $# <= 1 )) || usage
+[[ $# == 0 || $1 == auto-approve ]] || usage
+
+if [[ ${1:-} == auto-approve ]]; then
+  export DOTFILES_AUTO_APPROVE=1 NONINTERACTIVE=1 DEBIAN_FRONTEND=noninteractive
+fi
+
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASIC_INSTALL="${SCRIPT_DIR}/basic-install.sh"
 RESET_SCRIPT="${SCRIPT_DIR}/reset-to-bash-ohmybash.sh"
 
-if [[ ! -f "$BASIC_INSTALL" ]]; then
-  echo "Missing script: $BASIC_INSTALL" >&2
-  exit 1
-fi
-
-if [[ ! -f "$RESET_SCRIPT" ]]; then
-  echo "Missing script: $RESET_SCRIPT" >&2
-  exit 1
-fi
-
 echo "==> Running basic install..."
 bash "$BASIC_INSTALL"
 
-# If Homebrew was installed during the first step, make it available to this
-# shell before starting the reset step.
 if ! command -v brew >/dev/null 2>&1; then
   for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-    if [[ -x "$brew_bin" ]]; then
-      eval "$("$brew_bin" shellenv)"
-      break
-    fi
+    [[ -x "$brew_bin" ]] || continue
+    eval "$("$brew_bin" shellenv)"
+    break
   done
 fi
 
@@ -33,20 +30,12 @@ echo "==> Resetting to Bash + Oh My Bash..."
 BASH_BIN="$(command -v bash || true)"
 if command -v brew >/dev/null 2>&1; then
   BREW_BASH_PREFIX="$(brew --prefix bash 2>/dev/null || true)"
-  if [[ -n "$BREW_BASH_PREFIX" && -x "${BREW_BASH_PREFIX}/bin/bash" ]]; then
-    BASH_BIN="${BREW_BASH_PREFIX}/bin/bash"
-  fi
+  [[ -n "$BREW_BASH_PREFIX" && -x "${BREW_BASH_PREFIX}/bin/bash" ]] && BASH_BIN="${BREW_BASH_PREFIX}/bin/bash"
 fi
 
-if [[ -z "$BASH_BIN" ]]; then
-  echo "bash not found in PATH." >&2
-  exit 1
-fi
+[[ -x "$BASH_BIN" ]] || { echo "bash not found in PATH." >&2; exit 1; }
 
 "$BASH_BIN" "$RESET_SCRIPT"
 
 echo "==> Combined setup complete."
-
-if [[ -f "${HOME}/.bashrc" ]]; then
-  source "${HOME}/.bashrc"
-fi
+echo "==> Restart Alacritty to load the new shell configuration."
