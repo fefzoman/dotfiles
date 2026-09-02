@@ -164,7 +164,7 @@ style = "Medium"
 
 [cursor]
 style = { shape = "Beam", blinking = "Off" }
-thickness = 0.45
+thickness = 0.10
 unfocused_hollow = false
 
 [terminal]
