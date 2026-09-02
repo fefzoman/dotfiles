@@ -199,6 +199,7 @@ set tabstop=2
 set shiftwidth=2
 set softtabstop=2
 set autoindent termguicolors
+set guicursor=n-v-c-sm:block,i-ci-ve:ver10,r-cr-o:hor20,t:block-blinkon500-blinkoff500-TermCursor
 syntax on
 
 call plug#begin('~/.local/share/nvim/plugged')

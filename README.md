@@ -65,7 +65,7 @@ force their removal despite dependencies.
 | `~/.bash_profile` | Loads `~/.bashrc` for login shells |
 | `~/.oh-my-bash/custom/themes/font/font.theme.sh` | Two-line prompt with clock, host, path, Git branch, and status arrow |
 | `~/.config/alacritty/alacritty.toml` | Gruvbox theme, Thin output, Medium command input, narrow beam cursor, automatic tmux session |
-| `~/.config/nvim/init.vim` | Plugins, keybindings, file types, and language servers |
+| `~/.config/nvim/init.vim` | Plugins, keybindings, narrow insert cursor, file types, and language servers |
 | `~/.tmux.conf` | Top status bar, mouse support, pane/window/session bindings |
 
 Existing Alacritty, Neovim, and tmux files receive timestamped `.bak.*` copies.
