@@ -20,12 +20,25 @@ prefix, release it, then press the action key.
 | `:w` | Save | `:q` | Quit |
 | `:wq` | Save and quit | `:q!` | Quit without saving |
 | `u` | Undo | `Ctrl+r` | Redo |
-| `dd` | Delete line | `yy` | Copy line |
-| `p` / `P` | Paste after / before | `/text` | Search |
-| `n` / `N` | Next / previous result | `:number` | Go to line |
+| `/text` | Search | `n` / `N` | Next / previous result |
+| `:number` | Go to line | `%` | Matching bracket |
 | `h j k l` | Move left/down/up/right | `w` / `b` | Next / previous word |
-| `0` / `$` | Start / end of line | `%` | Matching bracket |
+| `0` / `$` | Start / end of line | `x` | Delete character |
 | `gg` / `G` | Top / bottom | `Ctrl+d` / `Ctrl+u` | Half-page down / up |
+
+### Copy, Paste, and Delete
+
+| Keybinding | Action |
+|---|---|
+| `yy` / `yw` / `y$` | Copy line / word / to end of line |
+| `v`, select, `y` | Copy selected text |
+| `p` / `P` | Paste after / before cursor |
+| `dd` / `dw` / `d$` | Delete line / word / to end of line |
+| `v`, select, `d` | Delete selected text |
+| `cc` / `cw` | Replace line / word by deleting and entering insert mode |
+| `"+y` / `"+p` | Copy to / paste from the system clipboard |
+
+Deleted text is stored in a register and can normally be pasted with `p`.
 
 ### Windows
 
@@ -34,6 +47,17 @@ prefix, release it, then press the action key.
 | `:split` / `:vsplit` | Horizontal / vertical split |
 | `Ctrl+w`, then `h j k l` | Move between splits |
 | `Ctrl+w`, then `q` | Close current split |
+
+### Tabs
+
+| Keybinding or command | Action |
+|---|---|
+| `Space t`, then a path | Open a file with `:tabedit` |
+| `:tabe PATH` | Open a file in a new tab |
+| `:tabnew` | Open an empty tab |
+| `gt` / `gT` | Next / previous tab |
+| `:tabclose` | Close current tab |
+| `Ctrl+t` in Telescope | Open selected result in a new tab |
 
 ### Language Servers
 
@@ -54,7 +78,9 @@ The following mappings appear when a language server attaches:
 | `Space ca` | Code action |
 | `Space f` | Format buffer |
 | `[d` / `]d` | Previous / next diagnostic |
-| `Ctrl+Space` | Completion in insert mode |
+| `Shift+Tab` | Open completion; select previous item when already open |
+| `Down` / `Up` | Select next / previous completion item |
+| `Enter` | Accept selected completion item |
 | `:checkhealth vim.lsp` | Check configuration and attached servers |
 
 ### Telescope

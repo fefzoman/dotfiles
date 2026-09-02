@@ -252,7 +252,17 @@ vim.api.nvim_create_autocmd('LspAttach', {
     map('[d', function() vim.diagnostic.jump({ count = -1, float = true }) end, 'Previous diagnostic')
     map(']d', function() vim.diagnostic.jump({ count = 1, float = true }) end, 'Next diagnostic')
     vim.bo[args.buf].omnifunc = 'v:lua.vim.lsp.omnifunc'
-    vim.keymap.set('i', '<C-Space>', '<C-x><C-o>', { buffer = args.buf, desc = 'LSP completion' })
+
+    local function completion_key(menu_key, fallback)
+      return function()
+        return vim.fn.pumvisible() == 1 and menu_key or fallback
+      end
+    end
+    local insert_opts = { buffer = args.buf, expr = true, silent = true }
+    vim.keymap.set('i', '<S-Tab>', completion_key('<C-p>', '<C-x><C-o>'), insert_opts)
+    vim.keymap.set('i', '<Down>', completion_key('<C-n>', '<Down>'), insert_opts)
+    vim.keymap.set('i', '<Up>', completion_key('<C-p>', '<Up>'), insert_opts)
+    vim.keymap.set('i', '<CR>', completion_key('<C-y>', '<CR>'), insert_opts)
   end,
 })
 
@@ -274,6 +284,7 @@ EOF
 
 nnoremap <leader>e :Neotree toggle<CR>
 nnoremap <leader>lg :LazyGit<CR>
+nnoremap <leader>t :tabedit<Space>
 
 let g:terraform_fmt_on_save = 1
 let g:terraform_align = 1
