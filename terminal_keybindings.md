@@ -86,6 +86,23 @@ The following mappings appear when a language server attaches:
 | `Enter` | Accept selected completion item |
 | `:checkhealth vim.lsp` | Check configuration and attached servers |
 
+### Editing Plugins
+
+| Keybinding or command | Action |
+|---|---|
+| Type `(`, `[`, `{`, `"`, or `'` | Insert the matching closing character with Mini Pairs |
+| `sa` plus a motion and character | Add surrounding characters with Mini Surround |
+| `sd` plus a character | Delete surrounding characters |
+| `sr` plus old and new characters | Replace surrounding characters |
+| `sf` / `sF` plus a character | Find surrounding characters forward / backward |
+| `sh` plus a character | Highlight surrounding characters |
+| `:TSUpdate` | Update installed Treesitter parsers |
+| `:checkhealth nvim-treesitter` | Check Treesitter configuration |
+
+Indent Blankline displays indentation guides automatically. Treesitter provides
+syntax-aware highlighting for Bash, C, C++, HCL/Terraform, Lua, Python, Rust,
+Vim, and YAML.
+
 ### Telescope
 
 | Keybinding | Action |

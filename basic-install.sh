@@ -117,7 +117,7 @@ install_python_runtime
 echo "==> Installing CLI tools..."
 brew tap hashicorp/tap
 brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
-  basedpyright llvm rust rust-analyzer hashicorp/tap/terraform
+  basedpyright llvm rust rust-analyzer tree-sitter-cli hashicorp/tap/terraform
 brew upgrade bash || true
 
 echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."
@@ -217,11 +217,38 @@ Plug 'stephpy/vim-yaml'
 Plug 'andrewstuart/vim-kubernetes'
 Plug 'towolf/vim-helm'
 Plug 'hashivim/vim-terraform'
+Plug 'nvim-mini/mini.pairs', { 'branch': 'stable' }
+Plug 'nvim-mini/mini.surround', { 'branch': 'stable' }
+Plug 'lukas-reineke/indent-blankline.nvim'
+Plug 'nvim-treesitter/nvim-treesitter', { 'do': ':TSUpdate' }
 
 call plug#end()
 
 let mapleader = " "
 lua << EOF
+local function setup_plugin(name, config)
+  local ok, plugin = pcall(require, name)
+  if ok then
+    plugin.setup(config or {})
+  end
+end
+
+setup_plugin('mini.pairs')
+setup_plugin('mini.surround')
+setup_plugin('ibl')
+
+local ok_treesitter, treesitter = pcall(require, 'nvim-treesitter')
+if ok_treesitter then
+  treesitter.setup({})
+  vim.treesitter.language.register('hcl', { 'hcl', 'terraform' })
+  vim.api.nvim_create_autocmd('FileType', {
+    pattern = { 'bash', 'c', 'cpp', 'hcl', 'lua', 'python', 'rust', 'terraform', 'vim', 'vimdoc', 'yaml' },
+    callback = function()
+      pcall(vim.treesitter.start)
+    end,
+  })
+end
+
 local ok_telescope, builtin = pcall(require, 'telescope.builtin')
 if ok_telescope then
   vim.keymap.set('n', '<leader>ff', builtin.find_files, { desc = 'Find files' })
@@ -304,6 +331,7 @@ VIMRC
 
 echo "==> Installing Neovim plugins headlessly..."
 nvim --headless +'PlugInstall --sync' +qa
+nvim --headless +"lua require('nvim-treesitter').install({ 'bash', 'c', 'cpp', 'hcl', 'lua', 'python', 'rust', 'vim', 'vimdoc', 'yaml' }):wait(300000)" +qa
 
 echo "==> Writing tmux config to ~/.tmux.conf ..."
 backup_file "${HOME}/.tmux.conf"
