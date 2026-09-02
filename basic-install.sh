@@ -286,6 +286,10 @@ EOF
 nnoremap <leader>e :Neotree toggle<CR>
 nnoremap <leader>lg :LazyGit<CR>
 nnoremap <leader>t :tabedit<Space>
+nnoremap <leader>tw :tabclose<CR>
+nnoremap <leader>tn :tabnew<CR>
+nnoremap gh :tabnext<CR>
+nnoremap gj :tabprevious<CR>
 
 let g:terraform_fmt_on_save = 1
 let g:terraform_align = 1

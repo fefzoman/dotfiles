@@ -53,6 +53,9 @@ Deleted text is stored in a register and can normally be pasted with `p`.
 | Keybinding or command | Action |
 |---|---|
 | `Space t`, then a path | Open a file with `:tabedit` |
+| `Space tn` | Open an empty tab |
+| `Space tw` | Close the current tab |
+| `gh` / `gj` | Next / previous tab |
 | `:tabe PATH` | Open a file in a new tab |
 | `:tabnew` | Open an empty tab |
 | `gt` / `gT` | Next / previous tab |
