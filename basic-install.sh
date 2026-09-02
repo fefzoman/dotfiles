@@ -116,7 +116,8 @@ install_python_runtime
 
 echo "==> Installing CLI tools..."
 brew tap hashicorp/tap
-brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd hashicorp/tap/terraform
+brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
+  basedpyright llvm rust-analyzer hashicorp/tap/terraform
 brew upgrade bash || true
 
 echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."
@@ -173,6 +174,7 @@ ALACRITTY
 echo "==> Setting Alacritty as main terminal helper..."
 
 mkdir -p "${HOME}/.local/bin"
+ln -sf "$(brew --prefix llvm)/bin/clangd" "${HOME}/.local/bin/clangd"
 
 cat > "${HOME}/.local/bin/alacritty" <<'ALACRITTY_WRAPPER'
 #!/usr/bin/env bash
@@ -204,6 +206,7 @@ Plug 'vim-airline/vim-airline'
 Plug 'ashfinal/vim-colors-violet'
 Plug 'ryanoasis/vim-devicons'
 Plug 'nvim-lua/plenary.nvim'
+Plug 'neovim/nvim-lspconfig'
 Plug 'nvim-telescope/telescope.nvim', { 'tag': '*' }
 Plug 'kdheepak/lazygit.nvim'
 Plug 'MunifTanjim/nui.nvim'
@@ -229,6 +232,43 @@ end
 local ok_neotree, neotree = pcall(require, 'neo-tree')
 if ok_neotree then
   neotree.setup({})
+end
+
+vim.diagnostic.config({ virtual_text = true, signs = true, underline = true })
+
+vim.api.nvim_create_autocmd('LspAttach', {
+  callback = function(args)
+    local opts = { buffer = args.buf }
+    local function map(lhs, rhs, desc)
+      vim.keymap.set('n', lhs, rhs, vim.tbl_extend('force', opts, { desc = desc }))
+    end
+
+    map('gd', vim.lsp.buf.definition, 'Go to definition')
+    map('gr', vim.lsp.buf.references, 'Show references')
+    map('K', vim.lsp.buf.hover, 'Show documentation')
+    map('<leader>rn', vim.lsp.buf.rename, 'Rename symbol')
+    map('<leader>ca', vim.lsp.buf.code_action, 'Code action')
+    map('<leader>f', function() vim.lsp.buf.format({ async = true }) end, 'Format buffer')
+    map('[d', function() vim.diagnostic.jump({ count = -1, float = true }) end, 'Previous diagnostic')
+    map(']d', function() vim.diagnostic.jump({ count = 1, float = true }) end, 'Next diagnostic')
+    vim.bo[args.buf].omnifunc = 'v:lua.vim.lsp.omnifunc'
+    vim.keymap.set('i', '<C-Space>', '<C-x><C-o>', { buffer = args.buf, desc = 'LSP completion' })
+  end,
+})
+
+local servers = { 'basedpyright', 'clangd', 'rust_analyzer' }
+local clangd = { cmd = { 'clangd', '--background-index', '--clang-tidy' } }
+
+if vim.lsp.config and vim.lsp.enable then
+  vim.lsp.config('clangd', clangd)
+  vim.lsp.enable(servers)
+else
+  local ok_lsp, lspconfig = pcall(require, 'lspconfig')
+  if ok_lsp then
+    for _, server in ipairs(servers) do
+      lspconfig[server].setup(server == 'clangd' and clangd or {})
+    end
+  end
 end
 EOF
 

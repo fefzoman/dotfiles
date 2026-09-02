@@ -1,254 +1,154 @@
-# Terminal Workflow Keybindings
+# Terminal Keybindings
 
-This cheat sheet covers the main keybindings for your current setup:
+Neovim uses `Space` as `<leader>`. tmux uses `Ctrl+b` as its prefix; press the
+prefix, release it, then press the action key.
 
-- Neovim
-- Neovim plugins: Telescope, Neo-tree, LazyGit
-- tmux
-
-Your Neovim leader key is:
-
-```text
-Space
-```
-
-So `<leader>e` means: press `Space`, then press `e`.
-
----
-
-## Neovim: Basic Editing
+## Shell
 
 | Keybinding | Action |
 |---|---|
-| `i` | Enter insert mode |
-| `Esc` | Return to normal mode |
-| `:w` | Save file |
-| `:q` | Quit |
-| `:wq` | Save and quit |
-| `:q!` | Quit without saving |
-| `u` | Undo |
-| `Ctrl + r` | Redo |
-| `dd` | Delete current line |
-| `yy` | Copy current line |
-| `p` | Paste after cursor |
-| `P` | Paste before cursor |
-| `/text` | Search for `text` |
-| `n` | Next search result |
-| `N` | Previous search result |
-| `gg` | Go to top of file |
-| `G` | Go to bottom of file |
-| `:number` | Go to line number |
+| `Ctrl+Left`, `Option+Left` | Move one word backward |
+| `Ctrl+Right`, `Option+Right` | Move one word forward |
 
----
+## Neovim
 
-## Neovim: Movement
+### Editing and Movement
+
+| Keybinding | Action | Keybinding | Action |
+|---|---|---|---|
+| `i` | Insert mode | `Esc` | Normal mode |
+| `:w` | Save | `:q` | Quit |
+| `:wq` | Save and quit | `:q!` | Quit without saving |
+| `u` | Undo | `Ctrl+r` | Redo |
+| `dd` | Delete line | `yy` | Copy line |
+| `p` / `P` | Paste after / before | `/text` | Search |
+| `n` / `N` | Next / previous result | `:number` | Go to line |
+| `h j k l` | Move left/down/up/right | `w` / `b` | Next / previous word |
+| `0` / `$` | Start / end of line | `%` | Matching bracket |
+| `gg` / `G` | Top / bottom | `Ctrl+d` / `Ctrl+u` | Half-page down / up |
+
+### Windows
+
+| Keybinding or command | Action |
+|---|---|
+| `:split` / `:vsplit` | Horizontal / vertical split |
+| `Ctrl+w`, then `h j k l` | Move between splits |
+| `Ctrl+w`, then `q` | Close current split |
+
+### Language Servers
+
+| Language | Server |
+|---|---|
+| Python | BasedPyright |
+| C and C++ | clangd |
+| Rust | rust-analyzer |
+
+The following mappings appear when a language server attaches:
 
 | Keybinding | Action |
 |---|---|
-| `h` | Move left |
-| `j` | Move down |
-| `k` | Move up |
-| `l` | Move right |
-| `w` | Move to next word |
-| `b` | Move to previous word |
-| `0` | Move to start of line |
-| `$` | Move to end of line |
-| `%` | Jump to matching bracket |
-| `Ctrl + d` | Move half-page down |
-| `Ctrl + u` | Move half-page up |
+| `gd` | Go to definition |
+| `gr` | Show references |
+| `K` | Show documentation |
+| `Space rn` | Rename symbol |
+| `Space ca` | Code action |
+| `Space f` | Format buffer |
+| `[d` / `]d` | Previous / next diagnostic |
+| `Ctrl+Space` | Completion in insert mode |
+| `:checkhealth vim.lsp` | Check configuration and attached servers |
 
----
-
-## Neovim: Windows and Splits
-
-| Keybinding / Command | Action |
-|---|---|
-| `:split` | Open horizontal split |
-| `:vsplit` | Open vertical split |
-| `Ctrl + w`, then `h` | Move to left split |
-| `Ctrl + w`, then `j` | Move to lower split |
-| `Ctrl + w`, then `k` | Move to upper split |
-| `Ctrl + w`, then `l` | Move to right split |
-| `Ctrl + w`, then `q` | Close current split |
-
----
-
-## Telescope
-
-Telescope is used for fuzzy finding files, searching text, and jumping around your project.
+### Telescope
 
 | Keybinding | Action |
 |---|---|
-| `Space + ff` | Find files |
-| `Space + fg` | Search text in project |
-| `Space + fb` | Find open buffers |
-| `Space + fh` | Search help pages |
+| `Space ff` | Find files |
+| `Space fg` | Search project text |
+| `Space fb` | Find open buffers |
+| `Space fh` | Search help |
 
-Useful Telescope commands:
+Equivalent commands are `:Telescope find_files`, `:Telescope live_grep`,
+`:Telescope buffers`, and `:Telescope help_tags`.
 
-```vim
-:Telescope find_files
-:Telescope live_grep
-:Telescope buffers
-:Telescope help_tags
-```
-
-Inside Telescope:
-
-| Keybinding | Action |
+| Inside Telescope | Action |
 |---|---|
-| `Ctrl + n` | Move selection down |
-| `Ctrl + p` | Move selection up |
-| `Enter` | Open selected result |
-| `Esc` | Close Telescope |
-| `Ctrl + x` | Open result in horizontal split |
-| `Ctrl + v` | Open result in vertical split |
-| `Ctrl + t` | Open result in new tab |
+| `Ctrl+n` / `Ctrl+p` | Selection down / up |
+| `Enter` / `Esc` | Open / close |
+| `Ctrl+x` / `Ctrl+v` / `Ctrl+t` | Open in horizontal split / vertical split / tab |
 
----
+### Neo-tree
 
-## Neo-tree
-
-Neo-tree is your file explorer sidebar.
-
-| Keybinding / Command | Action |
+| Keybinding or command | Action |
 |---|---|
-| `Space + e` | Toggle Neo-tree |
-| `:Neotree` | Open Neo-tree |
-| `:Neotree toggle` | Toggle Neo-tree |
-| `:Neotree reveal` | Reveal current file in tree |
-| `:Neotree close` | Close Neo-tree |
-
-Inside Neo-tree:
-
-| Keybinding | Action |
-|---|---|
+| `Space e` | Toggle Neo-tree |
+| `:Neotree` / `:Neotree toggle` | Open / toggle |
+| `:Neotree reveal` / `:Neotree close` | Reveal current file / close |
 | `Enter` | Open file or folder |
-| `a` | Add file or folder |
-| `d` | Delete file or folder |
-| `r` | Rename file or folder |
-| `m` | Move file or folder |
-| `c` | Copy file or folder |
-| `q` | Close Neo-tree |
-| `?` | Show Neo-tree help |
+| `a` / `d` / `r` | Add / delete / rename |
+| `m` / `c` | Move / copy |
+| `q` / `?` | Close / help |
 
----
+### LazyGit
 
-## LazyGit
-
-LazyGit is a terminal Git UI opened from inside Neovim.
-
-| Keybinding / Command | Action |
-|---|---|
-| `Space + lg` | Open LazyGit |
-| `:LazyGit` | Open LazyGit |
-
-Common LazyGit controls:
+Open with `Space lg` or `:LazyGit`.
 
 | Keybinding | Action |
 |---|---|
-| Arrow keys / `h j k l` | Move around panels |
-| `Space` | Stage / unstage file |
+| Arrow keys or `h j k l` | Move between panels |
+| `Space` | Stage or unstage |
 | `c` | Commit |
-| `P` | Push |
-| `p` | Pull |
+| `P` / `p` | Push / pull |
 | `b` | Branches |
-| `q` | Quit LazyGit |
-| `?` | Show LazyGit help |
-
----
+| `q` / `?` | Quit / help |
 
 ## tmux
 
-Your tmux prefix key is the default:
+Alacritty automatically attaches to the `main` session or creates it. Window
+and pane numbering starts at `1`, and mouse support is enabled.
 
-```text
-Ctrl + b
-```
+### Sessions and Windows
 
-For tmux shortcuts, press `Ctrl + b`, release, then press the next key.
-
----
-
-## tmux: Sessions
-
-| Keybinding / Command | Action |
+| Command or binding | Action |
 |---|---|
-| `tmux` | Start new tmux session |
-| `tmux new -s main` | Start session named `main` |
-| `tmux attach -t main` | Attach to session named `main` |
-| `tmux new-session -A -s main` | Attach to `main`, or create it if missing |
-| `Ctrl + b`, then `d` | Detach from tmux session |
-| `tmux ls` | List tmux sessions |
+| `tmux` | Start a default session |
+| `tmux new-session -A -s main` | Attach to or create `main` |
+| `tmux new -s NAME` / `tmux attach -t NAME` | Create / attach named session |
+| `tmux ls` | List sessions |
+| `Ctrl+b d` | Detach |
+| `Ctrl+b k` | Kill current session with confirmation |
+| `Ctrl+b c` | Create window |
+| `Ctrl+b n` / `Ctrl+b p` | Next / previous window |
+| `Ctrl+b 1` ... `9` | Select window |
+| `Ctrl+b q` | Close current window with confirmation |
+| `Ctrl+b :`, then `rename-window NAME` | Rename window (`Ctrl+b ,` is used for splitting) |
 
----
+`Ctrl+b &` is disabled.
 
-## tmux: Windows
-
-tmux windows work like terminal tabs.
+### Panes
 
 | Keybinding | Action |
 |---|---|
-| `Ctrl + b`, then `c` | Create new window |
-| `Ctrl + b`, then `n` | Next window |
-| `Ctrl + b`, then `p` | Previous window |
-| `Ctrl + b`, then `1` | Go to window 1 |
-| `Ctrl + b`, then `2` | Go to window 2 |
-| `Ctrl + b`, then `,` | Rename current window |
-| `Ctrl + b`, then `&` | Close current window |
+| `Ctrl+b ,` | Split left/right |
+| `Ctrl+b .` | Split top/bottom |
+| `Ctrl+b` + arrow | Move to the pane in that direction |
+| `Ctrl+b x` | Kill pane |
+| `Ctrl+b z` | Toggle pane zoom |
+| `Ctrl+b {` / `Ctrl+b }` | Move pane left / right |
 
-Your config starts window numbering at `1`.
-
----
-
-## tmux: Panes
-
-Your custom split bindings are:
+### Copy Mode
 
 | Keybinding | Action |
 |---|---|
-| `Ctrl + b`, then `,` | Vertical split: left/right |
-| `Ctrl + b`, then `.` | Horizontal split: top/bottom |
-
-Default tmux pane controls:
-
-| Keybinding | Action |
-|---|---|
-| `Ctrl + b`, then `h` | Move to left pane |
-| `Ctrl + b`, then `j` | Move to lower pane |
-| `Ctrl + b`, then `k` | Move to upper pane |
-| `Ctrl + b`, then `l` | Move to right pane |
-| `Ctrl + b`, then `x` | Kill current pane |
-| `Ctrl + b`, then `z` | Zoom current pane |
-| `Ctrl + b`, then `{` | Move pane left |
-| `Ctrl + b`, then `}` | Move pane right |
-
-Note: pane movement with `h/j/k/l` may require additional tmux bindings depending on your tmux version/config. Mouse support is enabled in your config, so you can also click panes.
-
----
-
-## tmux: Copy Mode
-
-| Keybinding | Action |
-|---|---|
-| `Ctrl + b`, then `[` | Enter copy mode |
-| Arrow keys / `h j k l` | Move around |
+| `Ctrl+b [` | Enter copy mode |
+| Arrow keys or `h j k l` | Move |
 | `q` | Exit copy mode |
 
----
-
-## Quick Daily Workflow
+## Daily Workflow
 
 ```text
-Open Alacritty
-→ tmux starts automatically
-→ open project folder
-→ run nvim
-→ Space + e      open file tree
-→ Space + ff     find file
-→ Space + fg     search text
-→ Space + lg     manage Git
-→ Ctrl + b, c    new tmux window
-→ Ctrl + b, ,    vertical split
-→ Ctrl + b, .    horizontal split
+Open Alacritty -> main tmux session starts
+cd PROJECT && nvim
+Space e   file tree       Space ff  find file
+Space fg  search text     Space lg  Git UI
+Ctrl+b c  new window      Ctrl+b ,  left/right split
+Ctrl+b .  top/bottom split
 ```
