@@ -117,7 +117,7 @@ install_python_runtime
 echo "==> Installing CLI tools..."
 brew tap hashicorp/tap
 brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
-  basedpyright llvm rust-analyzer hashicorp/tap/terraform
+  basedpyright llvm rust rust-analyzer hashicorp/tap/terraform
 brew upgrade bash || true
 
 echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."

@@ -37,6 +37,7 @@ restarted before they load the new Bash configuration.
 | Shell and terminal | latest Homebrew Bash, Oh My Bash, Alacritty, tmux, JetBrainsMono Nerd Font |
 | CLI | Git, curl, btop, Codex, LazyGit, ripgrep, fd |
 | Infrastructure | kubectl, Terraform |
+| Development | LLVM/Clang, Rust compiler, Cargo |
 | Editor | Neovim, vim-plug, Telescope, Neo-tree, vim-airline, LazyGit integration |
 | Infrastructure editing | YAML, Kubernetes, Helm, and Terraform plugins |
 | Language servers | BasedPyright (Python), clangd (C/C++), rust-analyzer (Rust) |
