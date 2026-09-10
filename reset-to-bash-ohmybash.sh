@@ -298,6 +298,17 @@ alias k='kubectl'
 alias tf='terraform'
 alias v='nvim'
 
+# Separate work profiles for Codex, VS Code, and Claude.
+alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
+alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
+code-work() {
+    CODEX_HOME="$HOME/.codex-work" \
+    CLAUDE_CONFIG_DIR="$HOME/.claude-work" \
+    code \
+        --user-data-dir "$HOME/.vscode-work" \
+        "$@"
+}
+
 EOF
 
 if ! grep -q "BEGIN MAIN TERMINAL SETUP" "$HOME/.bashrc" 2>/dev/null; then

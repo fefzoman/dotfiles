@@ -84,6 +84,10 @@ Shell files and frameworks replaced by the Bash reset are moved to:
 | `tf` | `terraform` |
 | `v` | `nvim` |
 | `term`, `terminal`, `alac` | Open Alacritty |
+| `codex-work` | Run Codex with `~/.codex-work` as `CODEX_HOME` |
+| `code-work [ARGS]` | Open VS Code with the Codex work profile |
+| `claude-work` | Run Claude with `~/.claude-work` as its config directory |
+| `claude-code-work [ARGS]` | Open VS Code with the Claude work profile |
 
 Oh My Bash completions are enabled for AWS CLI, Terraform, kubectl, Helm,
 Minikube, pip, pip3, and uv. On Linux, `pbcopy` maps to `wl-copy`, `xclip`, or

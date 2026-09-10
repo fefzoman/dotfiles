@@ -19,7 +19,6 @@ prefix, release it, then press the action key.
 | `i` | Insert mode | `Esc` | Normal mode |
 | `:w` | Save | `:q` | Quit |
 | `:wq` | Save and quit | `:q!` | Quit without saving |
-| `u` | Undo | `Ctrl+r` | Redo |
 | `/text` | Search | `n` / `N` | Next / previous result |
 | `:number` | Go to line | `%` | Matching bracket |
 | `h j k l` | Move left/down/up/right | `w` / `b` | Next / previous word |
@@ -39,6 +38,13 @@ prefix, release it, then press the action key.
 | `"+y` / `"+p` | Copy to / paste from the system clipboard |
 
 Deleted text is stored in a register and can normally be pasted with `p`.
+
+### Undo and Redo
+
+| Keybinding | Action |
+|---|---|
+| `u` | Undo the latest change |
+| `Ctrl+r` | Redo the latest undone change |
 
 ### Windows
 
@@ -81,7 +87,7 @@ The following mappings appear when a language server attaches:
 | `Space ca` | Code action |
 | `Space f` | Format buffer |
 | `[d` / `]d` | Previous / next diagnostic |
-| `Shift+Tab` | Open completion; select previous item when already open |
+| `Tab Tab` | Open completion; select next item when already open |
 | `Down` / `Up` | Select next / previous completion item |
 | `Enter` | Accept selected completion item |
 | `:checkhealth vim.lsp` | Check configuration and attached servers |

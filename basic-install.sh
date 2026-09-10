@@ -287,7 +287,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
       end
     end
     local insert_opts = { buffer = args.buf, expr = true, silent = true }
-    vim.keymap.set('i', '<S-Tab>', completion_key('<C-p>', '<C-x><C-o>'), insert_opts)
+    vim.keymap.set('i', '<Tab><Tab>', completion_key('<C-n>', '<C-x><C-o>'), insert_opts)
     vim.keymap.set('i', '<Down>', completion_key('<C-n>', '<Down>'), insert_opts)
     vim.keymap.set('i', '<Up>', completion_key('<C-p>', '<Up>'), insert_opts)
     vim.keymap.set('i', '<CR>', completion_key('<C-y>', '<CR>'), insert_opts)
