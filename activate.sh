@@ -9,6 +9,7 @@ usage() { echo "Usage: $0 [auto-approve]" >&2; exit 2; }
 
 if [[ ${1:-} == auto-approve ]]; then
   export DOTFILES_AUTO_APPROVE=1 NONINTERACTIVE=1 DEBIAN_FRONTEND=noninteractive
+  export CI=1 GIT_TERMINAL_PROMPT=0 HOMEBREW_NO_ENV_HINTS=1
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

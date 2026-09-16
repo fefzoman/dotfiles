@@ -37,13 +37,19 @@ restarted before they load the new Bash configuration.
 | Shell and terminal | latest Homebrew Bash, Oh My Bash, Alacritty, tmux, JetBrainsMono Nerd Font |
 | CLI | Git, curl, btop, Codex, LazyGit, ripgrep, fd |
 | Infrastructure | kubectl, Terraform |
-| Development | LLVM/Clang, Rust compiler, Cargo, tree-sitter CLI |
+| Development | LLVM/Clang, tree-sitter CLI |
 | Editor | Neovim, vim-plug, Telescope, Neo-tree, Treesitter, Mini Pairs, Mini Surround, indent guides, vim-airline, LazyGit integration |
 | Infrastructure editing | YAML, Kubernetes, Helm, and Terraform plugins |
-| Language servers | BasedPyright (Python), clangd (C/C++), rust-analyzer (Rust) |
+| Language servers | BasedPyright (Python), clangd (C/C++) |
 
 Homebrew tap trust checks are disabled during setup with
 `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`.
+
+On macOS, Alacritty is installed from its pinned official DMG because Homebrew
+disabled the unnotarized cask on September 1, 2026. The installer verifies the
+release SHA-256 and signature, and refuses to remove Gatekeeper quarantine
+attributes. Override both `ALACRITTY_VERSION` and `ALACRITTY_SHA256` together
+to install another release.
 
 ## Python
 

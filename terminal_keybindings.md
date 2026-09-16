@@ -74,7 +74,6 @@ Deleted text is stored in a register and can normally be pasted with `p`.
 |---|---|
 | Python | BasedPyright |
 | C and C++ | clangd |
-| Rust | rust-analyzer |
 
 The following mappings appear when a language server attaches:
 
@@ -106,7 +105,7 @@ The following mappings appear when a language server attaches:
 | `:checkhealth nvim-treesitter` | Check Treesitter configuration |
 
 Indent Blankline displays indentation guides automatically. Treesitter provides
-syntax-aware highlighting for Bash, C, C++, HCL/Terraform, Lua, Python, Rust,
+syntax-aware highlighting for Bash, C, C++, HCL/Terraform, Lua, Python,
 Vim, and YAML.
 
 ### Telescope

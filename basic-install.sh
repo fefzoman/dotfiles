@@ -20,6 +20,8 @@ TARGET_PYTHON_MAJOR=3
 TARGET_PYTHON_MINOR=13
 TARGET_PYTHON_FORMULA="python@${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
 FORCE_REMOVE_PYTHON=${FORCE_REMOVE_PYTHON:-0}
+ALACRITTY_VERSION=${ALACRITTY_VERSION:-0.17.0}
+ALACRITTY_SHA256=${ALACRITTY_SHA256:-ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620}
 
 python_version_at_least_target() {
   local version="$1"
@@ -117,11 +119,59 @@ install_python_runtime
 echo "==> Installing CLI tools..."
 brew tap hashicorp/tap
 brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
-  basedpyright llvm rust rust-analyzer tree-sitter-cli hashicorp/tap/terraform
+  basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
 brew upgrade bash || true
 
+install_alacritty() {
+  local app="/Applications/Alacritty.app"
+  local installed_version="" quarantine="" work_dir dmg mount_dir actual_sha backup
+
+  installed_version="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null || true)"
+  quarantine="$(xattr -p com.apple.quarantine "$app" 2>/dev/null || true)"
+  if [[ "$installed_version" == "$ALACRITTY_VERSION" && -z "$quarantine" ]] &&
+    codesign --verify --deep --strict "$app" >/dev/null 2>&1; then
+    echo "==> Alacritty $ALACRITTY_VERSION is already installed."
+    return
+  fi
+
+  echo "==> Installing checksum-verified Alacritty $ALACRITTY_VERSION..."
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/alacritty-install.XXXXXX")"
+  dmg="$work_dir/Alacritty.dmg"
+  mount_dir="$work_dir/mount"
+  mkdir -p "$mount_dir"
+  curl -fsSL -o "$dmg" \
+    "https://github.com/alacritty/alacritty/releases/download/v$ALACRITTY_VERSION/Alacritty-v$ALACRITTY_VERSION.dmg"
+  actual_sha="$(shasum -a 256 "$dmg" | awk '{print $1}')"
+  if [[ "$actual_sha" != "$ALACRITTY_SHA256" ]]; then
+    echo "Alacritty checksum mismatch: expected $ALACRITTY_SHA256, got $actual_sha" >&2
+    rm -rf "$work_dir"
+    return 1
+  fi
+  hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount_dir" >/dev/null
+
+  if brew list --cask alacritty >/dev/null 2>&1; then
+    brew uninstall --cask --force alacritty
+  fi
+  if [[ -e "$app" ]]; then
+    backup="${app}.bak.$(date +%Y%m%d%H%M%S)"
+    echo "==> Preserving existing Alacritty app at $backup"
+    mv "$app" "$backup"
+  fi
+
+  ditto "$mount_dir/Alacritty.app" "$app"
+  hdiutil detach "$mount_dir" >/dev/null
+  mkdir -p "$HOME/.terminfo/61"
+  cp -f "$app/Contents/Resources/61/"{alacritty,alacritty-direct} "$HOME/.terminfo/61/"
+  codesign --verify --deep --strict "$app"
+  if xattr -p com.apple.quarantine "$app" >/dev/null 2>&1; then
+    echo "Alacritty unexpectedly has a quarantine attribute; refusing to bypass Gatekeeper." >&2
+    return 1
+  fi
+  rm -rf "$work_dir"
+}
+
 echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."
-brew install --cask --force alacritty
+install_alacritty
 brew install --cask font-jetbrains-mono-nerd-font
 
 BACKUP_TS="$(date +%Y%m%d%H%M%S)"
@@ -242,7 +292,7 @@ if ok_treesitter then
   treesitter.setup({})
   vim.treesitter.language.register('hcl', { 'hcl', 'terraform' })
   vim.api.nvim_create_autocmd('FileType', {
-    pattern = { 'bash', 'c', 'cpp', 'hcl', 'lua', 'python', 'rust', 'terraform', 'vim', 'vimdoc', 'yaml' },
+    pattern = { 'bash', 'c', 'cpp', 'hcl', 'lua', 'python', 'terraform', 'vim', 'vimdoc', 'yaml' },
     callback = function()
       pcall(vim.treesitter.start)
     end,
@@ -294,7 +344,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
   end,
 })
 
-local servers = { 'basedpyright', 'clangd', 'rust_analyzer' }
+local servers = { 'basedpyright', 'clangd' }
 local clangd = { cmd = { 'clangd', '--background-index', '--clang-tidy' } }
 
 if vim.lsp.config and vim.lsp.enable then
@@ -331,7 +381,7 @@ VIMRC
 
 echo "==> Installing Neovim plugins headlessly..."
 nvim --headless +'PlugInstall --sync' +qa
-nvim --headless +"lua require('nvim-treesitter').install({ 'bash', 'c', 'cpp', 'hcl', 'lua', 'python', 'rust', 'vim', 'vimdoc', 'yaml' }):wait(300000)" +qa
+nvim --headless +"lua require('nvim-treesitter').install({ 'bash', 'c', 'cpp', 'hcl', 'lua', 'python', 'vim', 'vimdoc', 'yaml' }):wait(300000)" +qa
 
 echo "==> Writing tmux config to ~/.tmux.conf ..."
 backup_file "${HOME}/.tmux.conf"
