@@ -2,19 +2,50 @@
 set -euo pipefail
 
 export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+export PATH="$HOME/.local/bin:$PATH"
+DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
+OS="$(uname -s)"
 
-echo "==> Installing Homebrew if missing..."
-if ! command -v brew >/dev/null 2>&1; then
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-    [[ -x "$brew_bin" ]] || continue
-    eval "$("$brew_bin" shellenv)"
-    break
-  done
+case "$OS" in
+  Darwin) ;;
+  Linux)
+    [[ -r /etc/os-release ]] || { echo "Linux distribution cannot be identified." >&2; exit 1; }
+    . /etc/os-release
+    case "${ID:-}:${ID_LIKE:-}" in
+      debian:*|ubuntu:*|*:debian*) ;;
+      *) echo "Supported Linux distributions: Debian and Ubuntu." >&2; exit 1 ;;
+    esac
+    ;;
+  *) echo "Unsupported operating system: $OS" >&2; exit 1 ;;
+esac
+
+run_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  elif ! command -v sudo >/dev/null 2>&1; then
+    echo "sudo is required to install system packages." >&2
+    return 1
+  elif [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
+    sudo -n "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+if [[ "$OS" == Darwin ]]; then
+  echo "==> Installing Homebrew if missing..."
+  if ! command -v brew >/dev/null 2>&1; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+      [[ -x "$brew_bin" ]] || continue
+      eval "$("$brew_bin" shellenv)"
+      break
+    done
+  fi
+
+  echo "==> Updating Homebrew..."
+  brew update
 fi
-
-echo "==> Updating Homebrew..."
-brew update
 
 TARGET_PYTHON_MAJOR=3
 TARGET_PYTHON_MINOR=13
@@ -42,7 +73,7 @@ current_python_version() {
   return 1
 }
 
-install_python_runtime() {
+install_python_runtime_macos() {
   local current_version=""
   local python_prefix python_bin shim
 
@@ -114,13 +145,152 @@ EOF
   echo "==> Python shims installed: python, pip, python3, pip3 -> ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
 }
 
-install_python_runtime
+linux_arch() {
+  case "$(uname -m)" in
+    x86_64|amd64) printf 'x86_64\n' ;;
+    arm64|aarch64) printf 'arm64\n' ;;
+    *) echo "Unsupported Linux architecture: $(uname -m)" >&2; return 1 ;;
+  esac
+}
 
-echo "==> Installing CLI tools..."
-brew tap hashicorp/tap
-brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
-  basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
-brew upgrade bash || true
+install_linux_system_packages() {
+  echo "==> Installing Debian/Ubuntu packages..."
+  run_root env DEBIAN_FRONTEND=noninteractive apt-get update -y
+  run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    alacritty bash build-essential ca-certificates clangd curl dconf-cli fd-find fontconfig \
+    git npm ripgrep tmux unzip wget xclip xz-utils
+  run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y btop || true
+}
+
+install_python_runtime_linux() {
+  local uv_bin="$HOME/.local/bin/uv" python_bin shim
+
+  mkdir -p "$HOME/.local/bin"
+  if [[ ! -x "$uv_bin" ]]; then
+    echo "==> Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="$HOME/.local/bin" sh
+  fi
+
+  echo "==> Installing Python ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR} with uv..."
+  "$uv_bin" python install "${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+  python_bin="$("$uv_bin" python find "${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}")"
+  "$uv_bin" pip install --python "$python_bin" --break-system-packages pip
+
+  for shim in python python3; do
+    cat > "$HOME/.local/bin/$shim" <<EOF
+#!/usr/bin/env bash
+exec "${python_bin}" "\$@"
+EOF
+  done
+  for shim in pip pip3; do
+    cat > "$HOME/.local/bin/$shim" <<EOF
+#!/usr/bin/env bash
+exec env PIP_BREAK_SYSTEM_PACKAGES=1 "${python_bin}" -m pip "\$@"
+EOF
+  done
+  chmod +x "$HOME/.local/bin/"{python,python3,pip,pip3}
+
+  mkdir -p "$HOME/.config/pip" "$HOME/.pip"
+  printf '[global]\nbreak-system-packages = true\n' > "$HOME/.config/pip/pip.conf"
+  cp "$HOME/.config/pip/pip.conf" "$HOME/.pip/pip.conf"
+}
+
+install_neovim_linux() {
+  local arch archive_name work_dir target
+
+  arch="$(linux_arch)"
+  archive_name="nvim-linux-${arch}.tar.gz"
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/neovim-install.XXXXXX")"
+  target="$HOME/.local/opt/nvim"
+  curl -fsSL -o "$work_dir/$archive_name" \
+    "https://github.com/neovim/neovim/releases/latest/download/$archive_name"
+  tar -xzf "$work_dir/$archive_name" -C "$work_dir"
+  mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
+  [[ ! -e "$target" ]] || mv "$target" "${target}.bak.$(date +%Y%m%d%H%M%S)"
+  mv "$work_dir/nvim-linux-${arch}" "$target"
+  ln -sfn "$target/bin/nvim" "$HOME/.local/bin/nvim"
+  rm -rf "$work_dir"
+}
+
+install_kubectl_linux() {
+  local arch version work_dir binary checksum
+
+  arch="$(linux_arch)"
+  [[ "$arch" == x86_64 ]] && arch=amd64
+  version="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/kubectl-install.XXXXXX")"
+  binary="$work_dir/kubectl"
+  curl -fsSL -o "$binary" "https://dl.k8s.io/release/$version/bin/linux/$arch/kubectl"
+  checksum="$(curl -fsSL "https://dl.k8s.io/release/$version/bin/linux/$arch/kubectl.sha256")"
+  printf '%s  %s\n' "$checksum" "$binary" | sha256sum --check --status
+  install -m 0755 "$binary" "$HOME/.local/bin/kubectl"
+  rm -rf "$work_dir"
+}
+
+install_terraform_linux() {
+  local arch version work_dir archive expected
+
+  arch="$(linux_arch)"
+  [[ "$arch" == x86_64 ]] && arch=amd64
+  version="$(curl -fsSL https://checkpoint-api.hashicorp.com/v1/check/terraform | sed -n 's/.*"current_version":"\([^"]*\)".*/\1/p')"
+  [[ -n "$version" ]] || { echo "Cannot determine the latest Terraform version." >&2; return 1; }
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/terraform-install.XXXXXX")"
+  archive="terraform_${version}_linux_${arch}.zip"
+  curl -fsSL -o "$work_dir/$archive" "https://releases.hashicorp.com/terraform/$version/$archive"
+  curl -fsSL -o "$work_dir/SHA256SUMS" \
+    "https://releases.hashicorp.com/terraform/$version/terraform_${version}_SHA256SUMS"
+  expected="$(awk -v file="$archive" '$2 == file { print $1 }' "$work_dir/SHA256SUMS")"
+  [[ -n "$expected" ]] || { echo "Terraform checksum is missing." >&2; return 1; }
+  printf '%s  %s\n' "$expected" "$work_dir/$archive" | sha256sum --check --status
+  unzip -oq "$work_dir/$archive" -d "$HOME/.local/bin"
+  chmod +x "$HOME/.local/bin/terraform"
+  rm -rf "$work_dir"
+}
+
+install_lazygit_linux() {
+  local arch version work_dir archive expected
+
+  arch="$(linux_arch)"
+  version="$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p' | head -n 1)"
+  [[ -n "$version" ]] || { echo "Cannot determine the latest LazyGit version." >&2; return 1; }
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/lazygit-install.XXXXXX")"
+  archive="lazygit_${version}_linux_${arch}.tar.gz"
+  curl -fsSL -o "$work_dir/$archive" \
+    "https://github.com/jesseduffield/lazygit/releases/download/v$version/$archive"
+  curl -fsSL -o "$work_dir/checksums.txt" \
+    "https://github.com/jesseduffield/lazygit/releases/download/v$version/checksums.txt"
+  expected="$(awk -v file="$archive" '$2 == file { print $1 }' "$work_dir/checksums.txt")"
+  [[ -n "$expected" ]] || { echo "LazyGit checksum is missing." >&2; return 1; }
+  printf '%s  %s\n' "$expected" "$work_dir/$archive" | sha256sum --check --status
+  tar -xzf "$work_dir/$archive" -C "$work_dir" lazygit
+  install -m 0755 "$work_dir/lazygit" "$HOME/.local/bin/lazygit"
+  rm -rf "$work_dir"
+}
+
+install_nerd_font_linux() {
+  local work_dir font_dir
+
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/font-install.XXXXXX")"
+  font_dir="$HOME/.local/share/fonts/JetBrainsMonoNerdFont"
+  mkdir -p "$font_dir"
+  curl -fsSL -o "$work_dir/JetBrainsMono.zip" \
+    https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+  unzip -oq "$work_dir/JetBrainsMono.zip" -d "$font_dir"
+  fc-cache -f "$font_dir"
+  rm -rf "$work_dir"
+}
+
+install_linux_user_tools() {
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$(command -v fdfind)" "$HOME/.local/bin/fd"
+  install_neovim_linux
+  install_kubectl_linux
+  install_terraform_linux
+  install_lazygit_linux
+  npm install --global --prefix "$HOME/.local" @openai/codex tree-sitter-cli
+  "$HOME/.local/bin/pip" install --upgrade basedpyright
+  install_nerd_font_linux
+}
 
 install_alacritty() {
   local app="/Applications/Alacritty.app"
@@ -170,9 +340,22 @@ install_alacritty() {
   rm -rf "$work_dir"
 }
 
-echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."
-install_alacritty
-brew install --cask font-jetbrains-mono-nerd-font
+if [[ "$OS" == Darwin ]]; then
+  install_python_runtime_macos
+  echo "==> Installing CLI tools..."
+  brew tap hashicorp/tap
+  brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
+    basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
+  brew upgrade bash || true
+
+  echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."
+  install_alacritty
+  brew install --cask font-jetbrains-mono-nerd-font
+else
+  install_linux_system_packages
+  install_python_runtime_linux
+  install_linux_user_tools
+fi
 
 BACKUP_TS="$(date +%Y%m%d%H%M%S)"
 backup_file() { [[ ! -f $1 ]] || cp "$1" "$1.bak.$BACKUP_TS"; }
@@ -189,13 +372,14 @@ fi
 echo "==> Writing Alacritty config to ~/.config/alacritty/alacritty.toml ..."
 backup_file "${HOME}/.config/alacritty/alacritty.toml"
 TMUX_BIN="$(command -v tmux)"
+[[ "$OS" == Darwin ]] && WINDOW_DECORATIONS=Buttonless || WINDOW_DECORATIONS=Full
 
 cat > "${HOME}/.config/alacritty/alacritty.toml" <<ALACRITTY
 [general]
 import = ["~/.config/alacritty/themes/themes/gruvbox_dark.toml"]
 
 [window]
-decorations = "Buttonless"
+decorations = "${WINDOW_DECORATIONS}"
 padding = { x = 10, y = 10 }
 
 [font]
@@ -224,12 +408,21 @@ ALACRITTY
 echo "==> Setting Alacritty as main terminal helper..."
 
 mkdir -p "${HOME}/.local/bin"
-ln -sf "$(brew --prefix llvm)/bin/clangd" "${HOME}/.local/bin/clangd"
-
-cat > "${HOME}/.local/bin/alacritty" <<'ALACRITTY_WRAPPER'
+if [[ "$OS" == Darwin ]]; then
+  ln -sf "$(brew --prefix llvm)/bin/clangd" "${HOME}/.local/bin/clangd"
+  cat > "${HOME}/.local/bin/alacritty" <<'ALACRITTY_WRAPPER'
 #!/usr/bin/env bash
 open -na "Alacritty" --args "$@"
 ALACRITTY_WRAPPER
+else
+  CLANGD_BIN="$(command -v clangd)"
+  ALACRITTY_BIN="$(command -v alacritty)"
+  ln -sf "$CLANGD_BIN" "${HOME}/.local/bin/clangd"
+  cat > "${HOME}/.local/bin/alacritty" <<ALACRITTY_WRAPPER
+#!/usr/bin/env bash
+exec "${ALACRITTY_BIN}" "\$@"
+ALACRITTY_WRAPPER
+fi
 
 chmod +x "${HOME}/.local/bin/alacritty"
 

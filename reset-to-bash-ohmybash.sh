@@ -65,6 +65,11 @@ latest_stable_bash_path() {
     fi
   fi
 
+  if [[ "$(uname -s)" == Linux && -x /bin/bash ]]; then
+    printf '/bin/bash\n'
+    return 0
+  fi
+
   command -v bash || true
 }
 
@@ -79,6 +84,7 @@ ensure_login_shell_registered() {
     printf '%s\n' "$shell_path" >> /etc/shells
   elif ! printf '%s\n' "$shell_path" | run_root tee -a /etc/shells >/dev/null; then
     warn "Cannot update /etc/shells; run: echo '$shell_path' | sudo tee -a /etc/shells"
+    return 1
   fi
 }
 
@@ -91,7 +97,47 @@ change_login_shell() {
   fi
 }
 
-bold "=== 1) Reset Bash/Zsh customizations (backup + clean start) ==="
+account_login_shell() {
+  local login_user="${SUDO_USER:-${USER:-$(id -un)}}"
+
+  if [[ "$(uname -s)" == Darwin ]] && have dscl; then
+    dscl . -read "/Users/$login_user" UserShell 2>/dev/null | awk '{print $2}'
+  elif have getent; then
+    getent passwd "$login_user" | awk -F: '{print $7}'
+  else
+    awk -F: -v user="$login_user" '$1 == user { print $7 }' /etc/passwd
+  fi
+}
+
+bold "=== 1) Switch login shell to Bash (disable Zsh as default) ==="
+BASH_PATH="$(latest_stable_bash_path)"
+[[ -n "$BASH_PATH" ]] || { warn "bash not found in PATH."; exit 1; }
+CURRENT_LOGIN_SHELL="$(account_login_shell)"
+
+if [[ "$CURRENT_LOGIN_SHELL" != "$BASH_PATH" ]]; then
+  ensure_login_shell_registered "$BASH_PATH" || exit 1
+  have chsh || { warn "chsh is unavailable; cannot set the login shell."; exit 1; }
+  bold "Changing the login shell from ${CURRENT_LOGIN_SHELL:-unknown} to $BASH_PATH"
+  if ! change_login_shell "$BASH_PATH"; then
+    warn "Could not change the login shell."
+    if [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
+      warn "auto-approve cannot supply administrator credentials. Run: sudo chsh -s '$BASH_PATH' '${SUDO_USER:-${USER:-$(id -un)}}'"
+    else
+      warn "Run manually: chsh -s '$BASH_PATH'"
+    fi
+    exit 1
+  fi
+  CURRENT_LOGIN_SHELL="$(account_login_shell)"
+  [[ "$CURRENT_LOGIN_SHELL" == "$BASH_PATH" ]] || {
+    warn "The account login shell is still ${CURRENT_LOGIN_SHELL:-unknown}; expected $BASH_PATH."
+    exit 1
+  }
+  ok "Login shell set to Bash. Log out and back in before checking \$SHELL."
+else
+  ok "The account login shell already points to Bash: $BASH_PATH"
+fi
+
+bold $'\n=== 2) Reset Bash/Zsh customizations (backup + clean start) ==='
 for path in \
   .bashrc .bash_profile .bash_login .profile .inputrc .bash_aliases \
   .zshrc .zprofile .zshenv .zlogin .zlogout .oh-my-zsh .zinit .antigen .p10k.zsh \
@@ -102,28 +148,7 @@ done
 ok "Backups stored in: $BACKUP_DIR"
 warn "If you use chezmoi (or similar), it may re-apply old dotfiles after this."
 
-bold $'\n=== 2) Switch login shell to Bash (disable Zsh as default) ==='
-BASH_PATH="$(latest_stable_bash_path)"
-[[ -n "$BASH_PATH" ]] || { warn "bash not found in PATH."; exit 1; }
-
-ensure_login_shell_registered "$BASH_PATH"
-
-if [[ "${SHELL:-}" != "$BASH_PATH" ]]; then
-  if have chsh; then
-    bold "Attempting: chsh -s $BASH_PATH"
-    if change_login_shell "$BASH_PATH" >/dev/null 2>&1; then
-      ok "Login shell set to bash. (You must log out/in for it to fully take effect.)"
-    else
-      warn "chsh needs authentication or admin permission; run: chsh -s $BASH_PATH"
-    fi
-  else
-    warn "chsh not available. Set your default shell to bash manually."
-  fi
-else
-  ok "Your \$SHELL already points to bash."
-fi
-
-bold $'\n=== 3) Install Oh My Bash + enable pure + apply prompt + install Nerd Font + import terminal colors ==='
+bold $'\n=== 3) Install Oh My Bash + apply prompt and completions ==='
 
 bold "Installing dependencies (git, curl, wget, dconf-cli if possible)..."
 install_pkgs git curl wget dconf-cli

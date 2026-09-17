@@ -1,7 +1,8 @@
 # Dotfiles
 
-macOS terminal setup for Bash, Oh My Bash, Alacritty, tmux, Neovim, Python,
-Terraform, Kubernetes, and common CLI tools.
+Terminal setup for macOS, Debian, and Ubuntu with Bash, Oh My Bash, Alacritty,
+tmux, Neovim, Python, Terraform, Kubernetes, and common CLI tools. Linux
+installations support x86-64 and ARM64.
 
 ## Install
 
@@ -18,7 +19,8 @@ Run without confirmation prompts:
 
 `auto-approve` makes package managers non-interactive. It cannot bypass
 password authentication; privileged `sudo` or `chsh` steps are skipped with a
-warning if non-interactive administrator access is unavailable.
+clear error if non-interactive administrator access is unavailable. Run
+`sudo -v` immediately before activation when administrator access is required.
 
 Run the stages separately when debugging:
 
@@ -29,6 +31,12 @@ bash ./reset-to-bash-ohmybash.sh
 
 Restart Alacritty after installation. Existing tmux shells may also need to be
 restarted before they load the new Bash configuration.
+
+The installer reads the account login shell from macOS Directory Service or
+the Linux passwd database. It verifies the result after `chsh` and stops before
+resetting existing shell files when the switch to Bash fails. Log out and back
+in after a successful shell change; `$SHELL` is not refreshed in the current
+login session.
 
 ## Installed Tools
 
@@ -51,6 +59,11 @@ release SHA-256 and signature, and refuses to remove Gatekeeper quarantine
 attributes. Override both `ALACRITTY_VERSION` and `ALACRITTY_SHA256` together
 to install another release.
 
+On Debian and Ubuntu, system dependencies and Alacritty come from APT. Current
+Neovim, kubectl, Terraform, LazyGit, Codex, Treesitter CLI, Python 3.13, and the
+JetBrainsMono Nerd Font are installed under `~/.local`, so no Linuxbrew is
+required.
+
 ## Python
 
 The installer targets Python 3.13 and creates these commands in `~/.local/bin`:
@@ -59,10 +72,12 @@ The installer targets Python 3.13 and creates these commands in `~/.local/bin`:
 python  python3  pip  pip3
 ```
 
-`pip` installs globally with `break-system-packages = true`. Other pyenv Python
-versions and Homebrew Python formulae are removed when safe; Homebrew versions
-required by installed packages are retained. Set `FORCE_REMOVE_PYTHON=1` to
-force their removal despite dependencies.
+`pip` installs globally into the selected Python 3.13 runtime with
+`break-system-packages = true`. On macOS, other pyenv Python versions and
+Homebrew Python formulae are removed when safe; Homebrew versions required by
+installed packages are retained. Set `FORCE_REMOVE_PYTHON=1` to force their
+removal despite dependencies. Linux uses a uv-managed Python and does not
+remove distribution-managed Python packages.
 
 ## Generated Configuration
 
