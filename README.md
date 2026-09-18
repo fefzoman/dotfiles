@@ -43,7 +43,7 @@ login session.
 | Area | Tools |
 |---|---|
 | Shell and terminal | latest Homebrew Bash, Oh My Bash, Alacritty, tmux, JetBrainsMono Nerd Font |
-| CLI | Git, curl, btop, Codex, LazyGit, ripgrep, fd |
+| CLI | Git, curl, btop, Codex, Codex token profiler, LazyGit, ripgrep, fd |
 | Infrastructure | kubectl, Terraform |
 | Development | LLVM/Clang, tree-sitter CLI |
 | Editor | Neovim, vim-plug, Telescope, Neo-tree, Treesitter, Mini Pairs, Mini Surround, indent guides, vim-airline, LazyGit integration |
@@ -63,6 +63,41 @@ On Debian and Ubuntu, system dependencies and Alacritty come from APT. Current
 Neovim, kubectl, Terraform, LazyGit, Codex, Treesitter CLI, Python 3.13, and the
 JetBrainsMono Nerd Font are installed under `~/.local`, so no Linuxbrew is
 required.
+
+## Codex Token Profiler
+
+`codex-usage` is installed from `codex-token-profiler/` into `~/.local/bin`.
+It reads rollout JSONL files under `$CODEX_HOME/sessions` and
+`$CODEX_HOME/archived_sessions`, defaulting to `~/.codex`.
+
+```bash
+codex-usage short                         # compact latest-session report
+codex-usage current                       # latest session
+codex-usage sessions                      # recent sessions
+codex-usage session 01a08a70              # UUID prefix or rollout path
+codex-usage top --by session              # rank sessions
+codex-usage top --by command --sessions 100
+codex-usage top --by file --sessions 100
+codex-usage current --json                 # machine-readable output
+```
+
+Exact telemetry includes cumulative input, cached input, fresh input, output,
+reasoning output, model calls, context-window usage, and compactions. Activity,
+command, file, tool, instruction, and retained-history attribution is estimated
+with the mandatory `tiktoken` dependency and its `o200k_base` encoding; exact
+token totals remain authoritative. The profiler installer installs or upgrades
+`tiktoken` automatically.
+
+The profiler honors separate Codex profiles:
+
+```bash
+CODEX_HOME="$HOME/.codex-work" codex-usage current
+alias codex-usage-work='CODEX_HOME="$HOME/.codex-work" codex-usage'
+```
+
+It is local and read-only: it does not modify sessions, call OpenAI APIs,
+upload rollout contents, or execute commands found in rollouts. JSON reports
+can contain local paths and command strings and should be treated as sensitive.
 
 ## Python
 

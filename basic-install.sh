@@ -4,6 +4,7 @@ set -euo pipefail
 export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
 export PATH="$HOME/.local/bin:$PATH"
 DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 
 case "$OS" in
@@ -356,6 +357,9 @@ else
   install_python_runtime_linux
   install_linux_user_tools
 fi
+
+echo "==> Installing Codex token profiler..."
+bash "$SCRIPT_DIR/codex-token-profiler/install.sh"
 
 BACKUP_TS="$(date +%Y%m%d%H%M%S)"
 backup_file() { [[ ! -f $1 ]] || cp "$1" "$1.bak.$BACKUP_TS"; }

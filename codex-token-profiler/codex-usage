@@ -1,0 +1,1435 @@
+#!/usr/bin/env python3
+"""
+codex-usage: local Codex rollout token profiler.
+
+Reads Codex rollout JSONL files under:
+  $CODEX_HOME/sessions
+  $CODEX_HOME/archived_sessions
+or ~/.codex by default.
+
+Exact metrics:
+  - cumulative input/cached/output/reasoning token counts
+  - model context window
+  - model-call count inferred from increasing cumulative token counters
+  - compaction count
+
+Estimated metrics:
+  - attribution of cumulative input to visible transcript sources
+  - payload size by command/file/tool/activity
+
+The attribution model deliberately uses model-visible response_item tool outputs
+instead of event_msg/item_completed stdout copies, which may contain duplicated
+or untruncated output that was not actually sent back to the model.
+"""
+
+from __future__ import annotations
+
+import argparse
+import collections
+import dataclasses
+import datetime as dt
+import json
+import math
+import os
+import re
+import shlex
+import sys
+from pathlib import Path
+from typing import Any, Iterable, Iterator
+
+VERSION = "0.2.0"
+
+import tiktoken  # type: ignore
+
+
+# ----------------------------- formatting -----------------------------
+
+ANSI = {
+    "bold": "\033[1m",
+    "dim": "\033[2m",
+    "cyan": "\033[36m",
+    "yellow": "\033[33m",
+    "red": "\033[31m",
+    "green": "\033[32m",
+    "reset": "\033[0m",
+}
+
+
+def supports_color() -> bool:
+    return sys.stdout.isatty() and os.getenv("NO_COLOR") is None
+
+
+def style(text: str, *names: str) -> str:
+    if not supports_color():
+        return text
+    return "".join(ANSI[n] for n in names) + text + ANSI["reset"]
+
+
+def human_int(n: int | float | None) -> str:
+    if n is None:
+        return "-"
+    n = float(n)
+    sign = "-" if n < 0 else ""
+    n = abs(n)
+    if n >= 1_000_000_000:
+        return f"{sign}{n / 1_000_000_000:.2f}B"
+    if n >= 1_000_000:
+        return f"{sign}{n / 1_000_000:.2f}M"
+    if n >= 1_000:
+        return f"{sign}{n / 1_000:.1f}K"
+    return f"{sign}{int(n):,}"
+
+
+def human_bytes(n: int) -> str:
+    value = float(n)
+    for suffix in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or suffix == "TiB":
+            return f"{value:.1f} {suffix}"
+        value /= 1024
+    return f"{n} B"
+
+
+def pct(num: int | float, den: int | float) -> str:
+    if not den:
+        return "-"
+    return f"{100.0 * num / den:.1f}%"
+
+
+def truncate(s: str, width: int = 88) -> str:
+    s = " ".join(str(s).split())
+    if len(s) <= width:
+        return s
+    return s[: max(0, width - 1)] + "…"
+
+
+def print_kv(label: str, value: str, width: int = 24) -> None:
+    print(f"{label:<{width}} {value}")
+
+
+# ----------------------------- token estimation -----------------------------
+
+_ENCODING = None
+
+
+def estimate_tokens(value: Any) -> int:
+    """Estimate visible text with tiktoken's o200k_base encoding."""
+    if value is None:
+        return 0
+    if not isinstance(value, str):
+        try:
+            value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        except Exception:
+            value = str(value)
+
+    # Inline images are not meaningfully tokenized by text length. Count only
+    # a small placeholder so base64 does not dominate text attribution.
+    value = re.sub(
+        r"data:image/[^;]+;base64,[A-Za-z0-9+/=\s]{128,}",
+        "<inline-image>",
+        value,
+        flags=re.MULTILINE,
+    )
+
+    global _ENCODING
+    if _ENCODING is None:
+        _ENCODING = tiktoken.get_encoding("o200k_base")
+    return len(_ENCODING.encode(value))
+
+
+# ----------------------------- rollout model -----------------------------
+
+@dataclasses.dataclass
+class Usage:
+    input_tokens: int = 0
+    cached_input_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_output_tokens: int = 0
+    total_tokens: int = 0
+
+    @classmethod
+    def from_obj(cls, obj: dict[str, Any] | None) -> "Usage":
+        obj = obj or {}
+        return cls(
+            input_tokens=int(obj.get("input_tokens") or 0),
+            cached_input_tokens=int(obj.get("cached_input_tokens") or 0),
+            output_tokens=int(obj.get("output_tokens") or 0),
+            reasoning_output_tokens=int(obj.get("reasoning_output_tokens") or 0),
+            total_tokens=int(obj.get("total_tokens") or 0),
+        )
+
+    def delta(self, previous: "Usage") -> "Usage":
+        return Usage(
+            input_tokens=max(0, self.input_tokens - previous.input_tokens),
+            cached_input_tokens=max(0, self.cached_input_tokens - previous.cached_input_tokens),
+            output_tokens=max(0, self.output_tokens - previous.output_tokens),
+            reasoning_output_tokens=max(0, self.reasoning_output_tokens - previous.reasoning_output_tokens),
+            total_tokens=max(0, self.total_tokens - previous.total_tokens),
+        )
+
+    def increased_from(self, previous: "Usage") -> bool:
+        return any([
+            self.input_tokens > previous.input_tokens,
+            self.output_tokens > previous.output_tokens,
+            self.total_tokens > previous.total_tokens,
+        ])
+
+    def add_assign(self, other: "Usage") -> None:
+        self.input_tokens += other.input_tokens
+        self.cached_input_tokens += other.cached_input_tokens
+        self.output_tokens += other.output_tokens
+        self.reasoning_output_tokens += other.reasoning_output_tokens
+        self.total_tokens += other.total_tokens or (other.input_tokens + other.output_tokens)
+
+    def normalized(self) -> "Usage":
+        if not self.total_tokens and (self.input_tokens or self.output_tokens):
+            self.total_tokens = self.input_tokens + self.output_tokens
+        return self
+
+
+@dataclasses.dataclass
+class SourceItem:
+    category: str
+    label: str
+    tokens: int
+    origin: str  # external | assistant
+    kind: str
+    seq: int
+    command: str | None = None
+    file: str | None = None
+
+
+@dataclasses.dataclass
+class Generator:
+    label: str
+    kind: str
+    payload_tokens: int
+    command: str | None = None
+    file: str | None = None
+
+
+@dataclasses.dataclass
+class ModelCall:
+    timestamp: str
+    usage: Usage
+    cumulative: Usage
+    context_window: int
+    context_ratio: float
+    attributed: dict[str, float]
+
+
+@dataclasses.dataclass
+class SessionReport:
+    path: Path
+    session_id: str = ""
+    cwd: str = ""
+    originator: str = ""
+    source: str = ""
+    cli_version: str = ""
+    model_provider: str = ""
+    model: str = ""
+    reasoning_effort: str = ""
+    started_at: str = ""
+    ended_at: str = ""
+    title: str = ""
+    file_size: int = 0
+
+    total: Usage = dataclasses.field(default_factory=Usage)
+    last: Usage = dataclasses.field(default_factory=Usage)
+    context_window: int = 0
+    model_calls: int = 0
+    compactions: int = 0
+    parse_errors: int = 0
+    usage_source: str = "legacy token_count"
+
+    cumulative_attribution: dict[str, float] = dataclasses.field(default_factory=dict)
+    observed_payload: dict[str, int] = dataclasses.field(default_factory=dict)
+    generators: list[Generator] = dataclasses.field(default_factory=list)
+    calls: list[ModelCall] = dataclasses.field(default_factory=list)
+    command_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
+    file_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
+
+    @property
+    def fresh_input(self) -> int:
+        return max(0, self.total.input_tokens - self.total.cached_input_tokens)
+
+    @property
+    def current_context_tokens(self) -> int:
+        return self.last.input_tokens
+
+    @property
+    def current_context_ratio(self) -> float:
+        return (
+            self.current_context_tokens / self.context_window
+            if self.context_window else 0.0
+        )
+
+    @property
+    def cache_hit(self) -> float:
+        return (
+            self.total.cached_input_tokens / self.total.input_tokens
+            if self.total.input_tokens else 0.0
+        )
+
+
+def obj_text(obj: Any) -> str:
+    """Flatten user/model-visible textual content while avoiding huge base64."""
+    if obj is None:
+        return ""
+    if isinstance(obj, str):
+        return obj
+    if isinstance(obj, (int, float, bool)):
+        return str(obj)
+    if isinstance(obj, list):
+        return "\n".join(filter(None, (obj_text(v) for v in obj)))
+    if isinstance(obj, dict):
+        pieces = []
+        for key, value in obj.items():
+            if key in {"encrypted_content"}:
+                continue
+            if key in {"image_url", "audio_url"} and isinstance(value, str) and value.startswith("data:"):
+                pieces.append(f"<{key}:inline-data>")
+                continue
+            pieces.append(obj_text(value))
+        return "\n".join(filter(None, pieces))
+    return str(obj)
+
+
+def content_text(content: Any) -> str:
+    if not isinstance(content, list):
+        return obj_text(content)
+    parts: list[str] = []
+    for item in content:
+        if isinstance(item, dict):
+            ty = item.get("type")
+            if ty in {"input_text", "output_text", "text"}:
+                parts.append(str(item.get("text") or ""))
+            elif ty in {"input_image", "output_image"}:
+                parts.append("<image>")
+            elif "text" in item:
+                parts.append(str(item.get("text") or ""))
+            else:
+                parts.append(obj_text(item))
+        else:
+            parts.append(obj_text(item))
+    return "\n".join(filter(None, parts))
+
+
+INSTRUCTION_MARKERS = (
+    "AGENTS.md instructions for",
+    "<INSTRUCTIONS>",
+    "# AGENTS.md",
+    "developer instructions",
+    "system instructions",
+)
+
+
+def looks_like_instructions(text: str) -> bool:
+    t = text.lower()
+    return any(marker.lower() in t for marker in INSTRUCTION_MARKERS)
+
+
+TEST_PATTERNS = re.compile(
+    r"(^|\s|/)(pytest|python\s+-m\s+pytest|cargo\s+test|go\s+test|npm\s+(run\s+)?test|"
+    r"pnpm\s+(run\s+)?test|yarn\s+test|mvn\s+test|gradle\s+test|"
+    r"\./gradlew\s+test|dotnet\s+test|rspec|jest|vitest)(\s|$)",
+    re.IGNORECASE,
+)
+
+FILE_READ_PATTERNS = re.compile(
+    r"(^|[;&|]\s*|\s)(cat|sed\s+-n|head|tail|less|more|bat|awk|"
+    r"rg|grep|find|fd|git\s+(show|diff)|ls)(\s|$)",
+    re.IGNORECASE,
+)
+
+FILE_CHANGE_NAMES = {
+    "apply_patch", "write_file", "edit_file", "file_change", "patch_file",
+}
+
+SHELL_NAMES = {
+    "exec_command", "shell", "bash", "sh", "run_command", "terminal",
+    "functions.exec", "command",
+}
+
+
+def parse_jsonish(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    s = value.strip()
+    if not s:
+        return value
+    try:
+        return json.loads(s)
+    except Exception:
+        return value
+
+
+def extract_command(args: Any) -> str | None:
+    args = parse_jsonish(args)
+    if isinstance(args, dict):
+        for key in ("cmd", "command", "script"):
+            value = args.get(key)
+            if isinstance(value, str):
+                return value
+            if isinstance(value, list):
+                return " ".join(map(str, value))
+        # Programmatic calls sometimes nest shell actions.
+        for value in args.values():
+            cmd = extract_command(value)
+            if cmd:
+                return cmd
+    elif isinstance(args, list):
+        if all(isinstance(v, str) for v in args):
+            return " ".join(args)
+        for value in args:
+            cmd = extract_command(value)
+            if cmd:
+                return cmd
+    elif isinstance(args, str):
+        # Only accept as a command if it resembles one.
+        if re.search(r"(^|\s)(git|cat|sed|rg|grep|pytest|npm|pnpm|yarn|cargo|go|python|terraform|kubectl|docker|make)\b", args):
+            return args
+    return None
+
+
+def shell_category(command: str | None) -> str:
+    if not command:
+        return "Shell command output"
+    if TEST_PATTERNS.search(command):
+        return "Tests"
+    if FILE_READ_PATTERNS.search(command):
+        return "Repository/file reads"
+    return "Shell command output"
+
+
+def classify_tool(name: str, command: str | None, is_mcp: bool = False) -> str:
+    lower = (name or "").lower()
+    if lower in FILE_CHANGE_NAMES or any(x in lower for x in ("patch", "edit_file", "write_file")):
+        return "File changes"
+    if lower in SHELL_NAMES or "exec" in lower or command:
+        return shell_category(command)
+    if is_mcp or "mcp" in lower:
+        return "MCP/tool results"
+    return "MCP/tool results"
+
+
+def extract_files_from_command(command: str | None, output: str = "") -> list[str]:
+    if not command:
+        return []
+    files: list[str] = []
+
+    # Common direct file readers.
+    patterns = [
+        r"\bcat\s+(?:--\s+)?([^\s;&|]+)",
+        r"\b(?:head|tail|less|more|bat)\s+(?:-[^\s]+\s+)*([^\s;&|]+)",
+        r"\bsed\s+-n\s+['\"][^'\"]+['\"]\s+([^\s;&|]+)",
+    ]
+    for pat in patterns:
+        for match in re.findall(pat, command):
+            candidate = match.strip("'\"")
+            if candidate and not candidate.startswith("-"):
+                files.append(candidate)
+
+    # git diff output can identify exact files even when command cannot.
+    for match in re.findall(r"^\+\+\+\s+(?:b/)?(.+)$", output, flags=re.MULTILINE):
+        if match != "/dev/null":
+            files.append(match.strip())
+
+    # ripgrep-style output: path:line:text
+    if re.search(r"\b(rg|grep)\b", command):
+        for line in output.splitlines()[:5000]:
+            m = re.match(r"([^:\n]{1,240}):(?:\d+:)?", line)
+            if m and "/" in m.group(1) or (m and "." in m.group(1)):
+                files.append(m.group(1))
+
+    # Stable order, no duplicates.
+    seen = set()
+    result = []
+    for f in files:
+        if f not in seen:
+            seen.add(f)
+            result.append(f)
+    return result[:100]
+
+
+def session_id_from_path(path: Path) -> str:
+    m = re.search(
+        r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        path.name,
+    )
+    return m.group(1) if m else path.stem
+
+
+def iter_rollout(path: Path) -> Iterator[dict[str, Any]]:
+    with path.open("r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                value = json.loads(line)
+                if isinstance(value, dict):
+                    yield value
+            except json.JSONDecodeError:
+                yield {"__parse_error__": True}
+
+
+def usage_obj_nonzero(u: Usage) -> bool:
+    return any(dataclasses.asdict(u).values())
+
+
+def rollout_has_modern_usage(path: Path) -> bool:
+    """Fast pre-scan so legacy token_count and modern token_usage_record are not double-counted."""
+    needle = '"type":"token_usage_record"'
+    needle_spaced = '"type": "token_usage_record"'
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if needle in line or needle_spaced in line:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def dict_get_first(obj: Any, keys: Iterable[str]) -> Any:
+    if isinstance(obj, dict):
+        for key in keys:
+            value = obj.get(key)
+            if value not in (None, "", [], {}):
+                return value
+        for value in obj.values():
+            found = dict_get_first(value, keys)
+            if found not in (None, "", [], {}):
+                return found
+    elif isinstance(obj, list):
+        for value in obj:
+            found = dict_get_first(value, keys)
+            if found not in (None, "", [], {}):
+                return found
+    return None
+
+
+def parse_compaction_sources(payload: Any, seq: int) -> list[SourceItem]:
+    history = {}
+    if isinstance(payload, dict):
+        history = payload.get("replacement_history") or payload.get("history") or payload
+    text = obj_text(history)
+    tok = estimate_tokens(text)
+    if not tok:
+        return []
+    return [
+        SourceItem(
+            category="Compacted history",
+            label="compaction replacement history",
+            tokens=tok,
+            origin="external",
+            kind="compaction",
+            seq=seq,
+        )
+    ]
+
+
+def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
+    report = SessionReport(path=path)
+    report.session_id = session_id_from_path(path)
+    try:
+        report.file_size = path.stat().st_size
+    except OSError:
+        pass
+
+    active: list[SourceItem] = []
+    since_last_token: list[SourceItem] = []
+    calls_by_id: dict[str, dict[str, Any]] = {}
+    previous_total = Usage()
+    pending_compaction: Any = None
+    seq = 0
+
+    modern_usage = rollout_has_modern_usage(path)
+    if modern_usage:
+        report.usage_source = "token_usage_record"
+    seen_response_ids: set[str] = set()
+    modern_sum = Usage()
+
+    # Prevent repeated turn_context instruction blocks from accumulating as if
+    # they were distinct transcript messages.
+    instruction_fingerprints: set[int] = set()
+
+    def add_source(item: SourceItem, generator: bool = False, text: str = "") -> None:
+        active.append(item)
+        since_last_token.append(item)
+        report.observed_payload[item.category] = report.observed_payload.get(item.category, 0) + item.tokens
+
+        if generator and item.tokens:
+            report.generators.append(
+                Generator(
+                    label=item.label,
+                    kind=item.kind,
+                    payload_tokens=item.tokens,
+                    command=item.command,
+                    file=item.file,
+                )
+            )
+        if item.command and item.tokens:
+            report.command_payloads[item.command] = report.command_payloads.get(item.command, 0) + item.tokens
+
+        if item.file and item.tokens:
+            report.file_payloads[item.file] = report.file_payloads.get(item.file, 0) + item.tokens
+
+        if text and item.command:
+            files = extract_files_from_command(item.command, text)
+            if files:
+                share = max(1, item.tokens // len(files))
+                for f in files:
+                    report.file_payloads[f] = report.file_payloads.get(f, 0) + share
+
+    def set_compacted_history(payload: Any) -> None:
+        nonlocal active, since_last_token
+        compacted_sources = parse_compaction_sources(payload, seq)
+        active = compacted_sources
+        since_last_token = list(compacted_sources)
+        for item in compacted_sources:
+            report.observed_payload[item.category] = report.observed_payload.get(item.category, 0) + item.tokens
+
+    for rec in iter_rollout(path):
+        seq += 1
+        if rec.get("__parse_error__"):
+            report.parse_errors += 1
+            continue
+
+        timestamp = str(rec.get("timestamp") or "")
+        if timestamp:
+            if not report.started_at:
+                report.started_at = timestamp
+            report.ended_at = timestamp
+
+        rtype = rec.get("type")
+        payload = rec.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
+
+        if rtype == "session_meta":
+            report.session_id = str(payload.get("session_id") or payload.get("id") or report.session_id)
+            report.cwd = str(payload.get("cwd") or report.cwd)
+            report.originator = str(payload.get("originator") or report.originator)
+            report.source = str(payload.get("source") or report.source)
+            report.cli_version = str(payload.get("cli_version") or report.cli_version)
+            report.model_provider = str(payload.get("model_provider") or report.model_provider)
+            meta_window = payload.get("context_window") or payload.get("model_context_window")
+            if isinstance(meta_window, (int, float)) and meta_window:
+                report.context_window = int(meta_window)
+
+            base = payload.get("base_instructions")
+            if base:
+                text = obj_text(base)
+                tok = estimate_tokens(text)
+                fp = hash(text)
+                if tok and fp not in instruction_fingerprints:
+                    instruction_fingerprints.add(fp)
+                    add_source(
+                        SourceItem(
+                            "AGENTS.md/instructions", "base instructions", tok,
+                            "external", "instructions", seq
+                        )
+                    )
+            continue
+
+        if rtype == "turn_context":
+            report.cwd = str(payload.get("cwd") or report.cwd)
+            model = dict_get_first(payload, ("model", "model_name"))
+            if model:
+                report.model = str(model)
+            effort = dict_get_first(payload, ("reasoning_effort", "effort"))
+            if effort:
+                report.reasoning_effort = str(effort)
+            turn_window = dict_get_first(payload, ("model_context_window", "context_window"))
+            if isinstance(turn_window, (int, float)) and turn_window:
+                report.context_window = int(turn_window)
+
+            # Search common instruction-bearing keys, but deduplicate because
+            # turn_context can repeat them many times.
+            for key in (
+                "developer_instructions", "user_instructions", "instructions",
+                "base_instructions", "agent_instructions",
+            ):
+                value = payload.get(key)
+                if value:
+                    text = obj_text(value)
+                    fp = hash(text)
+                    tok = estimate_tokens(text)
+                    if tok and fp not in instruction_fingerprints:
+                        instruction_fingerprints.add(fp)
+                        add_source(
+                            SourceItem(
+                                "AGENTS.md/instructions",
+                                f"turn context: {key}",
+                                tok,
+                                "external",
+                                "instructions",
+                                seq,
+                            )
+                        )
+            continue
+
+        if rtype == "token_usage_record":
+            if not modern_usage:
+                continue
+
+            response_id = str(payload.get("response_id") or f"seq-{seq}")
+            if response_id in seen_response_ids:
+                continue
+            seen_response_ids.add(response_id)
+
+            usage = Usage.from_obj(payload.get("usage")).normalized()
+            if not usage_obj_nonzero(usage):
+                continue
+
+            modern_sum.add_assign(usage)
+            thread_total_obj = payload.get("thread_token_usage")
+            thread_total = Usage.from_obj(thread_total_obj).normalized() if isinstance(thread_total_obj, dict) else None
+
+            # Prefer Codex's own cumulative thread total when available. It
+            # survives cases where a rollout segment does not contain every
+            # historical response record.
+            report.total = thread_total if thread_total and usage_obj_nonzero(thread_total) else modern_sum
+            report.last = usage
+            report.model_calls += 1
+
+            assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
+            visible = [x for x in active if id(x) not in assistant_new_ids]
+
+            known_by_cat: dict[str, float] = collections.defaultdict(float)
+            for item in visible:
+                known_by_cat[item.category] += item.tokens
+
+            input_tokens = usage.input_tokens
+            known_sum = sum(known_by_cat.values())
+            attributed: dict[str, float] = {}
+            if input_tokens > 0:
+                scale = input_tokens / known_sum if known_sum > input_tokens and known_sum > 0 else 1.0
+                known_used = 0.0
+                for cat, val in known_by_cat.items():
+                    amount = val * scale
+                    attributed[cat] = amount
+                    known_used += amount
+                residual = max(0.0, input_tokens - known_used)
+                if residual:
+                    attributed["Other/platform context"] = residual
+
+                for cat, amount in attributed.items():
+                    report.cumulative_attribution[cat] = (
+                        report.cumulative_attribution.get(cat, 0.0) + amount
+                    )
+
+            if keep_calls:
+                report.calls.append(
+                    ModelCall(
+                        timestamp=timestamp,
+                        usage=usage,
+                        cumulative=report.total,
+                        context_window=report.context_window,
+                        context_ratio=(usage.input_tokens / report.context_window if report.context_window else 0.0),
+                        attributed=attributed,
+                    )
+                )
+
+            since_last_token = []
+
+            if pending_compaction is not None:
+                set_compacted_history(pending_compaction)
+                pending_compaction = None
+            continue
+
+        if rtype == "compacted":
+            report.compactions += 1
+            pending_compaction = payload
+            continue
+
+        if rtype == "event_msg":
+            ptype = payload.get("type")
+
+            if ptype == "context_compacted":
+                # Usually a token_count already occurred immediately after the
+                # compacted record. If not, apply the replacement here.
+                if pending_compaction is not None:
+                    set_compacted_history(pending_compaction)
+                    pending_compaction = None
+                continue
+
+            if ptype == "token_count":
+                info = payload.get("info") or {}
+                if not isinstance(info, dict):
+                    continue
+
+                cumulative = Usage.from_obj(info.get("total_token_usage"))
+                last = Usage.from_obj(info.get("last_token_usage"))
+                window = int(info.get("model_context_window") or report.context_window or 0)
+
+                if modern_usage:
+                    # Modern per-response records are the accounting source of
+                    # truth. Legacy token_count may coexist; use it only to
+                    # enrich context-window metadata.
+                    if window:
+                        report.context_window = window
+                    if usage_obj_nonzero(last) and not usage_obj_nonzero(report.last):
+                        report.last = last
+                    continue
+
+                # Some events can re-emit last_token_usage without new token
+                # consumption. Trust increases in cumulative counters first.
+                if usage_obj_nonzero(cumulative) and cumulative.increased_from(previous_total):
+                    delta = cumulative.delta(previous_total)
+                    previous_total = cumulative
+                    report.total = cumulative
+                    report.last = last if usage_obj_nonzero(last) else delta
+                    report.context_window = window
+                    report.model_calls += 1
+
+                    # The model-generated records since the previous token event
+                    # belong to this call's output, not its request input.
+                    assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
+                    visible = [x for x in active if id(x) not in assistant_new_ids]
+
+                    known_by_cat: dict[str, float] = collections.defaultdict(float)
+                    for item in visible:
+                        known_by_cat[item.category] += item.tokens
+
+                    input_tokens = delta.input_tokens or report.last.input_tokens
+                    cached = min(delta.cached_input_tokens, input_tokens)
+                    known_sum = sum(known_by_cat.values())
+
+                    attributed: dict[str, float] = {}
+                    if input_tokens > 0:
+                        if known_sum > input_tokens and known_sum > 0:
+                            scale = input_tokens / known_sum
+                        else:
+                            scale = 1.0
+                        known_used = 0.0
+                        for cat, val in known_by_cat.items():
+                            amount = val * scale
+                            attributed[cat] = amount
+                            known_used += amount
+                        residual = max(0.0, input_tokens - known_used)
+                        if residual:
+                            attributed["Other/platform context"] = residual
+
+                        for cat, amount in attributed.items():
+                            report.cumulative_attribution[cat] = (
+                                report.cumulative_attribution.get(cat, 0.0) + amount
+                            )
+
+                    if keep_calls:
+                        report.calls.append(
+                            ModelCall(
+                                timestamp=timestamp,
+                                usage=delta,
+                                cumulative=cumulative,
+                                context_window=window,
+                                context_ratio=(report.last.input_tokens / window if window else 0.0),
+                                attributed=attributed,
+                            )
+                        )
+
+                    since_last_token = []
+
+                    # Apply compaction only after attributing the request that
+                    # caused/preceded the compacted history.
+                    if pending_compaction is not None:
+                        set_compacted_history(pending_compaction)
+                        pending_compaction = None
+
+                elif not usage_obj_nonzero(report.total) and usage_obj_nonzero(last):
+                    # Legacy/incomplete logs with no cumulative totals.
+                    report.last = last
+                    report.context_window = window
+                continue
+
+            # Avoid event_msg user_message/item_completed duplication. Canonical
+            # model-visible messages/tool outputs are handled as response_item.
+            continue
+
+        if rtype != "response_item":
+            continue
+
+        ptype = str(payload.get("type") or "")
+
+        if ptype == "message":
+            role = str(payload.get("role") or "")
+            text = content_text(payload.get("content"))
+            if not text:
+                continue
+            tok = estimate_tokens(text)
+            if role == "user" and not report.title and not looks_like_instructions(text):
+                report.title = truncate(text, 72)
+
+            if looks_like_instructions(text):
+                category = "AGENTS.md/instructions"
+                label = "injected instructions"
+            else:
+                category = "Conversation/history"
+                label = f"{role or 'message'}: {truncate(text, 72)}"
+
+            add_source(
+                SourceItem(
+                    category=category,
+                    label=label,
+                    tokens=tok,
+                    origin="assistant" if role == "assistant" else "external",
+                    kind=f"{role or 'unknown'} message",
+                    seq=seq,
+                ),
+                generator=False,
+                text=text,
+            )
+            continue
+
+        if ptype in {"function_call", "custom_tool_call"}:
+            call_id = str(payload.get("call_id") or payload.get("id") or f"seq-{seq}")
+            name = str(payload.get("name") or payload.get("tool") or "tool")
+            args = (
+                payload.get("arguments")
+                if "arguments" in payload else payload.get("input")
+            )
+            command = extract_command(args)
+            is_mcp = bool(payload.get("namespace")) and str(payload.get("namespace")).lower() not in {"", "codex_app"}
+            calls_by_id[call_id] = {
+                "name": name,
+                "args": args,
+                "command": command,
+                "is_mcp": is_mcp,
+            }
+
+            # Tool-call arguments become part of later context. Keep them small
+            # but visible in attribution.
+            arg_text = obj_text(args)
+            tok = estimate_tokens(arg_text)
+            if tok:
+                cat = classify_tool(name, command, is_mcp=is_mcp)
+                add_source(
+                    SourceItem(
+                        category=cat,
+                        label=f"{name} call: {truncate(command or arg_text, 80)}",
+                        tokens=tok,
+                        origin="assistant",
+                        kind="tool call",
+                        seq=seq,
+                        command=command,
+                    ),
+                    generator=False,
+                )
+            continue
+
+        if ptype in {"function_call_output", "custom_tool_call_output", "tool_search_output"}:
+            call_id = str(payload.get("call_id") or payload.get("id") or "")
+            meta = calls_by_id.get(call_id, {})
+            name = str(payload.get("name") or meta.get("name") or ptype)
+            command = meta.get("command")
+            output = payload.get("output")
+            text = obj_text(output)
+            tok = estimate_tokens(text)
+            is_mcp = bool(meta.get("is_mcp"))
+            category = classify_tool(name, command, is_mcp=is_mcp)
+            label_core = truncate(command or name, 88)
+            label = f"{label_core}"
+            add_source(
+                SourceItem(
+                    category=category,
+                    label=label,
+                    tokens=tok,
+                    origin="external",
+                    kind="command output" if command else "tool output",
+                    seq=seq,
+                    command=command,
+                ),
+                generator=True,
+                text=text,
+            )
+            continue
+
+        if ptype == "mcp_tool_call":
+            name = f"{payload.get('server') or 'mcp'}/{payload.get('tool') or 'tool'}"
+            result = payload.get("result")
+            if result is None and payload.get("error") is not None:
+                result = payload.get("error")
+            text = obj_text(result)
+            tok = estimate_tokens(text)
+            add_source(
+                SourceItem(
+                    "MCP/tool results", name, tok, "external",
+                    "mcp tool output", seq
+                ),
+                generator=True,
+                text=text,
+            )
+            continue
+
+        if ptype in {"reasoning"}:
+            # Reasoning output is measured exactly by token counters; persisted
+            # reasoning text/encrypted blobs are not treated as ordinary input
+            # attribution because retention semantics vary across Codex versions.
+            continue
+
+        # Other response items can still enter retained history. Count only a
+        # compact textual representation.
+        text = obj_text(payload)
+        tok = estimate_tokens(text)
+        if tok:
+            add_source(
+                SourceItem(
+                    "Other visible context",
+                    ptype or "response item",
+                    tok,
+                    "assistant",
+                    ptype or "response item",
+                    seq,
+                )
+            )
+
+    if pending_compaction is not None:
+        set_compacted_history(pending_compaction)
+
+    # If no model/reasoning info was found, scan metadata-like fields cheaply.
+    if not report.title:
+        report.title = "(no user prompt found)"
+
+    return report
+
+
+# ----------------------------- discovery -----------------------------
+
+def default_codex_home() -> Path:
+    return Path(os.path.expanduser(os.getenv("CODEX_HOME", "~/.codex")))
+
+
+def discover_rollouts(home: Path, include_archived: bool = False) -> list[Path]:
+    roots = [home / "sessions"]
+    if include_archived:
+        roots.append(home / "archived_sessions")
+
+    paths: list[Path] = []
+    for root in roots:
+        if not root.exists():
+            continue
+        paths.extend(root.rglob("rollout-*.jsonl"))
+    return sorted(
+        paths,
+        key=lambda p: p.stat().st_mtime if p.exists() else 0,
+        reverse=True,
+    )
+
+
+def resolve_session(value: str | None, home: Path, include_archived: bool = True) -> Path:
+    if value:
+        direct = Path(os.path.expanduser(value))
+        if direct.exists():
+            return direct
+
+    rollouts = discover_rollouts(home, include_archived=include_archived)
+    if not rollouts:
+        raise SystemExit(f"No rollout files found under {home}")
+
+    if not value or value in {"current", "latest"}:
+        return rollouts[0]
+
+    matches = [p for p in rollouts if value.lower() in p.name.lower()]
+    if not matches:
+        # Match session_meta id if filename format ever changes.
+        for p in rollouts:
+            if value.lower() in session_id_from_path(p).lower():
+                matches.append(p)
+
+    if not matches:
+        raise SystemExit(f"No session matching {value!r} under {home}")
+    if len(matches) > 1:
+        exact = [p for p in matches if session_id_from_path(p) == value]
+        if len(exact) == 1:
+            return exact[0]
+        raise SystemExit(
+            f"Session selector {value!r} is ambiguous ({len(matches)} matches). "
+            "Use a longer UUID prefix."
+        )
+    return matches[0]
+
+
+# ----------------------------- rendering -----------------------------
+
+CATEGORY_ORDER = [
+    "Repository/file reads",
+    "Shell command output",
+    "Tests",
+    "MCP/tool results",
+    "File changes",
+    "Conversation/history",
+    "AGENTS.md/instructions",
+    "Compacted history",
+    "Other visible context",
+    "Other/platform context",
+]
+
+
+def ordered_items(d: dict[str, float | int]) -> list[tuple[str, float]]:
+    order = {name: i for i, name in enumerate(CATEGORY_ORDER)}
+    return sorted(
+        ((k, float(v)) for k, v in d.items() if v),
+        key=lambda kv: (-kv[1], order.get(kv[0], 999), kv[0]),
+    )
+
+
+def render_bar(value: float, max_value: float, width: int = 16) -> str:
+    if max_value <= 0:
+        return " " * width
+    n = max(0, min(width, int(round(width * value / max_value))))
+    return "█" * n + "░" * (width - n)
+
+
+def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -> None:
+    print(style("CODEX TOKEN PROFILE", "bold", "cyan"))
+    print("─" * 72)
+    print_kv("Session", report.session_id)
+    print_kv("Project", report.cwd or "-")
+    print_kv("Title", report.title or "-")
+    print_kv("Model", " / ".join(filter(None, [report.model or "-", report.reasoning_effort])))
+    print_kv("Source", report.source or report.originator or "-")
+    print_kv("Codex CLI", report.cli_version or "-")
+    print_kv("Rollout", str(report.path))
+    print_kv("Rollout size", human_bytes(report.file_size))
+    if report.started_at:
+        print_kv("Started", report.started_at)
+    if report.ended_at:
+        print_kv("Last event", report.ended_at)
+
+    print()
+    print(style("EXACT USAGE", "bold"))
+    print("─" * 72)
+    print_kv("Input", human_int(report.total.input_tokens))
+    print_kv("Cached input", f"{human_int(report.total.cached_input_tokens)}  ({pct(report.total.cached_input_tokens, report.total.input_tokens)})")
+    print_kv("Fresh input", human_int(report.fresh_input))
+    print_kv("Output", human_int(report.total.output_tokens))
+    print_kv("Reasoning output", human_int(report.total.reasoning_output_tokens))
+    print_kv("Total", human_int(report.total.total_tokens or (report.total.input_tokens + report.total.output_tokens)))
+    print_kv("Model calls", str(report.model_calls))
+    print_kv("Usage telemetry", report.usage_source)
+    print_kv("Compactions", str(report.compactions))
+    if report.parse_errors:
+        print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
+
+    if report.context_window:
+        print()
+        print(style("CURRENT CONTEXT", "bold"))
+        print("─" * 72)
+        used = report.current_context_tokens
+        ratio = report.current_context_ratio
+        print_kv("Last call input", f"{human_int(used)} / {human_int(report.context_window)}  ({ratio * 100:.1f}%)")
+        print_kv("Last call output", human_int(report.last.output_tokens))
+        print_kv("Last reasoning", human_int(report.last.reasoning_output_tokens))
+
+    print()
+    print(style("BY ACTIVITY — estimated cumulative input contribution", "bold"))
+    print(style("Exact session input is allocated from model-visible context; attribution is approximate.", "dim"))
+    print("─" * 72)
+    rows = ordered_items(report.cumulative_attribution)
+    max_val = max((v for _, v in rows), default=0.0)
+    total_attr = sum(v for _, v in rows)
+    for name, value in rows:
+        print(f"{name:<27} {human_int(value):>9}  {pct(value, total_attr):>6}  {render_bar(value, max_val)}")
+
+    print()
+    print(style("OBSERVED PAYLOAD — one-time visible transcript footprint", "bold"))
+    print(style("Useful for finding large outputs even when later calls repeatedly re-use them.", "dim"))
+    print("─" * 72)
+    rows = ordered_items(report.observed_payload)
+    max_val = max((v for _, v in rows), default=0.0)
+    for name, value in rows:
+        print(f"{name:<27} {human_int(value):>9}  {render_bar(value, max_val)}")
+
+    print()
+    print(style("TOP TOKEN GENERATORS — estimated model-visible payload", "bold"))
+    print("─" * 72)
+    generators = sorted(report.generators, key=lambda x: x.payload_tokens, reverse=True)[:top_n]
+    if not generators:
+        print("(no tool outputs found)")
+    else:
+        for i, gen in enumerate(generators, 1):
+            print(f"{i:>2}. {human_int(gen.payload_tokens):>8}  {gen.kind:<15}  {truncate(gen.label, 88)}")
+
+    if report.file_payloads:
+        print()
+        print(style("TOP FILES — inferred from read/diff commands", "bold"))
+        print("─" * 72)
+        for i, (name, tokens) in enumerate(
+            sorted(report.file_payloads.items(), key=lambda kv: kv[1], reverse=True)[:top_n], 1
+        ):
+            print(f"{i:>2}. {human_int(tokens):>8}  {truncate(name, 100)}")
+
+    if report.command_payloads:
+        print()
+        print(style("TOP COMMANDS — by returned model-visible output", "bold"))
+        print("─" * 72)
+        for i, (cmd, tokens) in enumerate(
+            sorted(report.command_payloads.items(), key=lambda kv: kv[1], reverse=True)[:top_n], 1
+        ):
+            print(f"{i:>2}. {human_int(tokens):>8}  {truncate(cmd, 105)}")
+
+    if show_calls and report.calls:
+        print()
+        print(style(f"LARGEST MODEL CALLS — top {min(show_calls, len(report.calls))} by input", "bold"))
+        print("─" * 72)
+        print(f"{'#':>3}  {'timestamp':<24} {'input':>9} {'cached':>9} {'fresh':>9} {'output':>8} {'ctx':>7}")
+        ranked = sorted(enumerate(report.calls, 1), key=lambda x: x[1].usage.input_tokens, reverse=True)[:show_calls]
+        for idx, call in ranked:
+            fresh = max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
+            ts = call.timestamp.replace("T", " ")[:23]
+            print(
+                f"{idx:>3}  {ts:<24} {human_int(call.usage.input_tokens):>9} "
+                f"{human_int(call.usage.cached_input_tokens):>9} {human_int(fresh):>9} "
+                f"{human_int(call.usage.output_tokens):>8} {call.context_ratio * 100:>6.1f}%"
+            )
+
+    print()
+    print(style("NOTES", "bold"))
+    print("─" * 72)
+    print("• Exact usage comes from Codex cumulative token counters.")
+    print("• Cached input is a subset of input; it is not added on top of input.")
+    print("• Reasoning output is reported separately but is already part of output accounting semantics.")
+    print("• Activity/file/command figures are estimates and should be used for optimization, not billing.")
+
+
+def render_short_report(report: SessionReport) -> None:
+    model = " / ".join(filter(None, [report.model or "-", report.reasoning_effort]))
+    context = "-"
+    if report.context_window:
+        context = (
+            f"{human_int(report.current_context_tokens)} / "
+            f"{human_int(report.context_window)} ({report.current_context_ratio * 100:.1f}%)"
+        )
+
+    print(style("CODEX TOKEN PROFILE — SHORT", "bold", "cyan"))
+    print("─" * 72)
+    print_kv("Session", report.session_id)
+    print_kv("Project", report.cwd or "-")
+    print_kv("Model", model)
+    print_kv(
+        "Input",
+        f"{human_int(report.total.input_tokens)} "
+        f"({human_int(report.total.cached_input_tokens)} cached, {human_int(report.fresh_input)} fresh)",
+    )
+    print_kv(
+        "Output",
+        f"{human_int(report.total.output_tokens)} "
+        f"({human_int(report.total.reasoning_output_tokens)} reasoning)",
+    )
+    print_kv("Current context", context)
+    print_kv("Calls / compactions", f"{report.model_calls} / {report.compactions}")
+
+    activities = ordered_items(report.cumulative_attribution)[:3]
+    if activities:
+        summary = ", ".join(f"{name}: {human_int(value)}" for name, value in activities)
+        print_kv("Top activity (est.)", summary)
+    if report.parse_errors:
+        print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
+
+
+def report_to_json(report: SessionReport) -> dict[str, Any]:
+    return {
+        "session": {
+            "id": report.session_id,
+            "cwd": report.cwd,
+            "title": report.title,
+            "model": report.model,
+            "reasoning_effort": report.reasoning_effort,
+            "source": report.source,
+            "originator": report.originator,
+            "cli_version": report.cli_version,
+            "path": str(report.path),
+            "file_size": report.file_size,
+            "started_at": report.started_at,
+            "ended_at": report.ended_at,
+        },
+        "usage": {
+            **dataclasses.asdict(report.total),
+            "fresh_input_tokens": report.fresh_input,
+            "cache_hit_ratio": report.cache_hit,
+            "model_calls": report.model_calls,
+            "usage_source": report.usage_source,
+            "compactions": report.compactions,
+        },
+        "context": {
+            "last_call_input_tokens": report.current_context_tokens,
+            "model_context_window": report.context_window,
+            "ratio": report.current_context_ratio,
+        },
+        "cumulative_attribution_estimate": {
+            k: round(v) for k, v in sorted(report.cumulative_attribution.items(), key=lambda kv: kv[1], reverse=True)
+        },
+        "observed_payload_estimate": dict(
+            sorted(report.observed_payload.items(), key=lambda kv: kv[1], reverse=True)
+        ),
+        "top_generators": [
+            dataclasses.asdict(x)
+            for x in sorted(report.generators, key=lambda x: x.payload_tokens, reverse=True)
+        ],
+        "top_commands": dict(
+            sorted(report.command_payloads.items(), key=lambda kv: kv[1], reverse=True)
+        ),
+        "top_files": dict(
+            sorted(report.file_payloads.items(), key=lambda kv: kv[1], reverse=True)
+        ),
+        "calls": [
+            {
+                "timestamp": c.timestamp,
+                "usage": dataclasses.asdict(c.usage),
+                "cumulative": dataclasses.asdict(c.cumulative),
+                "context_window": c.context_window,
+                "context_ratio": c.context_ratio,
+                "attributed": {k: round(v) for k, v in c.attributed.items()},
+            }
+            for c in report.calls
+        ],
+        "parse_errors": report.parse_errors,
+        "estimator": "tiktoken:o200k_base",
+    }
+
+
+def render_sessions(home: Path, limit: int, include_archived: bool) -> None:
+    paths = discover_rollouts(home, include_archived=include_archived)[:limit]
+    if not paths:
+        raise SystemExit(f"No rollout files found under {home}")
+
+    print(style(f"RECENT CODEX SESSIONS — {home}", "bold", "cyan"))
+    print("─" * 118)
+    print(f"{'session':<14} {'project':<28} {'input':>9} {'cached':>9} {'output':>8} {'calls':>6} {'ctx':>7}  title")
+    for path in paths:
+        r = analyze_session(path, keep_calls=False)
+        short_id = r.session_id[:12]
+        project = Path(r.cwd).name if r.cwd else "-"
+        ctx = f"{r.current_context_ratio * 100:.0f}%" if r.context_window else "-"
+        print(
+            f"{short_id:<14} {truncate(project, 27):<28} "
+            f"{human_int(r.total.input_tokens):>9} {human_int(r.total.cached_input_tokens):>9} "
+            f"{human_int(r.total.output_tokens):>8} {r.model_calls:>6} {ctx:>7}  "
+            f"{truncate(r.title, 46)}"
+        )
+
+
+def render_top(home: Path, by: str, limit: int, sessions: int, include_archived: bool) -> None:
+    paths = discover_rollouts(home, include_archived=include_archived)[:sessions]
+    if not paths:
+        raise SystemExit(f"No rollout files found under {home}")
+
+    if by == "session":
+        rows = []
+        for path in paths:
+            r = analyze_session(path, keep_calls=False)
+            rows.append((r.total.input_tokens, r))
+        rows.sort(key=lambda x: x[0], reverse=True)
+        print(style(f"TOP SESSIONS BY INPUT TOKENS — scanned {len(paths)}", "bold", "cyan"))
+        print("─" * 110)
+        for i, (_, r) in enumerate(rows[:limit], 1):
+            print(
+                f"{i:>2}. {human_int(r.total.input_tokens):>9}  "
+                f"{r.session_id[:12]:<12}  {truncate(Path(r.cwd).name if r.cwd else '-', 24):<24}  "
+                f"{truncate(r.title, 58)}"
+            )
+        return
+
+    aggregate: dict[str, int] = collections.defaultdict(int)
+    for path in paths:
+        r = analyze_session(path, keep_calls=False)
+        source = r.command_payloads if by == "command" else r.file_payloads
+        for key, value in source.items():
+            aggregate[key] += value
+
+    print(style(f"TOP {by.upper()}S — estimated payload across {len(paths)} sessions", "bold", "cyan"))
+    print("─" * 110)
+    for i, (name, tokens) in enumerate(
+        sorted(aggregate.items(), key=lambda kv: kv[1], reverse=True)[:limit], 1
+    ):
+        print(f"{i:>2}. {human_int(tokens):>9}  {truncate(name, 100)}")
+
+
+# ----------------------------- CLI -----------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="codex-usage",
+        description="Profile local Codex token usage from rollout JSONL files.",
+    )
+    p.add_argument(
+        "--home",
+        type=Path,
+        default=default_codex_home(),
+        help="Codex home (default: $CODEX_HOME or ~/.codex)",
+    )
+    p.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
+
+    sub = p.add_subparsers(dest="command")
+
+    current = sub.add_parser("current", help="Analyze the newest local session.")
+    current.add_argument("--json", action="store_true", help="Emit JSON.")
+    current.add_argument("--top", type=int, default=8, help="Top generators/files/commands.")
+    current.add_argument("--calls", type=int, default=10, help="Number of largest model calls.")
+
+    sub.add_parser("short", help="Show a compact report for the newest local session.")
+
+    session = sub.add_parser("session", help="Analyze a session UUID/prefix or rollout path.")
+    session.add_argument("selector", help="UUID/prefix or JSONL path.")
+    session.add_argument("--json", action="store_true", help="Emit JSON.")
+    session.add_argument("--top", type=int, default=8)
+    session.add_argument("--calls", type=int, default=10)
+
+    sessions = sub.add_parser("sessions", help="List recent sessions with token totals.")
+    sessions.add_argument("--limit", type=int, default=20)
+    sessions.add_argument("--archived", action="store_true")
+
+    top = sub.add_parser("top", help="Rank usage across recent sessions.")
+    top.add_argument("--by", choices=("session", "command", "file"), default="session")
+    top.add_argument("--limit", type=int, default=15)
+    top.add_argument("--sessions", type=int, default=50, help="How many recent sessions to scan.")
+    top.add_argument("--archived", action="store_true")
+
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    home = Path(os.path.expanduser(str(args.home)))
+
+    command = args.command or "current"
+
+    if command == "current":
+        path = resolve_session(None, home, include_archived=False)
+        r = analyze_session(path)
+        if getattr(args, "json", False):
+            print(json.dumps(report_to_json(r), indent=2, ensure_ascii=False))
+        else:
+            render_report(r, top_n=getattr(args, "top", 8), show_calls=getattr(args, "calls", 10))
+        return 0
+
+    if command == "short":
+        path = resolve_session(None, home, include_archived=False)
+        render_short_report(analyze_session(path, keep_calls=False))
+        return 0
+
+    if command == "session":
+        path = resolve_session(args.selector, home, include_archived=True)
+        r = analyze_session(path)
+        if args.json:
+            print(json.dumps(report_to_json(r), indent=2, ensure_ascii=False))
+        else:
+            render_report(r, top_n=args.top, show_calls=args.calls)
+        return 0
+
+    if command == "sessions":
+        render_sessions(home, args.limit, args.archived)
+        return 0
+
+    if command == "top":
+        render_top(home, args.by, args.limit, args.sessions, args.archived)
+        return 0
+
+    parser.print_help()
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
