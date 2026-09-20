@@ -236,8 +236,8 @@ echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
 configure_agent_mcps
 echo "==> Installing Headroom for Codex and Claude..."
 install_headroom
-echo "==> Installing Codex token profiler..."
-bash "$SCRIPT_DIR/codex-token-profiler/install.sh"
+echo "==> Installing Codex and Claude token profiler..."
+bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."
 install_shell_config
 echo "==> Review and trust Ponytail hooks with /hooks in each Codex profile."

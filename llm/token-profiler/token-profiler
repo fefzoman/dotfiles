@@ -1,17 +1,15 @@
-#!/usr/bin/env python3
-"""
-codex-usage: local Codex rollout token profiler.
+#!/usr/bin/env python
+"""Local Codex and Claude Code session token profiler.
 
-Reads Codex rollout JSONL files under:
-  $CODEX_HOME/sessions
-  $CODEX_HOME/archived_sessions
-or ~/.codex by default.
+Reads Codex rollout JSONL and Claude Code transcript JSONL files from the
+selected personal or work profile.
 
 Exact metrics:
   - cumulative input/cached/output/reasoning token counts
   - model context window
   - model-call count inferred from increasing cumulative token counters
   - compaction count
+  - latest inner-session usage, split after activity gaps over 30 minutes
 
 Estimated metrics:
   - attribution of cumulative input to visible transcript sources
@@ -39,7 +37,8 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-VERSION = "0.3.0"
+VERSION = "1.0.0"
+INNER_SESSION_GAP = dt.timedelta(minutes=30)
 
 import tiktoken  # type: ignore
 
@@ -108,6 +107,37 @@ def print_kv(label: str, value: str, width: int = 24) -> None:
     print(f"{label:<{width}} {value}")
 
 
+def parse_timestamp(value: str) -> dt.datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+    except ValueError:
+        return None
+
+
+def human_duration(start: str, end: str) -> str:
+    seconds = duration_seconds(start, end)
+    if seconds is None:
+        return "-"
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {seconds}s"
+    return f"{seconds}s"
+
+
+def duration_seconds(start: str, end: str) -> int | None:
+    start_at = parse_timestamp(start)
+    end_at = parse_timestamp(end)
+    if not start_at or not end_at:
+        return None
+    return max(0, int((end_at - start_at).total_seconds()))
+
+
 # ----------------------------- token estimation -----------------------------
 
 _ENCODING = None
@@ -144,6 +174,7 @@ def estimate_tokens(value: Any) -> int:
 class Usage:
     input_tokens: int = 0
     cached_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
     output_tokens: int = 0
     reasoning_output_tokens: int = 0
     total_tokens: int = 0
@@ -154,6 +185,7 @@ class Usage:
         return cls(
             input_tokens=int(obj.get("input_tokens") or 0),
             cached_input_tokens=int(obj.get("cached_input_tokens") or 0),
+            cache_creation_input_tokens=int(obj.get("cache_creation_input_tokens") or 0),
             output_tokens=int(obj.get("output_tokens") or 0),
             reasoning_output_tokens=int(obj.get("reasoning_output_tokens") or 0),
             total_tokens=int(obj.get("total_tokens") or 0),
@@ -163,6 +195,10 @@ class Usage:
         return Usage(
             input_tokens=max(0, self.input_tokens - previous.input_tokens),
             cached_input_tokens=max(0, self.cached_input_tokens - previous.cached_input_tokens),
+            cache_creation_input_tokens=max(
+                0,
+                self.cache_creation_input_tokens - previous.cache_creation_input_tokens,
+            ),
             output_tokens=max(0, self.output_tokens - previous.output_tokens),
             reasoning_output_tokens=max(0, self.reasoning_output_tokens - previous.reasoning_output_tokens),
             total_tokens=max(0, self.total_tokens - previous.total_tokens),
@@ -178,6 +214,7 @@ class Usage:
     def add_assign(self, other: "Usage") -> None:
         self.input_tokens += other.input_tokens
         self.cached_input_tokens += other.cached_input_tokens
+        self.cache_creation_input_tokens += other.cache_creation_input_tokens
         self.output_tokens += other.output_tokens
         self.reasoning_output_tokens += other.reasoning_output_tokens
         self.total_tokens += other.total_tokens or (other.input_tokens + other.output_tokens)
@@ -220,8 +257,17 @@ class ModelCall:
 
 
 @dataclasses.dataclass
+class ActivityEvent:
+    timestamp: str
+    usage: Usage | None = None
+    compaction: bool = False
+
+
+@dataclasses.dataclass
 class SessionReport:
     path: Path
+    agent: str = "codex"
+    profile: str = "codex"
     session_id: str = ""
     cwd: str = ""
     originator: str = ""
@@ -242,6 +288,13 @@ class SessionReport:
     compactions: int = 0
     parse_errors: int = 0
     usage_source: str = "legacy token_count"
+    subagent_sessions: int = 0
+
+    inner_started_at: str = ""
+    inner_ended_at: str = ""
+    inner_usage: Usage = dataclasses.field(default_factory=Usage)
+    inner_model_calls: int = 0
+    inner_compactions: int = 0
 
     cumulative_attribution: dict[str, float] = dataclasses.field(default_factory=dict)
     observed_payload: dict[str, int] = dataclasses.field(default_factory=dict)
@@ -249,6 +302,9 @@ class SessionReport:
     calls: list[ModelCall] = dataclasses.field(default_factory=list)
     command_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
     file_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
+    tool_calls: dict[str, int] = dataclasses.field(default_factory=dict)
+    tool_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
+    activity_events: list[ActivityEvent] = dataclasses.field(default_factory=list)
 
     @property
     def fresh_input(self) -> int:
@@ -270,6 +326,17 @@ class SessionReport:
         return (
             self.total.cached_input_tokens / self.total.input_tokens
             if self.total.input_tokens else 0.0
+        )
+
+    @property
+    def inner_fresh_input(self) -> int:
+        return max(0, self.inner_usage.input_tokens - self.inner_usage.cached_input_tokens)
+
+    @property
+    def inner_cache_hit(self) -> float:
+        return (
+            self.inner_usage.cached_input_tokens / self.inner_usage.input_tokens
+            if self.inner_usage.input_tokens else 0.0
         )
 
 
@@ -320,6 +387,7 @@ INSTRUCTION_MARKERS = (
     "AGENTS.md instructions for",
     "<INSTRUCTIONS>",
     "# AGENTS.md",
+    "# CLAUDE.md",
     "developer instructions",
     "system instructions",
 )
@@ -405,8 +473,12 @@ def shell_category(command: str | None) -> str:
 
 def classify_tool(name: str, command: str | None, is_mcp: bool = False) -> str:
     lower = (name or "").lower()
-    if lower in FILE_CHANGE_NAMES or any(x in lower for x in ("patch", "edit_file", "write_file")):
+    if lower in FILE_CHANGE_NAMES or any(
+        x in lower for x in ("patch", "edit_file", "write_file", "notebookedit")
+    ) or lower in {"edit", "write"}:
         return "File changes"
+    if lower in {"read", "glob", "grep"}:
+        return "Repository/file reads"
     if lower in SHELL_NAMES or "exec" in lower or command:
         return shell_category(command)
     if is_mcp or "mcp" in lower:
@@ -544,6 +616,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     calls_by_id: dict[str, dict[str, Any]] = {}
     previous_total = Usage()
     pending_compaction: Any = None
+    last_activity_at: dt.datetime | None = None
     seq = 0
 
     modern_usage = rollout_has_modern_usage(path)
@@ -603,6 +676,15 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             if not report.started_at:
                 report.started_at = timestamp
             report.ended_at = timestamp
+            activity_at = parse_timestamp(timestamp)
+            if activity_at:
+                if last_activity_at is None or activity_at - last_activity_at > INNER_SESSION_GAP:
+                    report.inner_started_at = timestamp
+                    report.inner_usage = Usage()
+                    report.inner_model_calls = 0
+                    report.inner_compactions = 0
+                last_activity_at = activity_at
+                report.inner_ended_at = timestamp
 
         rtype = rec.get("type")
         payload = rec.get("payload")
@@ -695,6 +777,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             report.total = thread_total if thread_total and usage_obj_nonzero(thread_total) else modern_sum
             report.last = usage
             report.model_calls += 1
+            report.inner_usage.add_assign(usage)
+            report.inner_model_calls += 1
 
             assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
             visible = [x for x in active if id(x) not in assistant_new_ids]
@@ -743,6 +827,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
 
         if rtype == "compacted":
             report.compactions += 1
+            report.inner_compactions += 1
             pending_compaction = payload
             continue
 
@@ -785,6 +870,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                     report.last = last if usage_obj_nonzero(last) else delta
                     report.context_window = window
                     report.model_calls += 1
+                    report.inner_usage.add_assign(delta)
+                    report.inner_model_calls += 1
 
                     # The model-generated records since the previous token event
                     # belong to this call's output, not its request input.
@@ -899,6 +986,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                 "command": command,
                 "is_mcp": is_mcp,
             }
+            report.tool_calls[name] = report.tool_calls.get(name, 0) + 1
 
             # Tool-call arguments become part of later context. Keep them small
             # but visible in attribution.
@@ -930,6 +1018,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             tok = estimate_tokens(text)
             is_mcp = bool(meta.get("is_mcp"))
             category = classify_tool(name, command, is_mcp=is_mcp)
+            report.tool_payloads[name] = report.tool_payloads.get(name, 0) + tok
             label_core = truncate(command or name, 88)
             label = f"{label_core}"
             add_source(
@@ -954,6 +1043,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                 result = payload.get("error")
             text = obj_text(result)
             tok = estimate_tokens(text)
+            report.tool_calls[name] = report.tool_calls.get(name, 0) + 1
+            report.tool_payloads[name] = report.tool_payloads.get(name, 0) + tok
             add_source(
                 SourceItem(
                     "MCP/tool results", name, tok, "external",
@@ -996,22 +1087,462 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     return report
 
 
+def claude_usage(obj: Any) -> Usage:
+    if not isinstance(obj, dict):
+        return Usage()
+    base_input = int(obj.get("input_tokens") or 0)
+    cache_creation = int(obj.get("cache_creation_input_tokens") or 0)
+    cache_read = int(obj.get("cache_read_input_tokens") or 0)
+    output = int(obj.get("output_tokens") or 0)
+    output_details = obj.get("output_tokens_details")
+    reasoning = (
+        int(output_details.get("thinking_tokens") or 0)
+        if isinstance(output_details, dict)
+        else 0
+    )
+    total_input = base_input + cache_creation + cache_read
+    return Usage(
+        input_tokens=total_input,
+        cached_input_tokens=cache_read,
+        cache_creation_input_tokens=cache_creation,
+        output_tokens=output,
+        reasoning_output_tokens=reasoning,
+        total_tokens=total_input + output,
+    )
+
+
+def extract_file_argument(args: Any) -> str | None:
+    args = parse_jsonish(args)
+    if not isinstance(args, dict):
+        return None
+    for key in ("file_path", "path", "notebook_path"):
+        value = args.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def claude_has_compaction_boundaries(path: Path) -> bool:
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            return any(
+                '"compact_boundary"' in line
+                for line in fh
+                if '"type"' in line
+            )
+    except OSError:
+        return False
+
+
+def recalculate_inner_session(report: SessionReport) -> None:
+    report.inner_started_at = ""
+    report.inner_ended_at = ""
+    report.inner_usage = Usage()
+    report.inner_model_calls = 0
+    report.inner_compactions = 0
+    last_activity_at: dt.datetime | None = None
+
+    for event in sorted(report.activity_events, key=lambda item: item.timestamp):
+        activity_at = parse_timestamp(event.timestamp)
+        if not activity_at:
+            continue
+        if last_activity_at is None or activity_at - last_activity_at > INNER_SESSION_GAP:
+            report.inner_started_at = event.timestamp
+            report.inner_usage = Usage()
+            report.inner_model_calls = 0
+            report.inner_compactions = 0
+        last_activity_at = activity_at
+        report.inner_ended_at = event.timestamp
+        if event.usage is not None:
+            report.inner_usage.add_assign(event.usage)
+            report.inner_model_calls += 1
+        if event.compaction:
+            report.inner_compactions += 1
+
+
+def add_report_totals(target: SessionReport, source: SessionReport) -> None:
+    target.total.add_assign(source.total)
+    target.model_calls += source.model_calls
+    target.compactions += source.compactions
+    target.parse_errors += source.parse_errors
+    target.file_size += source.file_size
+    target.calls.extend(source.calls)
+    target.generators.extend(source.generators)
+    target.activity_events.extend(source.activity_events)
+
+    for attribute in (
+        "cumulative_attribution",
+        "observed_payload",
+        "command_payloads",
+        "file_payloads",
+        "tool_calls",
+        "tool_payloads",
+    ):
+        destination = getattr(target, attribute)
+        for key, value in getattr(source, attribute).items():
+            destination[key] = destination.get(key, 0) + value
+
+
+def analyze_claude_session(
+    path: Path,
+    keep_calls: bool = True,
+    include_subagents: bool = True,
+) -> SessionReport:
+    report = SessionReport(
+        path=path,
+        agent="claude",
+        profile="claude",
+        session_id=session_id_from_path(path),
+        source="Claude Code",
+        usage_source="assistant message usage",
+    )
+    try:
+        report.file_size = path.stat().st_size
+    except OSError:
+        pass
+
+    active: list[SourceItem] = []
+    calls_by_id: dict[str, dict[str, Any]] = {}
+    seen_message_ids: set[str] = set()
+    last_activity_at: dt.datetime | None = None
+    has_compaction_boundaries = claude_has_compaction_boundaries(path)
+    seq = 0
+
+    def add_source(item: SourceItem, generator: bool = False, text: str = "") -> None:
+        active.append(item)
+        report.observed_payload[item.category] = (
+            report.observed_payload.get(item.category, 0) + item.tokens
+        )
+        if generator and item.tokens:
+            report.generators.append(
+                Generator(
+                    label=item.label,
+                    kind=item.kind,
+                    payload_tokens=item.tokens,
+                    command=item.command,
+                    file=item.file,
+                )
+            )
+        if item.command and item.tokens:
+            report.command_payloads[item.command] = (
+                report.command_payloads.get(item.command, 0) + item.tokens
+            )
+        if item.file and item.tokens:
+            report.file_payloads[item.file] = (
+                report.file_payloads.get(item.file, 0) + item.tokens
+            )
+        if text and item.command:
+            files = extract_files_from_command(item.command, text)
+            if files:
+                share = max(1, item.tokens // len(files))
+                for file_name in files:
+                    report.file_payloads[file_name] = (
+                        report.file_payloads.get(file_name, 0) + share
+                    )
+
+    def record_usage(timestamp: str, usage: Usage) -> None:
+        report.total.add_assign(usage)
+        report.last = usage
+        report.model_calls += 1
+        report.inner_usage.add_assign(usage)
+        report.inner_model_calls += 1
+
+        known_by_category: dict[str, float] = collections.defaultdict(float)
+        for item in active:
+            known_by_category[item.category] += item.tokens
+        known_sum = sum(known_by_category.values())
+        attributed: dict[str, float] = {}
+        if usage.input_tokens:
+            scale = (
+                usage.input_tokens / known_sum
+                if known_sum > usage.input_tokens and known_sum
+                else 1.0
+            )
+            known_used = 0.0
+            for category, value in known_by_category.items():
+                amount = value * scale
+                attributed[category] = amount
+                known_used += amount
+            residual = max(0.0, usage.input_tokens - known_used)
+            if residual:
+                attributed["Other/platform context"] = residual
+            for category, amount in attributed.items():
+                report.cumulative_attribution[category] = (
+                    report.cumulative_attribution.get(category, 0.0) + amount
+                )
+
+        if keep_calls:
+            report.calls.append(
+                ModelCall(
+                    timestamp=timestamp,
+                    usage=usage,
+                    cumulative=dataclasses.replace(report.total),
+                    context_window=report.context_window,
+                    context_ratio=(
+                        usage.input_tokens / report.context_window
+                        if report.context_window
+                        else 0.0
+                    ),
+                    attributed=attributed,
+                )
+            )
+
+    for rec in iter_rollout(path):
+        seq += 1
+        if rec.get("__parse_error__"):
+            report.parse_errors += 1
+            continue
+
+        timestamp = str(rec.get("timestamp") or "")
+        if timestamp:
+            if not report.started_at:
+                report.started_at = timestamp
+            report.ended_at = timestamp
+            activity_at = parse_timestamp(timestamp)
+            if activity_at:
+                if last_activity_at is None or activity_at - last_activity_at > INNER_SESSION_GAP:
+                    report.inner_started_at = timestamp
+                    report.inner_usage = Usage()
+                    report.inner_model_calls = 0
+                    report.inner_compactions = 0
+                last_activity_at = activity_at
+                report.inner_ended_at = timestamp
+            report.activity_events.append(ActivityEvent(timestamp))
+
+        report.session_id = str(rec.get("sessionId") or report.session_id)
+        report.cwd = str(rec.get("cwd") or report.cwd)
+        report.cli_version = str(rec.get("version") or report.cli_version)
+        record_type = str(rec.get("type") or "")
+
+        if record_type == "system" and rec.get("subtype") == "compact_boundary":
+            report.compactions += 1
+            report.inner_compactions += 1
+            if timestamp:
+                report.activity_events.append(ActivityEvent(timestamp, compaction=True))
+            active = []
+            continue
+
+        if record_type == "summary":
+            if not has_compaction_boundaries:
+                report.compactions += 1
+                report.inner_compactions += 1
+                if timestamp:
+                    report.activity_events.append(ActivityEvent(timestamp, compaction=True))
+            summary = str(rec.get("summary") or "")
+            tokens = estimate_tokens(summary)
+            active = []
+            if tokens:
+                add_source(
+                    SourceItem(
+                        "Compacted history",
+                        "Claude compacted history",
+                        tokens,
+                        "external",
+                        "compaction",
+                        seq,
+                    )
+                )
+            continue
+
+        message = rec.get("message")
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+
+        if record_type == "assistant":
+            message_id = str(message.get("id") or rec.get("uuid") or f"seq-{seq}")
+            if message_id in seen_message_ids:
+                continue
+            seen_message_ids.add(message_id)
+            report.model = str(message.get("model") or report.model)
+            context_window = dict_get_first(message.get("usage"), ("context_window",))
+            if isinstance(context_window, (int, float)) and context_window:
+                report.context_window = int(context_window)
+            usage = claude_usage(message.get("usage"))
+            if usage_obj_nonzero(usage):
+                record_usage(timestamp, usage)
+                if timestamp:
+                    report.activity_events.append(ActivityEvent(timestamp, usage=usage))
+
+            blocks = content if isinstance(content, list) else [{"type": "text", "text": content}]
+            for block in blocks:
+                if not isinstance(block, dict):
+                    continue
+                block_type = str(block.get("type") or "")
+                if block_type in {"text", "thinking"}:
+                    if block_type == "thinking":
+                        continue
+                    text = str(block.get("text") or "")
+                    tokens = estimate_tokens(text)
+                    if tokens:
+                        add_source(
+                            SourceItem(
+                                "Conversation/history",
+                                f"assistant: {truncate(text, 72)}",
+                                tokens,
+                                "assistant",
+                                "assistant message",
+                                seq,
+                            )
+                        )
+                    continue
+                if block_type != "tool_use":
+                    continue
+                call_id = str(block.get("id") or f"seq-{seq}")
+                name = str(block.get("name") or "tool")
+                args = block.get("input")
+                command = extract_command(args)
+                file_name = extract_file_argument(args)
+                calls_by_id[call_id] = {
+                    "name": name,
+                    "command": command,
+                    "file": file_name,
+                }
+                report.tool_calls[name] = report.tool_calls.get(name, 0) + 1
+                arg_text = obj_text(args)
+                tokens = estimate_tokens(arg_text)
+                if tokens:
+                    add_source(
+                        SourceItem(
+                            classify_tool(name, command, is_mcp="mcp" in name.lower()),
+                            f"{name} call: {truncate(command or file_name or arg_text, 80)}",
+                            tokens,
+                            "assistant",
+                            "tool call",
+                            seq,
+                            command=command,
+                            file=file_name,
+                        )
+                    )
+            continue
+
+        if record_type != "user":
+            continue
+        blocks = content if isinstance(content, list) else [{"type": "text", "text": content}]
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type") or "")
+            if block_type == "tool_result":
+                call_id = str(block.get("tool_use_id") or "")
+                meta = calls_by_id.get(call_id, {})
+                name = str(meta.get("name") or "tool_result")
+                command = meta.get("command")
+                file_name = meta.get("file")
+                text = obj_text(block.get("content"))
+                tokens = estimate_tokens(text)
+                report.tool_payloads[name] = report.tool_payloads.get(name, 0) + tokens
+                add_source(
+                    SourceItem(
+                        classify_tool(name, command, is_mcp="mcp" in name.lower()),
+                        truncate(command or file_name or name, 88),
+                        tokens,
+                        "external",
+                        "command output" if command else "tool output",
+                        seq,
+                        command=command,
+                        file=file_name,
+                    ),
+                    generator=True,
+                    text=text,
+                )
+                continue
+            if block_type != "text":
+                continue
+            text = str(block.get("text") or "")
+            if not text:
+                continue
+            if not report.title and not looks_like_instructions(text):
+                report.title = truncate(text, 72)
+            category = (
+                "AGENTS.md/instructions"
+                if looks_like_instructions(text)
+                else "Conversation/history"
+            )
+            add_source(
+                SourceItem(
+                    category,
+                    "injected instructions" if category == "AGENTS.md/instructions" else f"user: {truncate(text, 72)}",
+                    estimate_tokens(text),
+                    "external",
+                    "user message",
+                    seq,
+                )
+            )
+
+    if not report.title:
+        report.title = "(no user prompt found)"
+    if include_subagents and "subagents" not in path.parts:
+        subagent_root = path.with_suffix("") / "subagents"
+        if subagent_root.is_dir():
+            for subagent_path in sorted(subagent_root.rglob("*.jsonl")):
+                previous_end = parse_timestamp(report.ended_at)
+                subagent = analyze_claude_session(
+                    subagent_path,
+                    keep_calls=keep_calls,
+                    include_subagents=False,
+                )
+                subagent_end = parse_timestamp(subagent.ended_at)
+                add_report_totals(report, subagent)
+                report.subagent_sessions += 1
+                if subagent.started_at and (
+                    not report.started_at or subagent.started_at < report.started_at
+                ):
+                    report.started_at = subagent.started_at
+                if subagent.ended_at and (
+                    not report.ended_at or subagent.ended_at > report.ended_at
+                ):
+                    report.ended_at = subagent.ended_at
+                if subagent_end and (not previous_end or subagent_end > previous_end):
+                    report.last = subagent.last
+                    if subagent.model:
+                        report.model = subagent.model
+    recalculate_inner_session(report)
+    return report
+
+
 # ----------------------------- discovery -----------------------------
 
-def default_codex_home() -> Path:
-    return Path(os.path.expanduser(os.getenv("CODEX_HOME", "~/.codex")))
+@dataclasses.dataclass(frozen=True)
+class Profile:
+    name: str
+    agent: str
+    home: Path
 
 
-def discover_rollouts(home: Path, include_archived: bool = False) -> list[Path]:
-    roots = [home / "sessions"]
-    if include_archived:
-        roots.append(home / "archived_sessions")
+def profile_for(name: str, home: Path | None = None) -> Profile:
+    if name not in {"codex", "codex-work", "claude", "claude-work"}:
+        raise ValueError(f"Unknown profile: {name}")
+    agent = name.split("-", 1)[0]
+    configured_home = Path.home() / f".{name}"
+    return Profile(name=name, agent=agent, home=(home or configured_home).expanduser())
+
+
+def profile_home_for_session(path: Path, agent: str) -> Path:
+    root_names = {"sessions", "archived_sessions"} if agent == "codex" else {"projects"}
+    for parent in path.parents:
+        if parent.name in root_names:
+            return parent.parent
+    return Path.home() / f".{agent}"
+
+
+def discover_sessions(profile: Profile, include_archived: bool = False) -> list[Path]:
+    if profile.agent == "codex":
+        roots = [profile.home / "sessions"]
+        if include_archived:
+            roots.append(profile.home / "archived_sessions")
+        pattern = "rollout-*.jsonl"
+    else:
+        roots = [profile.home / "projects"]
+        pattern = "*.jsonl"
 
     paths: list[Path] = []
     for root in roots:
-        if not root.exists():
-            continue
-        paths.extend(root.rglob("rollout-*.jsonl"))
+        if root.exists():
+            discovered = root.rglob(pattern)
+            if profile.agent == "claude":
+                discovered = (path for path in discovered if "subagents" not in path.parts)
+            paths.extend(discovered)
     return sorted(
         paths,
         key=lambda p: p.stat().st_mtime if p.exists() else 0,
@@ -1019,28 +1550,27 @@ def discover_rollouts(home: Path, include_archived: bool = False) -> list[Path]:
     )
 
 
-def resolve_session(value: str | None, home: Path, include_archived: bool = True) -> Path:
+def resolve_session(value: str | None, profile: Profile, include_archived: bool = True) -> Path:
     if value:
         direct = Path(os.path.expanduser(value))
         if direct.exists():
             return direct
 
-    rollouts = discover_rollouts(home, include_archived=include_archived)
-    if not rollouts:
-        raise SystemExit(f"No rollout files found under {home}")
+    sessions = discover_sessions(profile, include_archived=include_archived)
+    if not sessions:
+        raise SystemExit(f"No {profile.agent} session files found under {profile.home}")
 
     if not value or value in {"current", "latest"}:
-        return rollouts[0]
+        return sessions[0]
 
-    matches = [p for p in rollouts if value.lower() in p.name.lower()]
+    matches = [p for p in sessions if value.lower() in p.name.lower()]
     if not matches:
-        # Match session_meta id if filename format ever changes.
-        for p in rollouts:
+        for p in sessions:
             if value.lower() in session_id_from_path(p).lower():
                 matches.append(p)
 
     if not matches:
-        raise SystemExit(f"No session matching {value!r} under {home}")
+        raise SystemExit(f"No session matching {value!r} under {profile.home}")
     if len(matches) > 1:
         exact = [p for p in matches if session_id_from_path(p) == value]
         if len(exact) == 1:
@@ -1050,6 +1580,21 @@ def resolve_session(value: str | None, home: Path, include_archived: bool = True
             "Use a longer UUID prefix."
         )
     return matches[0]
+
+
+def analyze_profile_session(
+    path: Path,
+    profile: Profile,
+    keep_calls: bool = True,
+) -> SessionReport:
+    report = (
+        analyze_session(path, keep_calls=keep_calls)
+        if profile.agent == "codex"
+        else analyze_claude_session(path, keep_calls=keep_calls)
+    )
+    report.agent = profile.agent
+    report.profile = profile.name
+    return report
 
 
 # ----------------------------- rendering -----------------------------
@@ -1122,36 +1667,173 @@ def read_rtk_savings(project: str) -> dict[str, Any] | None:
         return None
 
 
-def render_rtk_savings(report: SessionReport) -> None:
-    savings = read_rtk_savings(report.cwd)
-    if not savings:
-        return
+def read_headroom_savings() -> dict[str, Any] | None:
+    headroom = shutil.which("headroom")
+    if not headroom:
+        return None
+
+    env = os.environ.copy()
+    env["HEADROOM_BEACON"] = "off"
+    try:
+        result = subprocess.run(
+            [headroom, "savings", "--json"],
+            env=env,
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=5,
+        )
+        payload = json.loads(result.stdout)
+        lifetime = payload.get("lifetime")
+        windows = payload.get("windows")
+        if not isinstance(lifetime, dict) or not isinstance(windows, dict):
+            return None
+        return {
+            "scope": "global ledger",
+            "top_model": str(payload.get("top_model") or "unknown"),
+            "lifetime": lifetime,
+            "today": windows.get("today") or {},
+            "last_7_days": windows.get("last_7_days") or {},
+            "last_30_days": windows.get("last_30_days") or {},
+        }
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        return None
+
+
+def read_ponytail_status(agent: str, profile_home: Path) -> dict[str, Any]:
+    policy_path = profile_home / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")
+    policy_active = False
+    try:
+        policy_active = "Ponytail:" in policy_path.read_text(encoding="utf-8")
+    except OSError:
+        pass
+
+    plugin_enabled: bool | None = None
+    try:
+        if agent == "codex":
+            config = (profile_home / "config.toml").read_text(encoding="utf-8")
+            section = re.search(
+                r'^\[plugins\."ponytail@ponytail"\]\s*$'
+                r"(?P<body>.*?)(?=^\[|\Z)",
+                config,
+                flags=re.MULTILINE | re.DOTALL,
+            )
+            if section:
+                enabled = re.search(
+                    r"^\s*enabled\s*=\s*(true|false)\s*(?:#.*)?$",
+                    section.group("body"),
+                    flags=re.MULTILINE | re.IGNORECASE,
+                )
+                if enabled:
+                    plugin_enabled = enabled.group(1).lower() == "true"
+        else:
+            settings = json.loads(
+                (profile_home / "settings.json").read_text(encoding="utf-8")
+            )
+            enabled_plugins = settings.get("enabledPlugins", {})
+            if isinstance(enabled_plugins, dict):
+                value = enabled_plugins.get("ponytail@ponytail")
+                if isinstance(value, bool):
+                    plugin_enabled = value
+    except (OSError, ValueError, TypeError):
+        pass
+
+    return {
+        "plugin_enabled": plugin_enabled,
+        "policy_active": policy_active,
+        "saved_tokens": None,
+        "note": "Ponytail changes implementation decisions; avoided code/tokens are not observable from rollout telemetry.",
+    }
+
+
+def observed_tool(report: SessionReport, name: str) -> dict[str, Any]:
+    calls = 0
+    payload_tokens = 0
+    needle = name.lower()
+    for tool, count in report.tool_calls.items():
+        if needle in tool.lower():
+            calls += count
+    for tool, tokens in report.tool_payloads.items():
+        if needle in tool.lower():
+            payload_tokens += tokens
+    return {
+        "calls_observed": calls,
+        "result_tokens_estimate": payload_tokens,
+        "saved_tokens": None,
+    }
+
+
+def collect_optimization(report: SessionReport) -> dict[str, Any]:
+    return {
+        "cache_reuse_exact": {
+            "cached_input_tokens": report.total.cached_input_tokens,
+            "cache_hit_ratio": report.cache_hit,
+            "inner_session_cached_input_tokens": report.inner_usage.cached_input_tokens,
+            "inner_session_cache_hit_ratio": report.inner_cache_hit,
+        },
+        "rtk_savings_estimate": read_rtk_savings(report.cwd),
+        "headroom_savings": read_headroom_savings(),
+        "serena_activity": observed_tool(report, "serena"),
+        "context7_activity": observed_tool(report, "context7"),
+        "ponytail": read_ponytail_status(
+            report.agent,
+            profile_home_for_session(report.path, report.agent),
+        ),
+        "note": "Savings use different scopes and may overlap; they must not be summed.",
+    }
+
+
+def render_optimization(report: SessionReport) -> None:
+    optimization = collect_optimization(report)
 
     print()
-    print(style("RTK SHELL-OUTPUT SAVINGS — estimated", "bold"))
-    print(style("Project aggregate from RTK; separate from exact Codex telemetry.", "dim"))
+    print(style("OPTIMIZATION", "bold"))
+    print(style("Measured values keep their native scope; savings are not additive.", "dim"))
     print("─" * 72)
-    print_kv("Commands", str(savings["commands"]))
-    print_kv("Raw output", human_int(savings["raw_output_tokens_estimate"]))
-    print_kv("Filtered output", human_int(savings["filtered_output_tokens_estimate"]))
     print_kv(
-        "Saved",
-        f"{human_int(savings['saved_tokens_estimate'])} "
-        f"({savings['average_savings_percent']:.1f}%)",
+        "Cache reused (exact)",
+        f"{human_int(report.total.cached_input_tokens)} ({report.cache_hit * 100:.1f}%)",
     )
+    rtk = optimization["rtk_savings_estimate"]
+    if rtk:
+        print_kv(
+            "RTK saved (estimated)",
+            f"{human_int(rtk['saved_tokens_estimate'])} "
+            f"({rtk['average_savings_percent']:.1f}%, {rtk['commands']} project commands)",
+        )
+    headroom = optimization["headroom_savings"]
+    if headroom:
+        lifetime = headroom["lifetime"]
+        print_kv(
+            "Headroom saved (ledger)",
+            f"{human_int(lifetime.get('tokens_saved', 0))} "
+            f"({float(lifetime.get('savings_percent') or 0):.1f}%, "
+            f"{int(lifetime.get('calls') or 0)} global calls)",
+        )
+    for label, key in (("Serena observed", "serena_activity"), ("Context7 observed", "context7_activity")):
+        activity = optimization[key]
+        print_kv(
+            label,
+            f"{activity['calls_observed']} calls, "
+            f"{human_int(activity['result_tokens_estimate'])} result tokens (estimated)",
+        )
+    ponytail = optimization["ponytail"]
+    status = "enabled" if ponytail["plugin_enabled"] else "policy only" if ponytail["policy_active"] else "not detected"
+    print_kv("Ponytail", f"{status}; savings not measurable from rollout data")
 
 
 def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -> None:
-    print(style("CODEX TOKEN PROFILE", "bold", "cyan"))
+    print(style(f"{report.agent.upper()} TOKEN PROFILE", "bold", "cyan"))
     print("─" * 72)
+    print_kv("Profile", report.profile)
     print_kv("Session", report.session_id)
     print_kv("Project", report.cwd or "-")
     print_kv("Title", report.title or "-")
     print_kv("Model", " / ".join(filter(None, [report.model or "-", report.reasoning_effort])))
     print_kv("Source", report.source or report.originator or "-")
-    print_kv("Codex CLI", report.cli_version or "-")
-    print_kv("Rollout", str(report.path))
-    print_kv("Rollout size", human_bytes(report.file_size))
+    print_kv("CLI version", report.cli_version or "-")
+    print_kv("Session file", str(report.path))
+    print_kv("Session file size", human_bytes(report.file_size))
     if report.started_at:
         print_kv("Started", report.started_at)
     if report.ended_at:
@@ -1162,15 +1844,47 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
     print("─" * 72)
     print_kv("Input", human_int(report.total.input_tokens))
     print_kv("Cached input", f"{human_int(report.total.cached_input_tokens)}  ({pct(report.total.cached_input_tokens, report.total.input_tokens)})")
+    if report.total.cache_creation_input_tokens:
+        print_kv("Cache creation", human_int(report.total.cache_creation_input_tokens))
     print_kv("Fresh input", human_int(report.fresh_input))
     print_kv("Output", human_int(report.total.output_tokens))
     print_kv("Reasoning output", human_int(report.total.reasoning_output_tokens))
     print_kv("Total", human_int(report.total.total_tokens or (report.total.input_tokens + report.total.output_tokens)))
     print_kv("Model calls", str(report.model_calls))
+    if report.subagent_sessions:
+        print_kv("Subagent sessions", str(report.subagent_sessions))
     print_kv("Usage telemetry", report.usage_source)
     print_kv("Compactions", str(report.compactions))
     if report.parse_errors:
         print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
+
+    print()
+    print(style("CURRENT INNER SESSION — exact usage", "bold"))
+    print(style("Latest activity window; a gap over 30 minutes starts a new window.", "dim"))
+    print("─" * 72)
+    print_kv("Started", report.inner_started_at or "-")
+    print_kv("Last activity", report.inner_ended_at or "-")
+    print_kv("Elapsed", human_duration(report.inner_started_at, report.inner_ended_at))
+    print_kv("Input", human_int(report.inner_usage.input_tokens))
+    print_kv(
+        "Cached input",
+        f"{human_int(report.inner_usage.cached_input_tokens)}  "
+        f"({pct(report.inner_usage.cached_input_tokens, report.inner_usage.input_tokens)})",
+    )
+    if report.inner_usage.cache_creation_input_tokens:
+        print_kv("Cache creation", human_int(report.inner_usage.cache_creation_input_tokens))
+    print_kv("Fresh input", human_int(report.inner_fresh_input))
+    print_kv("Output", human_int(report.inner_usage.output_tokens))
+    print_kv("Reasoning output", human_int(report.inner_usage.reasoning_output_tokens))
+    print_kv(
+        "Total",
+        human_int(
+            report.inner_usage.total_tokens
+            or (report.inner_usage.input_tokens + report.inner_usage.output_tokens)
+        ),
+    )
+    print_kv("Model calls", str(report.inner_model_calls))
+    print_kv("Compactions", str(report.inner_compactions))
 
     if report.context_window:
         print()
@@ -1244,13 +1958,17 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
                 f"{human_int(call.usage.output_tokens):>8} {call.context_ratio * 100:>6.1f}%"
             )
 
-    render_rtk_savings(report)
+    render_optimization(report)
 
     print()
     print(style("NOTES", "bold"))
     print("─" * 72)
-    print("• Exact usage comes from Codex cumulative token counters.")
-    print("• Cached input is a subset of input; it is not added on top of input.")
+    if report.agent == "codex":
+        print("• Exact usage comes from Codex token counters.")
+    else:
+        print("• Exact usage is summed from Claude assistant-message usage records.")
+        print("• Claude input includes base input, cache creation, and cache reads.")
+    print("• Cached input is a subset of total input; it is not added on top.")
     print("• Reasoning output is reported separately but is already part of output accounting semantics.")
     print("• Activity/file/command figures are estimates and should be used for optimization, not billing.")
 
@@ -1263,9 +1981,12 @@ def render_short_report(report: SessionReport) -> None:
             f"{human_int(report.current_context_tokens)} / "
             f"{human_int(report.context_window)} ({report.current_context_ratio * 100:.1f}%)"
         )
+    elif report.current_context_tokens:
+        context = human_int(report.current_context_tokens)
 
-    print(style("CODEX TOKEN PROFILE — SHORT", "bold", "cyan"))
+    print(style(f"{report.agent.upper()} TOKEN PROFILE — SHORT", "bold", "cyan"))
     print("─" * 72)
+    print_kv("Profile", report.profile)
     print_kv("Session", report.session_id)
     print_kv("Project", report.cwd or "-")
     print_kv("Model", model)
@@ -1274,6 +1995,8 @@ def render_short_report(report: SessionReport) -> None:
         f"{human_int(report.total.input_tokens)} "
         f"({human_int(report.total.cached_input_tokens)} cached, {human_int(report.fresh_input)} fresh)",
     )
+    if report.total.cache_creation_input_tokens:
+        print_kv("Cache creation", human_int(report.total.cache_creation_input_tokens))
     print_kv(
         "Output",
         f"{human_int(report.total.output_tokens)} "
@@ -1281,18 +2004,50 @@ def render_short_report(report: SessionReport) -> None:
     )
     print_kv("Current context", context)
     print_kv("Calls / compactions", f"{report.model_calls} / {report.compactions}")
+    if report.subagent_sessions:
+        print_kv("Subagent sessions", str(report.subagent_sessions))
+    print_kv(
+        "Inner session (exact)",
+        f"{human_int(report.inner_usage.input_tokens)} in / "
+        f"{human_int(report.inner_usage.output_tokens)} out, "
+        f"{report.inner_model_calls} calls, "
+        f"{human_duration(report.inner_started_at, report.inner_ended_at)}",
+    )
 
     activities = ordered_items(report.cumulative_attribution)[:3]
     if activities:
         summary = ", ".join(f"{name}: {human_int(value)}" for name, value in activities)
         print_kv("Top activity (est.)", summary)
-    rtk_savings = read_rtk_savings(report.cwd)
+    optimization = collect_optimization(report)
+    rtk_savings = optimization["rtk_savings_estimate"]
     if rtk_savings:
         print_kv(
             "RTK saved (est.)",
             f"{human_int(rtk_savings['saved_tokens_estimate'])} "
             f"({rtk_savings['average_savings_percent']:.1f}%, {rtk_savings['commands']} commands)",
         )
+    headroom = optimization["headroom_savings"]
+    if headroom:
+        lifetime = headroom["lifetime"]
+        print_kv(
+            "Headroom saved",
+            f"{human_int(lifetime.get('tokens_saved', 0))} "
+            f"({float(lifetime.get('savings_percent') or 0):.1f}%, global ledger)",
+        )
+    print_kv(
+        "Tools observed",
+        f"Serena {optimization['serena_activity']['calls_observed']}, "
+        f"Context7 {optimization['context7_activity']['calls_observed']}",
+    )
+    ponytail = optimization["ponytail"]
+    ponytail_status = (
+        "enabled"
+        if ponytail["plugin_enabled"]
+        else "policy only"
+        if ponytail["policy_active"]
+        else "not detected"
+    )
+    print_kv("Ponytail", f"{ponytail_status}; savings not measurable")
     if report.parse_errors:
         print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
 
@@ -1300,6 +2055,8 @@ def render_short_report(report: SessionReport) -> None:
 def report_to_json(report: SessionReport) -> dict[str, Any]:
     return {
         "session": {
+            "agent": report.agent,
+            "profile": report.profile,
             "id": report.session_id,
             "cwd": report.cwd,
             "title": report.title,
@@ -1320,6 +2077,20 @@ def report_to_json(report: SessionReport) -> dict[str, Any]:
             "model_calls": report.model_calls,
             "usage_source": report.usage_source,
             "compactions": report.compactions,
+            "subagent_sessions": report.subagent_sessions,
+        },
+        "inner_session": {
+            "inactivity_boundary_minutes": int(INNER_SESSION_GAP.total_seconds() // 60),
+            "started_at": report.inner_started_at,
+            "ended_at": report.inner_ended_at,
+            "elapsed_seconds": duration_seconds(report.inner_started_at, report.inner_ended_at),
+            "usage": {
+                **dataclasses.asdict(report.inner_usage),
+                "fresh_input_tokens": report.inner_fresh_input,
+                "cache_hit_ratio": report.inner_cache_hit,
+                "model_calls": report.inner_model_calls,
+                "compactions": report.inner_compactions,
+            },
         },
         "context": {
             "last_call_input_tokens": report.current_context_tokens,
@@ -1355,20 +2126,20 @@ def report_to_json(report: SessionReport) -> dict[str, Any]:
         ],
         "parse_errors": report.parse_errors,
         "estimator": "tiktoken:o200k_base",
-        "rtk_savings_estimate": read_rtk_savings(report.cwd),
+        "optimization": collect_optimization(report),
     }
 
 
-def render_sessions(home: Path, limit: int, include_archived: bool) -> None:
-    paths = discover_rollouts(home, include_archived=include_archived)[:limit]
+def render_sessions(profile: Profile, limit: int, include_archived: bool) -> None:
+    paths = discover_sessions(profile, include_archived=include_archived)[:limit]
     if not paths:
-        raise SystemExit(f"No rollout files found under {home}")
+        raise SystemExit(f"No {profile.agent} session files found under {profile.home}")
 
-    print(style(f"RECENT CODEX SESSIONS — {home}", "bold", "cyan"))
+    print(style(f"RECENT {profile.agent.upper()} SESSIONS — {profile.home}", "bold", "cyan"))
     print("─" * 118)
     print(f"{'session':<14} {'project':<28} {'input':>9} {'cached':>9} {'output':>8} {'calls':>6} {'ctx':>7}  title")
     for path in paths:
-        r = analyze_session(path, keep_calls=False)
+        r = analyze_profile_session(path, profile, keep_calls=False)
         short_id = r.session_id[:12]
         project = Path(r.cwd).name if r.cwd else "-"
         ctx = f"{r.current_context_ratio * 100:.0f}%" if r.context_window else "-"
@@ -1380,15 +2151,15 @@ def render_sessions(home: Path, limit: int, include_archived: bool) -> None:
         )
 
 
-def render_top(home: Path, by: str, limit: int, sessions: int, include_archived: bool) -> None:
-    paths = discover_rollouts(home, include_archived=include_archived)[:sessions]
+def render_top(profile: Profile, by: str, limit: int, sessions: int, include_archived: bool) -> None:
+    paths = discover_sessions(profile, include_archived=include_archived)[:sessions]
     if not paths:
-        raise SystemExit(f"No rollout files found under {home}")
+        raise SystemExit(f"No {profile.agent} session files found under {profile.home}")
 
     if by == "session":
         rows = []
         for path in paths:
-            r = analyze_session(path, keep_calls=False)
+            r = analyze_profile_session(path, profile, keep_calls=False)
             rows.append((r.total.input_tokens, r))
         rows.sort(key=lambda x: x[0], reverse=True)
         print(style(f"TOP SESSIONS BY INPUT TOKENS — scanned {len(paths)}", "bold", "cyan"))
@@ -1403,7 +2174,7 @@ def render_top(home: Path, by: str, limit: int, sessions: int, include_archived:
 
     aggregate: dict[str, int] = collections.defaultdict(int)
     for path in paths:
-        r = analyze_session(path, keep_calls=False)
+        r = analyze_profile_session(path, profile, keep_calls=False)
         source = r.command_payloads if by == "command" else r.file_payloads
         for key, value in source.items():
             aggregate[key] += value
@@ -1420,41 +2191,46 @@ def render_top(home: Path, by: str, limit: int, sessions: int, include_archived:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="codex-usage",
-        description="Profile local Codex token usage from rollout JSONL files.",
-    )
-    p.add_argument(
-        "--home",
-        type=Path,
-        default=default_codex_home(),
-        help="Codex home (default: $CODEX_HOME or ~/.codex)",
+        prog="token-profiler",
+        description="Profile local Codex and Claude Code token usage.",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
 
-    sub = p.add_subparsers(dest="command")
+    profiles = p.add_subparsers(dest="profile", required=True)
+    for profile_name in ("codex", "codex-work", "claude", "claude-work"):
+        profile_parser = profiles.add_parser(
+            profile_name,
+            help=f"Profile {profile_name} sessions.",
+        )
+        profile_parser.add_argument(
+            "--home",
+            type=Path,
+            help="Override this profile's session directory.",
+        )
+        actions = profile_parser.add_subparsers(dest="command")
 
-    current = sub.add_parser("current", help="Analyze the newest local session.")
-    current.add_argument("--json", action="store_true", help="Emit JSON.")
-    current.add_argument("--top", type=int, default=8, help="Top generators/files/commands.")
-    current.add_argument("--calls", type=int, default=10, help="Number of largest model calls.")
+        current = actions.add_parser("current", help="Analyze the newest local session.")
+        current.add_argument("--json", action="store_true", help="Emit JSON.")
+        current.add_argument("--top", type=int, default=8, help="Top generators/files/commands.")
+        current.add_argument("--calls", type=int, default=10, help="Number of largest model calls.")
 
-    sub.add_parser("short", help="Show a compact report for the newest local session.")
+        actions.add_parser("short", help="Show a compact report for the newest local session.")
 
-    session = sub.add_parser("session", help="Analyze a session UUID/prefix or rollout path.")
-    session.add_argument("selector", help="UUID/prefix or JSONL path.")
-    session.add_argument("--json", action="store_true", help="Emit JSON.")
-    session.add_argument("--top", type=int, default=8)
-    session.add_argument("--calls", type=int, default=10)
+        session = actions.add_parser("session", help="Analyze a session ID/prefix or JSONL path.")
+        session.add_argument("selector", help="Session ID/prefix or JSONL path.")
+        session.add_argument("--json", action="store_true", help="Emit JSON.")
+        session.add_argument("--top", type=int, default=8)
+        session.add_argument("--calls", type=int, default=10)
 
-    sessions = sub.add_parser("sessions", help="List recent sessions with token totals.")
-    sessions.add_argument("--limit", type=int, default=20)
-    sessions.add_argument("--archived", action="store_true")
+        sessions_parser = actions.add_parser("sessions", help="List recent sessions.")
+        sessions_parser.add_argument("--limit", type=int, default=20)
+        sessions_parser.add_argument("--archived", action="store_true")
 
-    top = sub.add_parser("top", help="Rank usage across recent sessions.")
-    top.add_argument("--by", choices=("session", "command", "file"), default="session")
-    top.add_argument("--limit", type=int, default=15)
-    top.add_argument("--sessions", type=int, default=50, help="How many recent sessions to scan.")
-    top.add_argument("--archived", action="store_true")
+        top = actions.add_parser("top", help="Rank usage across recent sessions.")
+        top.add_argument("--by", choices=("session", "command", "file"), default="session")
+        top.add_argument("--limit", type=int, default=15)
+        top.add_argument("--sessions", type=int, default=50, help="How many recent sessions to scan.")
+        top.add_argument("--archived", action="store_true")
 
     return p
 
@@ -1462,13 +2238,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    home = Path(os.path.expanduser(str(args.home)))
+    profile = profile_for(args.profile, args.home)
 
     command = args.command or "current"
 
     if command == "current":
-        path = resolve_session(None, home, include_archived=False)
-        r = analyze_session(path)
+        path = resolve_session(None, profile, include_archived=False)
+        r = analyze_profile_session(path, profile)
         if getattr(args, "json", False):
             print(json.dumps(report_to_json(r), indent=2, ensure_ascii=False))
         else:
@@ -1476,13 +2252,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if command == "short":
-        path = resolve_session(None, home, include_archived=False)
-        render_short_report(analyze_session(path, keep_calls=False))
+        path = resolve_session(None, profile, include_archived=False)
+        render_short_report(analyze_profile_session(path, profile, keep_calls=False))
         return 0
 
     if command == "session":
-        path = resolve_session(args.selector, home, include_archived=True)
-        r = analyze_session(path)
+        path = resolve_session(args.selector, profile, include_archived=True)
+        r = analyze_profile_session(path, profile)
         if args.json:
             print(json.dumps(report_to_json(r), indent=2, ensure_ascii=False))
         else:
@@ -1490,11 +2266,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if command == "sessions":
-        render_sessions(home, args.limit, args.archived)
+        render_sessions(profile, args.limit, args.archived)
         return 0
 
     if command == "top":
-        render_top(home, args.by, args.limit, args.sessions, args.archived)
+        render_top(profile, args.by, args.limit, args.sessions, args.archived)
         return 0
 
     parser.print_help()

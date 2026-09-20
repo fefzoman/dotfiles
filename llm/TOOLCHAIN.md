@@ -19,7 +19,8 @@ The stack is useful because the tools operate at different stages. Their savings
 This repository installs the stack for personal and work profiles of both
 Codex and Claude Code. Serena and Context7 are user-level MCP servers,
 Ponytail is a native plugin, RTK uses Codex instructions or Claude hooks, and
-Headroom wraps each CLI. The Codex token profiler remains Codex-specific.
+Headroom wraps each CLI. `token-profiler` reads local Codex and Claude Code
+sessions separately for personal and work profiles.
 
 ---
 

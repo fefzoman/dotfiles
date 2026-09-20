@@ -62,7 +62,7 @@ login session.
 | Area | Tools |
 |---|---|
 | Shell and terminal | latest Homebrew Bash, Oh My Bash, Alacritty, tmux, JetBrainsMono Nerd Font |
-| CLI | Git, curl, btop, Codex, Claude Code, Headroom, Ponytail, Serena, Context7, Codex token profiler, RTK, LazyGit, ripgrep, fd |
+| CLI | Git, curl, btop, Codex, Claude Code, Headroom, Ponytail, Serena, Context7, token profiler, RTK, LazyGit, ripgrep, fd |
 | Infrastructure | kubectl, Terraform |
 | Development | LLVM/Clang, tree-sitter CLI |
 | Editor | Neovim, vim-plug, Telescope, Neo-tree, Treesitter, Mini Pairs, Mini Surround, indent guides, vim-airline, LazyGit integration |
@@ -147,42 +147,39 @@ Serena starts with the client-specific context and detects the project from the
 working directory. Context7 works anonymously by default; set
 `CONTEXT7_API_KEY` for higher limits or private repositories.
 
-## Codex Token Profiler
+## Token Profiler
 
-`codex-usage` is installed from `llm/codex-token-profiler/` into `~/.local/bin`.
-It reads rollout JSONL files under `$CODEX_HOME/sessions` and
-`$CODEX_HOME/archived_sessions`, defaulting to `~/.codex`.
-
-```bash
-codex-usage short                         # compact latest-session report
-codex-usage current                       # latest session
-codex-usage sessions                      # recent sessions
-codex-usage session 01a08a70              # UUID prefix or rollout path
-codex-usage top --by session              # rank sessions
-codex-usage top --by command --sessions 100
-codex-usage top --by file --sessions 100
-codex-usage current --json                 # machine-readable output
-```
-
-Exact telemetry includes cumulative input, cached input, fresh input, output,
-reasoning output, model calls, context-window usage, and compactions. Activity,
-command, file, tool, instruction, and retained-history attribution is estimated
-with the mandatory `tiktoken` dependency and its `o200k_base` encoding; exact
-token totals remain authoritative. The profiler installer installs or upgrades
-`tiktoken` automatically. When RTK is available, full, short, and JSON reports
-also include project-level RTK shell-output savings. RTK values are estimates
-and remain separate from exact Codex telemetry.
-
-The profiler honors separate Codex profiles:
+`token-profiler` is installed from `llm/token-profiler/` into `~/.local/bin`.
+The first subcommand selects the agent and profile explicitly:
 
 ```bash
-CODEX_HOME="$HOME/.codex-work" codex-usage current
-alias codex-usage-work='CODEX_HOME="$HOME/.codex-work" codex-usage'
+token-profiler codex                       # ~/.codex, latest full report
+token-profiler codex-work short            # ~/.codex-work, compact report
+token-profiler claude                      # ~/.claude, latest full report
+token-profiler claude-work current --json  # ~/.claude-work, JSON report
+token-profiler codex sessions
+token-profiler claude session SESSION_ID
+token-profiler codex top --by command --sessions 100
 ```
 
-It is local and read-only: it does not modify sessions, call OpenAI APIs,
-upload rollout contents, or execute commands found in rollouts. JSON reports
-can contain local paths and command strings and should be treated as sensitive.
+Codex sessions come from `sessions/` and `archived_sessions/`; Claude Code
+transcripts come from `projects/` inside the selected profile, including
+companion subagent transcripts in the parent session totals.
+Exact telemetry includes input, cache reads, cache creation when available,
+output, reasoning when available, model calls, and compactions. Reports also
+show exact usage for the latest inner session, where a gap greater than 30
+minutes starts a new work period.
+
+Optimization reporting keeps scopes separate: exact cache reuse, estimated RTK
+project savings, Headroom's global savings ledger, observed Serena/Context7
+activity, and Ponytail activation status. The profiler does not add overlapping
+savings or invent a Ponytail savings number. Exact token totals remain
+authoritative.
+
+It is local and read-only: it does not modify sessions, call OpenAI or
+Anthropic APIs, upload session contents, or execute recorded commands. JSON
+reports can contain local paths and command strings and should be treated as
+sensitive.
 
 ## Python
 

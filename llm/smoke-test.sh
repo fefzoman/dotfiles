@@ -143,7 +143,7 @@ check_mcp() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude rtk headroom codex-usage node uv serena context7-mcp; do
+for command_name in python codex claude rtk headroom token-profiler node uv serena context7-mcp; do
   require_command "$command_name"
 done
 
@@ -171,11 +171,19 @@ else
   fail "Headroom Claude wrapper is unavailable"
 fi
 
-if codex-usage --version >/dev/null 2>&1; then
-  pass "Codex token profiler starts with tiktoken"
+if token-profiler --version >/dev/null 2>&1; then
+  pass "Token profiler starts with tiktoken"
 else
-  fail "Codex token profiler failed to start"
+  fail "Token profiler failed to start"
 fi
+
+for profile in codex codex-work claude claude-work; do
+  if token-profiler "$profile" --help >/dev/null 2>&1; then
+    pass "Token profiler accepts the $profile profile"
+  else
+    fail "Token profiler rejected the $profile profile"
+  fi
+done
 
 if cmp -s "$SCRIPT_DIR/ai-install.sh" "$HOME/.config/dotfiles/ai-install.sh"; then
   pass "Installed AI shell configuration matches the repository"
