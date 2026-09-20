@@ -4,7 +4,6 @@ set -euo pipefail
 export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
 export PATH="$HOME/.local/bin:$PATH"
 DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 
 case "$OS" in
@@ -51,6 +50,7 @@ fi
 TARGET_PYTHON_MAJOR=3
 TARGET_PYTHON_MINOR=13
 TARGET_PYTHON_FORMULA="python@${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+NODE_MAJOR=22
 FORCE_REMOVE_PYTHON=${FORCE_REMOVE_PYTHON:-0}
 ALACRITTY_VERSION=${ALACRITTY_VERSION:-0.17.0}
 ALACRITTY_SHA256=${ALACRITTY_SHA256:-ad8d7de35fb38e43184776cac6dfee05ca325caa0b6639a06a55e54e4b026620}
@@ -159,8 +159,37 @@ install_linux_system_packages() {
   run_root env DEBIAN_FRONTEND=noninteractive apt-get update -y
   run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
     alacritty bash build-essential ca-certificates clangd curl dconf-cli fd-find fontconfig \
-    git npm ripgrep tmux unzip wget xclip xz-utils
+    git ripgrep tmux unzip wget xclip xz-utils
   run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y btop || true
+}
+
+install_node_runtime_linux() {
+  local arch archive expected target version work_dir
+
+  arch="$(linux_arch)"
+  [[ "$arch" == x86_64 ]] && arch=x64
+  version="$(curl -fsSL https://nodejs.org/dist/index.tab |
+    awk -v prefix="v${NODE_MAJOR}." 'NR > 1 && index($1, prefix) == 1 { print $1; exit }')"
+  [[ -n "$version" ]] || { echo "Cannot determine the latest Node ${NODE_MAJOR} version." >&2; return 1; }
+
+  archive="node-${version}-linux-${arch}.tar.xz"
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/node-install.XXXXXX")"
+  target="$HOME/.local/opt/node"
+  curl -fsSL -o "$work_dir/$archive" "https://nodejs.org/dist/$version/$archive"
+  curl -fsSL -o "$work_dir/SHASUMS256.txt" "https://nodejs.org/dist/$version/SHASUMS256.txt"
+  expected="$(awk -v file="$archive" '$2 == file { print $1 }' "$work_dir/SHASUMS256.txt")"
+  [[ -n "$expected" ]] || { echo "Node checksum is missing." >&2; return 1; }
+  printf '%s  %s\n' "$expected" "$work_dir/$archive" | sha256sum --check --status
+  tar -xJf "$work_dir/$archive" -C "$work_dir"
+
+  mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
+  [[ ! -e "$target" ]] || mv "$target" "${target}.bak.$(date +%Y%m%d%H%M%S)"
+  mv "$work_dir/node-${version}-linux-${arch}" "$target"
+  for binary in node npm npx corepack; do
+    [[ -x "$target/bin/$binary" ]] || continue
+    ln -sfn "$target/bin/$binary" "$HOME/.local/bin/$binary"
+  done
+  rm -rf "$work_dir"
 }
 
 install_python_runtime_linux() {
@@ -288,7 +317,7 @@ install_linux_user_tools() {
   install_kubectl_linux
   install_terraform_linux
   install_lazygit_linux
-  npm install --global --prefix "$HOME/.local" @openai/codex tree-sitter-cli
+  npm install --global --prefix "$HOME/.local" tree-sitter-cli
   "$HOME/.local/bin/pip" install --upgrade basedpyright
   install_nerd_font_linux
 }
@@ -345,7 +374,7 @@ if [[ "$OS" == Darwin ]]; then
   install_python_runtime_macos
   echo "==> Installing CLI tools..."
   brew tap hashicorp/tap
-  brew install bash tmux neovim git curl btop codex kubectl lazygit ripgrep fd \
+  brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd \
     basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
   brew upgrade bash || true
 
@@ -355,11 +384,9 @@ if [[ "$OS" == Darwin ]]; then
 else
   install_linux_system_packages
   install_python_runtime_linux
+  install_node_runtime_linux
   install_linux_user_tools
 fi
-
-echo "==> Installing Codex token profiler..."
-bash "$SCRIPT_DIR/codex-token-profiler/install.sh"
 
 BACKUP_TS="$(date +%Y%m%d%H%M%S)"
 backup_file() { [[ ! -f $1 ]] || cp "$1" "$1.bak.$BACKUP_TS"; }

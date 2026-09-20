@@ -224,7 +224,7 @@ write_extra_completions() {
 
   mkdir -p "$custom_dir"
 
-  cat > "$custom_dir/codex-completions.sh" <<'EOF'
+  cat > "$custom_dir/tool-completions.sh" <<'EOF'
 #! bash oh-my-bash.module
 #
 # Extra completions for cloud, Terraform, Kubernetes, and Python tooling.
@@ -288,51 +288,9 @@ fi
 
 cat >> "$HOME/.bashrc" <<'EOF'
 
-__codex_answer () {
-  if [ $# -gt 0 ]; then
-    codex --ask-for-approval never exec \
-      --model gpt-5.6-luna \
-      -c model_reasoning_effort=\"medium\" \
-      --sandbox read-only \
-      --skip-git-repo-check \
-      --output-last-message "$out" \
-      "$*" \
-      >/dev/null 2>"$err"
-  else
-    codex --ask-for-approval never exec \
-      --model gpt-5.6-luna \
-      -c model_reasoning_effort=\"medium\" \
-      --sandbox read-only \
-      --skip-git-repo-check \
-      --output-last-message "$out" \
-      - \
-      >/dev/null 2>"$err"
-  fi
-
-  rc=$?
-  [ -s "$out" ] && cat "$out"
-  if [ $rc -ne 0 ] && [ -s "$err" ]; then
-    cat "$err" >&2
-  fi
-  rm -rf "$d"
-  return $rc
-}
-
-alias '??'='__codex_answer'
 alias k='kubectl'
 alias tf='terraform'
 alias v='nvim'
-
-# Separate work profiles for Codex, VS Code, and Claude.
-alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
-alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
-code-work() {
-    CODEX_HOME="$HOME/.codex-work" \
-    CLAUDE_CONFIG_DIR="$HOME/.claude-work" \
-    code \
-        --user-data-dir "$HOME/.vscode-work" \
-        "$@"
-}
 
 EOF
 
@@ -350,10 +308,10 @@ alias alac="alacritty"
 EOF
 fi
 
-if ! grep -q "BEGIN CODEX READLINE KEYBINDINGS" "$HOME/.bashrc" 2>/dev/null; then
+if ! grep -q "BEGIN SHELL WORD NAVIGATION" "$HOME/.bashrc" 2>/dev/null; then
   cat >> "$HOME/.bashrc" <<'EOF'
 
-# BEGIN CODEX READLINE KEYBINDINGS
+# BEGIN SHELL WORD NAVIGATION
 if [[ $- == *i* ]]; then
   bind '"\e[1;5D": backward-word'
   bind '"\e[5D": backward-word'
@@ -362,7 +320,7 @@ if [[ $- == *i* ]]; then
   bind '"\e[1;3D": backward-word'
   bind '"\e[1;3C": forward-word'
 fi
-# END CODEX READLINE KEYBINDINGS
+# END SHELL WORD NAVIGATION
 EOF
 fi
 

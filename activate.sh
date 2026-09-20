@@ -15,6 +15,7 @@ fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BASIC_INSTALL="${SCRIPT_DIR}/basic-install.sh"
 RESET_SCRIPT="${SCRIPT_DIR}/reset-to-bash-ohmybash.sh"
+AI_INSTALL="${SCRIPT_DIR}/llm/ai-install.sh"
 
 echo "==> Running basic install..."
 bash "$BASIC_INSTALL"
@@ -37,6 +38,9 @@ fi
 [[ -x "$BASH_BIN" ]] || { echo "bash not found in PATH." >&2; exit 1; }
 
 "$BASH_BIN" "$RESET_SCRIPT"
+
+echo "==> Installing AI tooling..."
+"$BASH_BIN" "$AI_INSTALL"
 
 echo "==> Combined setup complete."
 echo "==> Restart Alacritty to load the new shell configuration."

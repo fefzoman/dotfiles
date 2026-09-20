@@ -43,6 +43,9 @@ Estimated attribution:
 - top individual model-visible payload generators
 
 The **exact token totals are authoritative**. Attribution is intentionally approximate.
+When RTK is installed, reports also show its project-scoped estimated shell-output
+savings from `rtk gain --project --format json`; these values are not mixed with
+exact Codex telemetry.
 
 ## Install
 

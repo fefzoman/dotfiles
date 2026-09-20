@@ -33,11 +33,13 @@ import math
 import os
 import re
 import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 import tiktoken  # type: ignore
 
@@ -1081,6 +1083,64 @@ def render_bar(value: float, max_value: float, width: int = 16) -> str:
     return "█" * n + "░" * (width - n)
 
 
+def read_rtk_savings(project: str) -> dict[str, Any] | None:
+    rtk = shutil.which("rtk")
+    if not rtk:
+        return None
+
+    project_path = Path(project).expanduser() if project else None
+    project_scoped = bool(project_path and project_path.is_dir())
+    command = [rtk, "gain", "--format", "json"]
+    if project_scoped:
+        command.insert(2, "--project")
+
+    env = os.environ.copy()
+    env["RTK_TELEMETRY_DISABLED"] = "1"
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(project_path) if project_scoped else None,
+            env=env,
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=5,
+        )
+        payload = json.loads(result.stdout)
+        if not isinstance(payload, dict) or not isinstance(payload.get("summary"), dict):
+            return None
+        summary = payload["summary"]
+        return {
+            "scope": "project" if project_scoped else "all",
+            "commands": int(summary.get("total_commands") or 0),
+            "raw_output_tokens_estimate": int(summary.get("total_input") or 0),
+            "filtered_output_tokens_estimate": int(summary.get("total_output") or 0),
+            "saved_tokens_estimate": int(summary.get("total_saved") or 0),
+            "average_savings_percent": float(summary.get("avg_savings_pct") or 0),
+        }
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        return None
+
+
+def render_rtk_savings(report: SessionReport) -> None:
+    savings = read_rtk_savings(report.cwd)
+    if not savings:
+        return
+
+    print()
+    print(style("RTK SHELL-OUTPUT SAVINGS — estimated", "bold"))
+    print(style("Project aggregate from RTK; separate from exact Codex telemetry.", "dim"))
+    print("─" * 72)
+    print_kv("Commands", str(savings["commands"]))
+    print_kv("Raw output", human_int(savings["raw_output_tokens_estimate"]))
+    print_kv("Filtered output", human_int(savings["filtered_output_tokens_estimate"]))
+    print_kv(
+        "Saved",
+        f"{human_int(savings['saved_tokens_estimate'])} "
+        f"({savings['average_savings_percent']:.1f}%)",
+    )
+
+
 def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -> None:
     print(style("CODEX TOKEN PROFILE", "bold", "cyan"))
     print("─" * 72)
@@ -1184,6 +1244,8 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
                 f"{human_int(call.usage.output_tokens):>8} {call.context_ratio * 100:>6.1f}%"
             )
 
+    render_rtk_savings(report)
+
     print()
     print(style("NOTES", "bold"))
     print("─" * 72)
@@ -1224,6 +1286,13 @@ def render_short_report(report: SessionReport) -> None:
     if activities:
         summary = ", ".join(f"{name}: {human_int(value)}" for name, value in activities)
         print_kv("Top activity (est.)", summary)
+    rtk_savings = read_rtk_savings(report.cwd)
+    if rtk_savings:
+        print_kv(
+            "RTK saved (est.)",
+            f"{human_int(rtk_savings['saved_tokens_estimate'])} "
+            f"({rtk_savings['average_savings_percent']:.1f}%, {rtk_savings['commands']} commands)",
+        )
     if report.parse_errors:
         print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
 
@@ -1286,6 +1355,7 @@ def report_to_json(report: SessionReport) -> dict[str, Any]:
         ],
         "parse_errors": report.parse_errors,
         "estimator": "tiktoken:o200k_base",
+        "rtk_savings_estimate": read_rtk_savings(report.cwd),
     }
 
 
