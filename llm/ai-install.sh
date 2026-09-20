@@ -119,13 +119,43 @@ install_ai_tools() {
 }
 
 configure_rtk() {
-  local profile rtk_bin
+  local profile rtk_bin shell_path
 
   rtk_bin="$(command -v rtk)"
+  shell_path="$(dirname "$rtk_bin"):$PATH"
   RTK_TELEMETRY_DISABLED=1 "$rtk_bin" telemetry disable
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     RTK_TELEMETRY_DISABLED=1 CODEX_HOME="$profile" \
       "$rtk_bin" init -g --codex --no-trust-filters
+    python - "$profile/config.toml" "$shell_path" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+config = Path(sys.argv[1])
+path = sys.argv[2]
+text = config.read_text(encoding="utf-8") if config.exists() else ""
+begin = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
+end = "# END AI TOOLING SHELL ENVIRONMENT"
+text = re.sub(
+    rf"\n?{re.escape(begin)}.*?{re.escape(end)}\n?",
+    "\n",
+    text,
+    flags=re.DOTALL,
+)
+if re.search(r"(?m)^\s*(?:\[shell_environment_policy(?:\.|\])|shell_environment_policy\.)", text):
+    raise SystemExit(
+        f"{config} already defines shell_environment_policy; add {path!r} to its PATH"
+    )
+block = (
+    f"{begin}\n"
+    "[shell_environment_policy]\n"
+    f"set = {{ PATH = {json.dumps(path)} }}\n"
+    f"{end}\n"
+)
+config.write_text(text.rstrip() + "\n\n" + block, encoding="utf-8")
+PY
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     RTK_TELEMETRY_DISABLED=1 CLAUDE_CONFIG_DIR="$profile" \

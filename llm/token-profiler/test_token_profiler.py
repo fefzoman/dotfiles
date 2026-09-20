@@ -126,6 +126,53 @@ class InnerSessionTest(unittest.TestCase):
         self.assertEqual(report.inner_usage.input_tokens, 100)
 
 
+class CodexProgrammaticToolTest(unittest.TestCase):
+    def test_nested_mcp_tools_are_visible_in_optimization_report(self) -> None:
+        records = [
+            {
+                "timestamp": "2026-09-20T10:00:00Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "custom_tool_call",
+                    "call_id": "exec-one",
+                    "name": "exec",
+                    "input": (
+                        "const a = await tools.mcp__serena__find_symbol({});\n"
+                        "const b = await tools.mcp__context7__query_docs({});"
+                    ),
+                },
+            },
+            {
+                "timestamp": "2026-09-20T10:00:01Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "custom_tool_call_output",
+                    "call_id": "exec-one",
+                    "output": "Serena result\nContext7 result",
+                },
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            rollout = Path(directory) / "rollout-test-session.jsonl"
+            rollout.write_text(
+                "".join(json.dumps(record) + "\n" for record in records),
+                encoding="utf-8",
+            )
+            report = token_profiler.analyze_session(rollout)
+
+        serena = token_profiler.observed_tool(report, "serena")
+        context7 = token_profiler.observed_tool(report, "context7")
+        self.assertEqual(serena["calls_observed"], 1)
+        self.assertTrue(serena["calls_are_lower_bound"])
+        self.assertGreater(serena["result_tokens_estimate"], 0)
+        self.assertEqual(context7["calls_observed"], 1)
+        self.assertTrue(context7["calls_are_lower_bound"])
+        self.assertGreater(context7["result_tokens_estimate"], 0)
+        self.assertGreater(report.observed_payload["MCP/tool results"], 0)
+        self.assertNotIn("Shell command output", report.observed_payload)
+
+
 class ClaudeSessionTest(unittest.TestCase):
     def test_exact_usage_tools_compaction_and_inner_session(self) -> None:
         records = [

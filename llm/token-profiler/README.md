@@ -97,8 +97,10 @@ Optimization measurements retain their original scopes and are never summed:
 - observed Serena and Context7 call counts and estimated result payload
 - Ponytail plugin/policy state
 
-Serena or Context7 showing `0` means no matching tool call was recorded in the
-selected outer session. It does not mean that the tool is unavailable.
+Serena and Context7 calls made through Codex's programmatic `exec` wrapper are
+reported as lower bounds because loop multiplicity is not stored separately in
+the rollout. A `0` means no matching direct call or programmatic invocation was
+recorded; it does not mean that the tool is unavailable.
 Ponytail savings are not calculated because avoided work is not observable in
 session telemetry.
 

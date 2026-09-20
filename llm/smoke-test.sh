@@ -119,6 +119,19 @@ raise SystemExit("rtk hook claude" not in commands)
 PY
 }
 
+codex_shell_path_has_rtk() {
+  python - "$1/config.toml" "$(dirname "$(command -v rtk)")" <<'PY'
+import os
+import sys
+import tomllib
+from pathlib import Path
+
+config = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+path = config.get("shell_environment_policy", {}).get("set", {}).get("PATH", "")
+raise SystemExit(sys.argv[2] not in path.split(os.pathsep))
+PY
+}
+
 check_mcp() {
   local profile server
 
@@ -210,6 +223,12 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     pass "Ponytail is installed and enabled in $profile"
   else
     fail "Ponytail is missing or disabled in $profile"
+  fi
+
+  if codex_shell_path_has_rtk "$profile"; then
+    pass "Codex command PATH includes RTK in $profile"
+  else
+    fail "Codex command PATH cannot resolve RTK in $profile"
   fi
 done
 

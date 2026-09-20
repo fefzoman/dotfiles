@@ -84,9 +84,8 @@ Context7 should complement Serena, not replace it: Serena explains our code; Con
 
 ## RTK: compact shell output
 
-Assume the native Codex RTK hook transparently rewrites supported Bash commands when installed.
-
-- Do not manually prefix every command with `rtk` when the hook is active.
+- In Codex, prefix supported shell commands with `rtk`; follow the imported `RTK.md`.
+- In Claude Code, rely on the installed command hook.
 - Prefer narrow commands and tests even with RTK enabled.
 - If exact unfiltered output is required, bypass RTK for that command:
 
@@ -94,7 +93,6 @@ Assume the native Codex RTK hook transparently rewrites supported Bash commands 
 RTK_DISABLED=1 <command>
 ```
 
-- If the RTK hook is unavailable but the `rtk` binary is available, use `rtk <command>` for supported noisy developer commands.
 - Never depend on RTK filtering for correctness; rerun raw output when details are missing.
 
 ## Headroom: context transport
