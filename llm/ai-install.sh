@@ -204,7 +204,8 @@ configure_agent_mcps() {
       CODEX_HOME="$profile" "$codex_bin" mcp remove "$server" >/dev/null 2>&1 || true
     done
     CODEX_HOME="$profile" "$codex_bin" mcp add serena -- \
-      "$serena_bin" start-mcp-server --context=codex --project-from-cwd
+      "$serena_bin" start-mcp-server --context=codex --project-from-cwd \
+      --open-web-dashboard false \
     CODEX_HOME="$profile" "$codex_bin" mcp add context7 -- \
       "$context7_bin" --transport stdio
   done
@@ -215,7 +216,8 @@ configure_agent_mcps() {
         --scope user "$server" >/dev/null 2>&1 || true
     done
     CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp add --scope user serena -- \
-      "$serena_bin" start-mcp-server --context=claude-code --project-from-cwd
+      "$serena_bin" start-mcp-server --context=claude-code --project-from-cwd \
+      --open-web-dashboard false \
     CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp add --scope user context7 -- \
       "$context7_bin" --transport stdio
   done
