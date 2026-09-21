@@ -37,7 +37,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-VERSION = "1.0.0"
+VERSION = "1.2.0"
 INNER_SESSION_GAP = dt.timedelta(minutes=30)
 
 import tiktoken  # type: ignore
@@ -118,7 +118,18 @@ def parse_timestamp(value: str) -> dt.datetime | None:
 
 
 def human_duration(start: str, end: str) -> str:
-    seconds = duration_seconds(start, end)
+    return human_seconds(duration_seconds(start, end))
+
+
+def duration_seconds(start: str, end: str) -> int | None:
+    start_at = parse_timestamp(start)
+    end_at = parse_timestamp(end)
+    if not start_at or not end_at:
+        return None
+    return max(0, int((end_at - start_at).total_seconds()))
+
+
+def human_seconds(seconds: int | None) -> str:
     if seconds is None:
         return "-"
     hours, remainder = divmod(seconds, 3600)
@@ -128,14 +139,6 @@ def human_duration(start: str, end: str) -> str:
     if minutes:
         return f"{minutes}m {seconds}s"
     return f"{seconds}s"
-
-
-def duration_seconds(start: str, end: str) -> int | None:
-    start_at = parse_timestamp(start)
-    end_at = parse_timestamp(end)
-    if not start_at or not end_at:
-        return None
-    return max(0, int((end_at - start_at).total_seconds()))
 
 
 # ----------------------------- token estimation -----------------------------
@@ -247,6 +250,14 @@ class Generator:
 
 
 @dataclasses.dataclass
+class ToolResult:
+    timestamp: str
+    tool: str
+    tokens: int
+    arguments: str
+
+
+@dataclasses.dataclass
 class ModelCall:
     timestamp: str
     usage: Usage
@@ -254,6 +265,8 @@ class ModelCall:
     context_window: int
     context_ratio: float
     attributed: dict[str, float]
+    gap_seconds: int | None = None
+    cold_reason: str = "warm"
 
 
 @dataclasses.dataclass
@@ -298,6 +311,9 @@ class SessionReport:
 
     cumulative_attribution: dict[str, float] = dataclasses.field(default_factory=dict)
     observed_payload: dict[str, int] = dataclasses.field(default_factory=dict)
+    active_payload: dict[str, int] = dataclasses.field(default_factory=dict)
+    instruction_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
+    instruction_cumulative: dict[str, float] = dataclasses.field(default_factory=dict)
     generators: list[Generator] = dataclasses.field(default_factory=list)
     calls: list[ModelCall] = dataclasses.field(default_factory=list)
     command_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
@@ -305,6 +321,7 @@ class SessionReport:
     tool_calls: dict[str, int] = dataclasses.field(default_factory=dict)
     programmatic_tool_calls: dict[str, int] = dataclasses.field(default_factory=dict)
     tool_payloads: dict[str, int] = dataclasses.field(default_factory=dict)
+    tool_results: list[ToolResult] = dataclasses.field(default_factory=list)
     activity_events: list[ActivityEvent] = dataclasses.field(default_factory=list)
 
     @property
@@ -387,6 +404,11 @@ def content_text(content: Any) -> str:
 INSTRUCTION_MARKERS = (
     "AGENTS.md instructions for",
     "<INSTRUCTIONS>",
+    "<skills_instructions>",
+    "<permissions instructions>",
+    "<multi_agent_mode>",
+    "PONYTAIL MODE ACTIVE",
+    "You are `/root`",
     "# AGENTS.md",
     "# CLAUDE.md",
     "developer instructions",
@@ -397,6 +419,83 @@ INSTRUCTION_MARKERS = (
 def looks_like_instructions(text: str) -> bool:
     t = text.lower()
     return any(marker.lower() in t for marker in INSTRUCTION_MARKERS)
+
+
+def instruction_source(text: str, fallback: str = "Other injected instructions") -> str:
+    match = re.search(r"^# AGENTS\.md instructions for (.+)$", text, re.MULTILINE)
+    if match:
+        return f"AGENTS.md: {match.group(1)}"
+    for marker, label in (
+        ("PONYTAIL MODE ACTIVE", "Ponytail"),
+        ("<skills_instructions>", "Skills catalog"),
+        ("<permissions instructions>", "Permissions"),
+        ("<multi_agent_mode>", "Multi-agent policy"),
+        ("You are `/root`", "Multi-agent orchestration"),
+    ):
+        if marker.lower() in text.lower():
+            return label
+    return fallback
+
+
+def summarize_sources(items: Iterable[SourceItem]) -> dict[str, int]:
+    result: dict[str, int] = collections.defaultdict(int)
+    for item in items:
+        result[item.category] += item.tokens
+    return dict(result)
+
+
+def add_instruction_attribution(
+    report: SessionReport,
+    items: Iterable[SourceItem],
+    scale: float,
+) -> None:
+    for item in items:
+        if item.category == "AGENTS.md/instructions":
+            report.instruction_cumulative[item.label] = (
+                report.instruction_cumulative.get(item.label, 0.0)
+                + item.tokens * scale
+            )
+
+
+def record_tool_result(
+    report: SessionReport,
+    names: list[str],
+    tokens: int,
+    timestamp: str = "",
+    arguments: Any = None,
+) -> None:
+    if not names:
+        return
+    argument_text = obj_text(arguments)
+    share, remainder = divmod(tokens, len(names))
+    for index, name in enumerate(names):
+        size = share + (index < remainder)
+        report.tool_payloads[name] = report.tool_payloads.get(name, 0) + size
+        report.tool_results.append(ToolResult(timestamp, name, size, argument_text))
+
+
+def call_diagnostics(
+    timestamp: str,
+    usage: Usage,
+    previous_at: dt.datetime | None,
+    post_compaction: bool = False,
+) -> tuple[int | None, str]:
+    current_at = parse_timestamp(timestamp)
+    gap = (
+        max(0, round((current_at - previous_at).total_seconds()))
+        if current_at and previous_at
+        else None
+    )
+    if previous_at is None:
+        return gap, "session start"
+    if post_compaction:
+        return gap, "post-compaction"
+    if gap is not None and gap > INNER_SESSION_GAP.total_seconds():
+        return gap, "resume after idle"
+    cached = min(usage.cached_input_tokens, usage.input_tokens)
+    if usage.input_tokens and cached * 2 < usage.input_tokens:
+        return gap, "cache expiry/prefix change"
+    return gap, "warm"
 
 
 TEST_PATTERNS = re.compile(
@@ -456,6 +555,14 @@ def extract_command(args: Any) -> str | None:
             if cmd:
                 return cmd
     elif isinstance(args, str):
+        match = re.search(r'\bcmd\s*:\s*("(?:\\.|[^"\\])*")', args)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except json.JSONDecodeError:
+                pass
+        if "tools." in args:
+            return None
         # Only accept as a command if it resembles one.
         if re.search(r"(^|\s)(git|cat|sed|rg|grep|pytest|npm|pnpm|yarn|cargo|go|python|terraform|kubectl|docker|make)\b", args):
             return args
@@ -465,7 +572,7 @@ def extract_command(args: Any) -> str | None:
 def extract_programmatic_tool_names(args: Any) -> list[str]:
     """Find nested tools invoked through Codex's programmatic exec wrapper."""
     text = args if isinstance(args, str) else obj_text(args)
-    return re.findall(r"\btools\.(mcp__[A-Za-z0-9_]+)\s*\(", text)
+    return re.findall(r"\btools\.([A-Za-z][A-Za-z0-9_]*)\s*\(", text)
 
 
 def shell_category(command: str | None) -> str:
@@ -501,14 +608,15 @@ def extract_files_from_command(command: str | None, output: str = "") -> list[st
     files: list[str] = []
 
     # Common direct file readers.
+    operand = r"(?:'([^']+)'|\"([^\"]+)\"|([^\s;&|]+))"
     patterns = [
-        r"\bcat\s+(?:--\s+)?([^\s;&|]+)",
-        r"\b(?:head|tail|less|more|bat)\s+(?:-[^\s]+\s+)*([^\s;&|]+)",
-        r"\bsed\s+-n\s+['\"][^'\"]+['\"]\s+([^\s;&|]+)",
+        rf"\bcat\s+(?:--\s+)?{operand}",
+        rf"\b(?:head|tail|less|more|bat)\s+(?:-[^\s]+\s+)*{operand}",
+        rf"\bsed\s+-n\s+['\"][^'\"]+['\"]\s+{operand}",
     ]
     for pat in patterns:
         for match in re.findall(pat, command):
-            candidate = match.strip("'\"")
+            candidate = next((part for part in match if part), "")
             if candidate and not candidate.startswith("-"):
                 files.append(candidate)
 
@@ -520,8 +628,8 @@ def extract_files_from_command(command: str | None, output: str = "") -> list[st
     # ripgrep-style output: path:line:text
     if re.search(r"\b(rg|grep)\b", command):
         for line in output.splitlines()[:5000]:
-            m = re.match(r"([^:\n]{1,240}):(?:\d+:)?", line)
-            if m and "/" in m.group(1) or (m and "." in m.group(1)):
+            m = re.match(r"([^:\n]{1,240}):\d+:", line)
+            if m and ("/" in m.group(1) or "." in m.group(1)):
                 files.append(m.group(1))
 
     # Stable order, no duplicates.
@@ -625,6 +733,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     calls_by_id: dict[str, dict[str, Any]] = {}
     previous_total = Usage()
     pending_compaction: Any = None
+    previous_model_call_at: dt.datetime | None = None
     last_activity_at: dt.datetime | None = None
     seq = 0
 
@@ -642,6 +751,10 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
         active.append(item)
         since_last_token.append(item)
         report.observed_payload[item.category] = report.observed_payload.get(item.category, 0) + item.tokens
+        if item.category == "AGENTS.md/instructions":
+            report.instruction_payloads[item.label] = (
+                report.instruction_payloads.get(item.label, 0) + item.tokens
+            )
 
         if generator and item.tokens:
             report.generators.append(
@@ -720,7 +833,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                     instruction_fingerprints.add(fp)
                     add_source(
                         SourceItem(
-                            "AGENTS.md/instructions", "base instructions", tok,
+                            "AGENTS.md/instructions", "Platform base instructions", tok,
                             "external", "instructions", seq
                         )
                     )
@@ -788,6 +901,13 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             report.model_calls += 1
             report.inner_usage.add_assign(usage)
             report.inner_model_calls += 1
+            gap_seconds, cold_reason = call_diagnostics(
+                timestamp,
+                usage,
+                previous_model_call_at,
+                post_compaction=pending_compaction is not None,
+            )
+            previous_model_call_at = parse_timestamp(timestamp) or previous_model_call_at
 
             assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
             visible = [x for x in active if id(x) not in assistant_new_ids]
@@ -814,6 +934,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                     report.cumulative_attribution[cat] = (
                         report.cumulative_attribution.get(cat, 0.0) + amount
                     )
+                add_instruction_attribution(report, visible, scale)
 
             if keep_calls:
                 report.calls.append(
@@ -824,6 +945,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                         context_window=report.context_window,
                         context_ratio=(usage.input_tokens / report.context_window if report.context_window else 0.0),
                         attributed=attributed,
+                        gap_seconds=gap_seconds,
+                        cold_reason=cold_reason,
                     )
                 )
 
@@ -881,6 +1004,15 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                     report.model_calls += 1
                     report.inner_usage.add_assign(delta)
                     report.inner_model_calls += 1
+                    gap_seconds, cold_reason = call_diagnostics(
+                        timestamp,
+                        delta,
+                        previous_model_call_at,
+                        post_compaction=pending_compaction is not None,
+                    )
+                    previous_model_call_at = (
+                        parse_timestamp(timestamp) or previous_model_call_at
+                    )
 
                     # The model-generated records since the previous token event
                     # belong to this call's output, not its request input.
@@ -914,6 +1046,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                             report.cumulative_attribution[cat] = (
                                 report.cumulative_attribution.get(cat, 0.0) + amount
                             )
+                        add_instruction_attribution(report, visible, scale)
 
                     if keep_calls:
                         report.calls.append(
@@ -924,6 +1057,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                                 context_window=window,
                                 context_ratio=(report.last.input_tokens / window if window else 0.0),
                                 attributed=attributed,
+                                gap_seconds=gap_seconds,
+                                cold_reason=cold_reason,
                             )
                         )
 
@@ -961,7 +1096,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
 
             if looks_like_instructions(text):
                 category = "AGENTS.md/instructions"
-                label = "injected instructions"
+                label = instruction_source(text)
             else:
                 category = "Conversation/history"
                 label = f"{role or 'message'}: {truncate(text, 72)}"
@@ -989,20 +1124,25 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             )
             command = extract_command(args)
             nested_tools = extract_programmatic_tool_names(args) if name == "exec" else []
+            effective_tools = nested_tools or (
+                ["tool_inventory"]
+                if name == "exec" and "ALL_TOOLS" in obj_text(args)
+                else [name]
+            )
             is_mcp = bool(payload.get("namespace")) and str(payload.get("namespace")).lower() not in {"", "codex_app"}
             calls_by_id[call_id] = {
                 "name": name,
                 "args": args,
                 "command": command,
                 "is_mcp": is_mcp,
-                "nested_tools": nested_tools,
+                "effective_tools": effective_tools,
             }
-            report.tool_calls[name] = report.tool_calls.get(name, 0) + 1
-            for nested_name in nested_tools:
-                report.tool_calls[nested_name] = report.tool_calls.get(nested_name, 0) + 1
-                report.programmatic_tool_calls[nested_name] = (
-                    report.programmatic_tool_calls.get(nested_name, 0) + 1
-                )
+            for tool_name in effective_tools:
+                report.tool_calls[tool_name] = report.tool_calls.get(tool_name, 0) + 1
+                if nested_tools:
+                    report.programmatic_tool_calls[tool_name] = (
+                        report.programmatic_tool_calls.get(tool_name, 0) + 1
+                    )
 
             # Tool-call arguments become part of later context. Keep them small
             # but visible in attribution.
@@ -1034,17 +1174,15 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             tok = estimate_tokens(text)
             is_mcp = bool(meta.get("is_mcp"))
             category = classify_tool(name, command, is_mcp=is_mcp)
-            report.tool_payloads[name] = report.tool_payloads.get(name, 0) + tok
-            nested_tools = meta.get("nested_tools") or []
-            if nested_tools and tok:
-                share, remainder = divmod(tok, len(nested_tools))
-                for index, nested_name in enumerate(nested_tools):
-                    report.tool_payloads[nested_name] = (
-                        report.tool_payloads.get(nested_name, 0)
-                        + share
-                        + (index < remainder)
-                    )
-            label_core = truncate(command or name, 88)
+            effective_tools = meta.get("effective_tools") or [name]
+            record_tool_result(
+                report,
+                effective_tools,
+                tok,
+                timestamp,
+                meta.get("args"),
+            )
+            label_core = truncate(command or ", ".join(dict.fromkeys(effective_tools)), 88)
             label = f"{label_core}"
             add_source(
                 SourceItem(
@@ -1069,7 +1207,13 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             text = obj_text(result)
             tok = estimate_tokens(text)
             report.tool_calls[name] = report.tool_calls.get(name, 0) + 1
-            report.tool_payloads[name] = report.tool_payloads.get(name, 0) + tok
+            record_tool_result(
+                report,
+                [name],
+                tok,
+                timestamp,
+                payload.get("arguments") or payload.get("input"),
+            )
             add_source(
                 SourceItem(
                     "MCP/tool results", name, tok, "external",
@@ -1109,6 +1253,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     if not report.title:
         report.title = "(no user prompt found)"
 
+    report.active_payload = summarize_sources(active)
     return report
 
 
@@ -1193,11 +1338,15 @@ def add_report_totals(target: SessionReport, source: SessionReport) -> None:
     target.file_size += source.file_size
     target.calls.extend(source.calls)
     target.generators.extend(source.generators)
+    target.tool_results.extend(source.tool_results)
     target.activity_events.extend(source.activity_events)
 
     for attribute in (
         "cumulative_attribution",
         "observed_payload",
+        "active_payload",
+        "instruction_payloads",
+        "instruction_cumulative",
         "command_payloads",
         "file_payloads",
         "tool_calls",
@@ -1207,7 +1356,6 @@ def add_report_totals(target: SessionReport, source: SessionReport) -> None:
         destination = getattr(target, attribute)
         for key, value in getattr(source, attribute).items():
             destination[key] = destination.get(key, 0) + value
-
 
 def analyze_claude_session(
     path: Path,
@@ -1231,6 +1379,8 @@ def analyze_claude_session(
     calls_by_id: dict[str, dict[str, Any]] = {}
     seen_message_ids: set[str] = set()
     last_activity_at: dt.datetime | None = None
+    previous_model_call_at: dt.datetime | None = None
+    post_compaction = False
     has_compaction_boundaries = claude_has_compaction_boundaries(path)
     seq = 0
 
@@ -1239,6 +1389,10 @@ def analyze_claude_session(
         report.observed_payload[item.category] = (
             report.observed_payload.get(item.category, 0) + item.tokens
         )
+        if item.category == "AGENTS.md/instructions":
+            report.instruction_payloads[item.label] = (
+                report.instruction_payloads.get(item.label, 0) + item.tokens
+            )
         if generator and item.tokens:
             report.generators.append(
                 Generator(
@@ -1267,11 +1421,17 @@ def analyze_claude_session(
                     )
 
     def record_usage(timestamp: str, usage: Usage) -> None:
+        nonlocal previous_model_call_at, post_compaction
         report.total.add_assign(usage)
         report.last = usage
         report.model_calls += 1
         report.inner_usage.add_assign(usage)
         report.inner_model_calls += 1
+        gap_seconds, cold_reason = call_diagnostics(
+            timestamp, usage, previous_model_call_at, post_compaction
+        )
+        previous_model_call_at = parse_timestamp(timestamp) or previous_model_call_at
+        post_compaction = False
 
         known_by_category: dict[str, float] = collections.defaultdict(float)
         for item in active:
@@ -1296,6 +1456,7 @@ def analyze_claude_session(
                 report.cumulative_attribution[category] = (
                     report.cumulative_attribution.get(category, 0.0) + amount
                 )
+            add_instruction_attribution(report, active, scale)
 
         if keep_calls:
             report.calls.append(
@@ -1310,6 +1471,8 @@ def analyze_claude_session(
                         else 0.0
                     ),
                     attributed=attributed,
+                    gap_seconds=gap_seconds,
+                    cold_reason=cold_reason,
                 )
             )
 
@@ -1343,6 +1506,7 @@ def analyze_claude_session(
         if record_type == "system" and rec.get("subtype") == "compact_boundary":
             report.compactions += 1
             report.inner_compactions += 1
+            post_compaction = True
             if timestamp:
                 report.activity_events.append(ActivityEvent(timestamp, compaction=True))
             active = []
@@ -1352,6 +1516,7 @@ def analyze_claude_session(
             if not has_compaction_boundaries:
                 report.compactions += 1
                 report.inner_compactions += 1
+                post_compaction = True
                 if timestamp:
                     report.activity_events.append(ActivityEvent(timestamp, compaction=True))
             summary = str(rec.get("summary") or "")
@@ -1421,6 +1586,7 @@ def analyze_claude_session(
                 file_name = extract_file_argument(args)
                 calls_by_id[call_id] = {
                     "name": name,
+                    "args": args,
                     "command": command,
                     "file": file_name,
                 }
@@ -1457,7 +1623,13 @@ def analyze_claude_session(
                 file_name = meta.get("file")
                 text = obj_text(block.get("content"))
                 tokens = estimate_tokens(text)
-                report.tool_payloads[name] = report.tool_payloads.get(name, 0) + tokens
+                record_tool_result(
+                    report,
+                    [name],
+                    tokens,
+                    timestamp,
+                    meta.get("args"),
+                )
                 add_source(
                     SourceItem(
                         classify_tool(name, command, is_mcp="mcp" in name.lower()),
@@ -1488,7 +1660,9 @@ def analyze_claude_session(
             add_source(
                 SourceItem(
                     category,
-                    "injected instructions" if category == "AGENTS.md/instructions" else f"user: {truncate(text, 72)}",
+                    instruction_source(text)
+                    if category == "AGENTS.md/instructions"
+                    else f"user: {truncate(text, 72)}",
                     estimate_tokens(text),
                     "external",
                     "user message",
@@ -1496,6 +1670,7 @@ def analyze_claude_session(
                 )
             )
 
+    report.active_payload = summarize_sources(active)
     if not report.title:
         report.title = "(no user prompt found)"
     if include_subagents and "subagents" not in path.parts:
@@ -1645,6 +1820,108 @@ def ordered_items(d: dict[str, float | int]) -> list[tuple[str, float]]:
         ((k, float(v)) for k, v in d.items() if v),
         key=lambda kv: (-kv[1], order.get(kv[0], 999), kv[0]),
     )
+
+
+def payload_difference(
+    total: dict[str, int],
+    remaining: dict[str, int],
+) -> dict[str, int]:
+    return {
+        key: value - remaining.get(key, 0)
+        for key, value in total.items()
+        if value > remaining.get(key, 0)
+    }
+
+
+def tool_statistics(report: SessionReport) -> list[dict[str, Any]]:
+    total_payload = sum(report.tool_payloads.values())
+    sizes_by_tool: dict[str, list[int]] = collections.defaultdict(list)
+    for result in report.tool_results:
+        sizes_by_tool[result.tool].append(result.tokens)
+    rows = []
+    for name in report.tool_calls.keys() | report.tool_payloads.keys():
+        sizes = sizes_by_tool[name]
+        tokens = report.tool_payloads.get(name, 0)
+        rows.append(
+            {
+                "name": name,
+                "calls": report.tool_calls.get(name, 0),
+                "calls_are_lower_bound": name in report.programmatic_tool_calls,
+                "result_tokens": tokens,
+                "average_result_tokens": round(tokens / len(sizes)) if sizes else 0,
+                "max_result_tokens": max(sizes, default=0),
+                "payload_ratio": tokens / total_payload if total_payload else 0.0,
+            }
+        )
+    return sorted(rows, key=lambda row: row["result_tokens"], reverse=True)
+
+
+def normalized_tool_arguments(result: ToolResult) -> str:
+    arguments = " ".join(result.arguments.split())
+    if result.tool == "tool_inventory":
+        query = re.search(r"/((?:\\.|[^/])*)/([a-z]*)\.test", arguments)
+        if query:
+            return f"/{query.group(1)}/{query.group(2)}"
+    if result.tool == "exec_command":
+        return extract_command(result.arguments) or arguments
+    marker = f"tools.{result.tool}("
+    if marker in arguments:
+        return arguments.split(marker, 1)[1].split(");", 1)[0]
+    return arguments
+
+
+def tool_result_outliers(
+    report: SessionReport, threshold: int = 2_000
+) -> list[dict[str, Any]]:
+    totals = collections.Counter(
+        (result.tool, normalized_tool_arguments(result))
+        for result in report.tool_results
+    )
+    seen: collections.Counter[tuple[str, str]] = collections.Counter()
+    rows = []
+    for result in report.tool_results:
+        key = (result.tool, normalized_tool_arguments(result))
+        seen[key] += 1
+        if result.tokens > threshold:
+            rows.append(
+                {
+                    **dataclasses.asdict(result),
+                    "occurrence": seen[key],
+                    "repeated": totals[key] > 1,
+                }
+            )
+    return sorted(rows, key=lambda row: row["tokens"], reverse=True)
+
+
+def model_call_windows(report: SessionReport) -> list[dict[str, Any]]:
+    windows: list[dict[str, Any]] = []
+    for index, call in enumerate(report.calls, 1):
+        fresh = max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
+        if not windows or (
+            call.gap_seconds is not None
+            and call.gap_seconds > INNER_SESSION_GAP.total_seconds()
+        ):
+            windows.append(
+                {
+                    "start_index": index,
+                    "started_at": call.timestamp,
+                    "calls": 0,
+                    "fresh_input_tokens": 0,
+                    "first_call_fresh_tokens": fresh,
+                    "later_fresh_tokens": 0,
+                }
+            )
+        window = windows[-1]
+        window["calls"] += 1
+        window["fresh_input_tokens"] += fresh
+        if window["calls"] > 1:
+            window["later_fresh_tokens"] += fresh
+    for window in windows:
+        later_calls = window["calls"] - 1
+        window["later_call_average_fresh_tokens"] = round(
+            window.pop("later_fresh_tokens") / later_calls
+        ) if later_calls else 0
+    return windows
 
 
 def render_bar(value: float, max_value: float, width: int = 16) -> str:
@@ -1852,6 +2129,81 @@ def render_optimization(report: SessionReport) -> None:
     print_kv("Ponytail", f"{status}; savings not measurable from rollout data")
 
 
+def render_payload_breakdown(title: str, note: str, payload: dict[str, int]) -> None:
+    print()
+    print(style(title, "bold"))
+    print(style(note, "dim"))
+    print("─" * 72)
+    rows = ordered_items(payload)
+    max_val = max((value for _, value in rows), default=0.0)
+    for name, value in rows:
+        print(f"{name:<27} {human_int(value):>9}  {render_bar(value, max_val)}")
+
+
+def render_model_calls(
+    report: SessionReport,
+    show_calls: int,
+    heading: str,
+    key: Any,
+) -> None:
+    print()
+    print(style(f"{heading} — top {min(show_calls, len(report.calls))}", "bold"))
+    print("─" * 84)
+    print(f"{'#':>3}  {'timestamp':<24} {'input':>9} {'cached':>9} {'fresh':>9} {'output':>8} {'gap':>7} {'ctx':>7}")
+    ranked = sorted(enumerate(report.calls, 1), key=lambda item: key(item[1]), reverse=True)[:show_calls]
+    for index, call in ranked:
+        fresh = max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
+        timestamp = call.timestamp.replace("T", " ")[:23]
+        print(
+            f"{index:>3}  {timestamp:<24} {human_int(call.usage.input_tokens):>9} "
+            f"{human_int(call.usage.cached_input_tokens):>9} {human_int(fresh):>9} "
+            f"{human_int(call.usage.output_tokens):>8} {human_seconds(call.gap_seconds):>7} "
+            f"{call.context_ratio * 100:>6.1f}%"
+        )
+
+
+def render_cold_calls(report: SessionReport, show_calls: int) -> None:
+    cold = [
+        (index, call)
+        for index, call in enumerate(report.calls, 1)
+        if call.cold_reason != "warm"
+    ]
+    cold.sort(
+        key=lambda item: item[1].usage.input_tokens - item[1].usage.cached_input_tokens,
+        reverse=True,
+    )
+    if not cold:
+        return
+    print()
+    print(style(f"COLD / INVALIDATED PREFIX EVENTS — top {min(show_calls, len(cold))}", "bold"))
+    print(style("Reasons are log-derived; cache expiry and prefix mutation cannot be separated.", "dim"))
+    print("─" * 72)
+    print(f"{'#':>3}  {'fresh':>9} {'gap':>8}  reason")
+    for index, call in cold[:show_calls]:
+        fresh = max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
+        print(
+            f"{index:>3}  {human_int(fresh):>9} {human_seconds(call.gap_seconds):>8}  "
+            f"{call.cold_reason}"
+        )
+
+
+def render_model_call_windows(report: SessionReport) -> None:
+    windows = model_call_windows(report)
+    if not windows:
+        return
+    print()
+    print(style("MODEL-CALL WINDOWS — split after >30m gaps", "bold"))
+    print("─" * 84)
+    print(f"{'start':>5}  {'timestamp':<24} {'calls':>6} {'fresh':>9} {'first':>9} {'later avg':>10}")
+    for window in windows:
+        print(
+            f"{window['start_index']:>5}  {window['started_at'].replace('T', ' ')[:23]:<24} "
+            f"{window['calls']:>6} {human_int(window['fresh_input_tokens']):>9} "
+            f"{human_int(window['first_call_fresh_tokens']):>9} "
+            f"{human_int(window['later_call_average_fresh_tokens']):>10}"
+        )
+
+
 def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -> None:
     print(style(f"{report.agent.upper()} TOKEN PROFILE", "bold", "cyan"))
     print("─" * 72)
@@ -1936,14 +2288,36 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
     for name, value in rows:
         print(f"{name:<27} {human_int(value):>9}  {pct(value, total_attr):>6}  {render_bar(value, max_val)}")
 
-    print()
-    print(style("OBSERVED PAYLOAD — one-time visible transcript footprint", "bold"))
-    print(style("Useful for finding large outputs even when later calls repeatedly re-use them.", "dim"))
-    print("─" * 72)
-    rows = ordered_items(report.observed_payload)
-    max_val = max((v for _, v in rows), default=0.0)
-    for name, value in rows:
-        print(f"{name:<27} {human_int(value):>9}  {render_bar(value, max_val)}")
+    render_payload_breakdown(
+        "HISTORICAL PAYLOAD — seen once across the full transcript",
+        "Cumulative ingestion; classification changes can move tokens between categories.",
+        report.observed_payload,
+    )
+    render_payload_breakdown(
+        "CURRENT ACTIVE PAYLOAD — retained after the latest compaction",
+        "Estimated model-visible transcript items still active at session end.",
+        report.active_payload,
+    )
+    compacted_away = payload_difference(report.observed_payload, report.active_payload)
+    if compacted_away:
+        render_payload_breakdown(
+            "COMPACTED-AWAY PAYLOAD — historical minus current active",
+            "Estimated payload removed from active history by compaction.",
+            compacted_away,
+        )
+
+    if report.instruction_payloads:
+        print()
+        print(style("INSTRUCTION SOURCES — estimated", "bold"))
+        print("─" * 72)
+        print(f"{'source':<42} {'once':>9} {'cumulative':>11}")
+        for name, tokens in sorted(
+            report.instruction_payloads.items(), key=lambda item: item[1], reverse=True
+        ):
+            print(
+                f"{truncate(name, 41):<42} {human_int(tokens):>9} "
+                f"{human_int(report.instruction_cumulative.get(name, 0)):>11}"
+            )
 
     print()
     print(style("TOP TOKEN GENERATORS — estimated model-visible payload", "bold"))
@@ -1954,6 +2328,38 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
     else:
         for i, gen in enumerate(generators, 1):
             print(f"{i:>2}. {human_int(gen.payload_tokens):>8}  {gen.kind:<15}  {truncate(gen.label, 88)}")
+
+    stats = tool_statistics(report)
+    if stats:
+        print()
+        print(style("TOOL RESULT BREAKDOWN — estimated", "bold"))
+        print(style("Programmatic loop call counts are lower bounds; payload is split across nested tool sites.", "dim"))
+        print("─" * 96)
+        print(f"{'tool':<44} {'calls':>7} {'total':>9} {'avg':>8} {'max':>8} {'share':>7}")
+        for row in stats[:top_n]:
+            calls = f"{'≥' if row['calls_are_lower_bound'] else ''}{row['calls']}"
+            print(
+                f"{truncate(row['name'], 43):<44} {calls:>7} "
+                f"{human_int(row['result_tokens']):>9} "
+                f"{human_int(row['average_result_tokens']):>8} "
+                f"{human_int(row['max_result_tokens']):>8} "
+                f"{row['payload_ratio'] * 100:>6.1f}%"
+            )
+
+    outliers = tool_result_outliers(report)
+    if outliers:
+        print()
+        print(style(f"TOOL RESULT OUTLIERS — >2K tokens, top {min(top_n, len(outliers))}", "bold"))
+        print("─" * 96)
+        for row in outliers[:top_n]:
+            repeated = (
+                f" repeat #{row['occurrence']}" if row["occurrence"] > 1 else ""
+            )
+            print(
+                f"{human_int(row['tokens']):>8}  {truncate(row['tool'], 40):<41} "
+                f"{row['timestamp'].replace('T', ' ')[:19]}{repeated}"
+            )
+            print(f"          args: {truncate(row['arguments'] or '-', 106)}")
 
     if report.file_payloads:
         print()
@@ -1974,19 +2380,20 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
             print(f"{i:>2}. {human_int(tokens):>8}  {truncate(cmd, 105)}")
 
     if show_calls and report.calls:
-        print()
-        print(style(f"LARGEST MODEL CALLS — top {min(show_calls, len(report.calls))} by input", "bold"))
-        print("─" * 72)
-        print(f"{'#':>3}  {'timestamp':<24} {'input':>9} {'cached':>9} {'fresh':>9} {'output':>8} {'ctx':>7}")
-        ranked = sorted(enumerate(report.calls, 1), key=lambda x: x[1].usage.input_tokens, reverse=True)[:show_calls]
-        for idx, call in ranked:
-            fresh = max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
-            ts = call.timestamp.replace("T", " ")[:23]
-            print(
-                f"{idx:>3}  {ts:<24} {human_int(call.usage.input_tokens):>9} "
-                f"{human_int(call.usage.cached_input_tokens):>9} {human_int(fresh):>9} "
-                f"{human_int(call.usage.output_tokens):>8} {call.context_ratio * 100:>6.1f}%"
-            )
+        render_cold_calls(report, show_calls)
+        render_model_call_windows(report)
+        render_model_calls(
+            report,
+            show_calls,
+            "LARGEST MODEL CALLS BY TOTAL INPUT",
+            lambda call: call.usage.input_tokens,
+        )
+        render_model_calls(
+            report,
+            show_calls,
+            "LARGEST MODEL CALLS BY FRESH INPUT",
+            lambda call: call.usage.input_tokens - call.usage.cached_input_tokens,
+        )
 
     render_optimization(report)
 
@@ -2133,6 +2540,29 @@ def report_to_json(report: SessionReport) -> dict[str, Any]:
         "observed_payload_estimate": dict(
             sorted(report.observed_payload.items(), key=lambda kv: kv[1], reverse=True)
         ),
+        "payload_views_estimate": {
+            "historical": report.observed_payload,
+            "current_active": report.active_payload,
+            "compacted_away": payload_difference(
+                report.observed_payload, report.active_payload
+            ),
+        },
+        "instruction_sources_estimate": {
+            name: {
+                "observed_tokens": tokens,
+                "cumulative_input_contribution": round(
+                    report.instruction_cumulative.get(name, 0)
+                ),
+            }
+            for name, tokens in sorted(
+                report.instruction_payloads.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+        },
+        "tool_breakdown_estimate": tool_statistics(report),
+        "tool_result_outliers": tool_result_outliers(report),
+        "model_call_windows": model_call_windows(report),
         "top_generators": [
             dataclasses.asdict(x)
             for x in sorted(report.generators, key=lambda x: x.payload_tokens, reverse=True)
@@ -2150,9 +2580,33 @@ def report_to_json(report: SessionReport) -> dict[str, Any]:
                 "cumulative": dataclasses.asdict(c.cumulative),
                 "context_window": c.context_window,
                 "context_ratio": c.context_ratio,
+                "gap_seconds": c.gap_seconds,
+                "cold_reason": c.cold_reason,
                 "attributed": {k: round(v) for k, v in c.attributed.items()},
             }
             for c in report.calls
+        ],
+        "calls_by_fresh_input": [
+            {
+                "index": index,
+                "timestamp": call.timestamp,
+                "input_tokens": call.usage.input_tokens,
+                "cached_input_tokens": call.usage.cached_input_tokens,
+                "fresh_input_tokens": max(
+                    0,
+                    call.usage.input_tokens - call.usage.cached_input_tokens,
+                ),
+                "gap_seconds": call.gap_seconds,
+                "cold_reason": call.cold_reason,
+            }
+            for index, call in sorted(
+                enumerate(report.calls, 1),
+                key=lambda item: (
+                    item[1].usage.input_tokens
+                    - item[1].usage.cached_input_tokens
+                ),
+                reverse=True,
+            )
         ],
         "parse_errors": report.parse_errors,
         "estimator": "tiktoken:o200k_base",

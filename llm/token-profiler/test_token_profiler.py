@@ -125,8 +125,93 @@ class InnerSessionTest(unittest.TestCase):
         self.assertEqual(report.inner_model_calls, 1)
         self.assertEqual(report.inner_usage.input_tokens, 100)
 
+    def test_cold_calls_distinguish_idle_and_compaction(self) -> None:
+        report = self.analyze(
+            [
+                {
+                    "timestamp": "2026-09-20T10:00:00Z",
+                    "type": "token_usage_record",
+                    "payload": {"response_id": "one", "usage": usage(100, 0, 1, 0)},
+                },
+                {
+                    "timestamp": "2026-09-20T10:31:00Z",
+                    "type": "token_usage_record",
+                    "payload": {"response_id": "two", "usage": usage(200, 10, 1, 0)},
+                },
+                {
+                    "timestamp": "2026-09-20T10:31:01Z",
+                    "type": "compacted",
+                    "payload": {"replacement_history": "summary"},
+                },
+                {
+                    "timestamp": "2026-09-20T10:31:05Z",
+                    "type": "token_usage_record",
+                    "payload": {"response_id": "three", "usage": usage(50, 0, 1, 0)},
+                },
+            ]
+        )
+
+        self.assertEqual(report.calls[0].cold_reason, "session start")
+        self.assertEqual(report.calls[1].gap_seconds, 1860)
+        self.assertEqual(report.calls[1].cold_reason, "resume after idle")
+        self.assertEqual(report.calls[2].gap_seconds, 5)
+        self.assertEqual(report.calls[2].cold_reason, "post-compaction")
+        windows = token_profiler.model_call_windows(report)
+        self.assertEqual([window["calls"] for window in windows], [1, 2])
+        self.assertEqual(windows[1]["first_call_fresh_tokens"], 190)
+        self.assertEqual(windows[1]["later_call_average_fresh_tokens"], 50)
+
 
 class CodexProgrammaticToolTest(unittest.TestCase):
+    def test_tool_outliers_include_arguments_and_duplicate_occurrence(self) -> None:
+        report = token_profiler.SessionReport(Path("rollout.jsonl"))
+        arguments = '{"query":"same query"}'
+        token_profiler.record_tool_result(
+            report, ["web__run"], 2501, "2026-09-20T10:00:00Z", arguments
+        )
+        token_profiler.record_tool_result(
+            report, ["web__run"], 2502, "2026-09-20T10:01:00Z", arguments
+        )
+        token_profiler.record_tool_result(
+            report,
+            ["tool_inventory"],
+            2101,
+            "2026-09-20T10:02:00Z",
+            'const matches = ALL_TOOLS.filter(x => /serena|context7/i.test(x.name));',
+        )
+        token_profiler.record_tool_result(
+            report,
+            ["tool_inventory"],
+            2102,
+            "2026-09-20T10:03:00Z",
+            'const hits = ALL_TOOLS.filter(x => /serena|context7/i.test(x.name));',
+        )
+
+        outliers = token_profiler.tool_result_outliers(report)
+        self.assertEqual(outliers[0]["arguments"], arguments)
+        self.assertTrue(outliers[0]["repeated"])
+        inventory = [row for row in outliers if row["tool"] == "tool_inventory"]
+        self.assertEqual({row["occurrence"] for row in inventory}, {1, 2})
+        self.assertTrue(all(row["repeated"] for row in inventory))
+
+    def test_programmatic_shell_command_and_quoted_file_are_extracted(self) -> None:
+        script = (
+            'const r = await tools.exec_command({cmd: "sed -n \'1,20p\' \'Phase 3.md\'", '
+            'workdir: "/tmp/project"}); text(r.output);'
+        )
+        command = token_profiler.extract_command(script)
+
+        self.assertEqual(command, "sed -n '1,20p' 'Phase 3.md'")
+        self.assertEqual(
+            token_profiler.extract_files_from_command(command),
+            ["Phase 3.md"],
+        )
+        self.assertIsNone(
+            token_profiler.extract_command(
+                'text(await tools.apply_patch("*** Add File: test.py\\n+python"));'
+            )
+        )
+
     def test_nested_mcp_tools_are_visible_in_optimization_report(self) -> None:
         records = [
             {
@@ -171,6 +256,65 @@ class CodexProgrammaticToolTest(unittest.TestCase):
         self.assertGreater(context7["result_tokens_estimate"], 0)
         self.assertGreater(report.observed_payload["MCP/tool results"], 0)
         self.assertNotIn("Shell command output", report.observed_payload)
+        stats = {
+            row["name"]: row for row in token_profiler.tool_statistics(report)
+        }
+        self.assertIn("mcp__serena__find_symbol", stats)
+        self.assertIn("mcp__context7__query_docs", stats)
+        self.assertNotIn("exec", stats)
+
+    def test_payload_lifecycle_and_instruction_sources_survive_compaction(self) -> None:
+        records = [
+            {
+                "timestamp": "2026-09-20T10:00:00Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "developer",
+                    "content": [
+                        {"type": "input_text", "text": "PONYTAIL MODE ACTIVE — level: full"}
+                    ],
+                },
+            },
+            {
+                "timestamp": "2026-09-20T10:00:01Z",
+                "type": "compacted",
+                "payload": {"replacement_history": "short summary"},
+            },
+            {
+                "timestamp": "2026-09-20T10:00:02Z",
+                "type": "token_usage_record",
+                "payload": {
+                    "response_id": "one",
+                    "usage": usage(100, 80, 10, 2),
+                },
+            },
+            {
+                "timestamp": "2026-09-20T10:00:03Z",
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "Continue"}],
+                },
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            rollout = Path(directory) / "rollout-test-session.jsonl"
+            rollout.write_text(
+                "".join(json.dumps(record) + "\n" for record in records),
+                encoding="utf-8",
+            )
+            report = token_profiler.analyze_session(rollout)
+
+        removed = token_profiler.payload_difference(
+            report.observed_payload, report.active_payload
+        )
+        self.assertGreater(report.instruction_payloads["Ponytail"], 0)
+        self.assertGreater(removed["AGENTS.md/instructions"], 0)
+        self.assertGreater(report.active_payload["Compacted history"], 0)
+        self.assertGreater(report.active_payload["Conversation/history"], 0)
 
 
 class ClaudeSessionTest(unittest.TestCase):

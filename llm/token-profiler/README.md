@@ -95,6 +95,12 @@ Optimization measurements retain their original scopes and are never summed:
 - estimated project-level RTK shell-output savings
 - Headroom's global durable savings ledger
 - observed Serena and Context7 call counts and estimated result payload
+- per-tool call/result totals, averages, maxima, and payload share
+- tool-result outliers over 2K tokens with arguments and repeated-query markers
+- largest model calls ranked by both total and fresh input
+- model-call gaps and cold-prefix causes (start, idle resume, compaction, or
+  indistinguishable cache-expiry/prefix changes)
+- per-work-window first-call cold cost and later-call fresh-input average
 - Ponytail plugin/policy state
 
 Serena and Context7 calls made through Codex's programmatic `exec` wrapper are
@@ -111,6 +117,12 @@ file, tool, instruction, history, and payload contributions. Exact provider
 usage remains authoritative; attribution is diagnostic rather than billing
 data.
 
+Payload is reported in three views: all historically observed transcript
+items, items still active after the latest compaction, and their estimated
+difference. Instruction sources are separated when the rollout preserves a
+recognizable boundary such as AGENTS.md, Ponytail, permissions, or the skills
+catalog.
+
 ## Safety
 
 The profiler:
@@ -120,5 +132,5 @@ The profiler:
 - uploads no transcript data;
 - never executes commands stored in a session.
 
-JSON output can expose local paths, prompts, and command strings. Treat it as
-sensitive.
+JSON output can expose local paths, prompts, tool arguments, and command
+strings. Treat it as sensitive.

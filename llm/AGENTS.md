@@ -34,7 +34,7 @@ If Ponytail skills are available, use the normal/full policy for coding tasks an
 
 When Serena is available and the task concerns normal source code:
 
-1. Ensure the current repository is the active Serena project.
+1. Activate the current repository only if Serena is uninitialized or the project changed; load initial instructions once per server lifecycle.
 2. Prefer symbol-level retrieval over broad grep/full-file reads.
 3. Start with structure, then narrow:
    - `get_symbols_overview`
@@ -84,16 +84,17 @@ Context7 should complement Serena, not replace it: Serena explains our code; Con
 
 ## RTK: compact shell output
 
-- In Codex, prefix supported shell commands with `rtk`; follow the imported `RTK.md`.
+- In Codex, prefix only commands RTK meaningfully compacts. This overrides the imported `RTK.md` generic-prefix advice; do not write pass-through forms such as `rtk sed`.
 - In Claude Code, rely on the installed command hook.
 - Prefer narrow commands and tests even with RTK enabled.
-- If exact unfiltered output is required, bypass RTK for that command:
+- If an RTK-filtered result omits a required detail, rerun only that command unfiltered:
 
 ```bash
 RTK_DISABLED=1 <command>
 ```
 
 - Never depend on RTK filtering for correctness; rerun raw output when details are missing.
+- Prefer `pgrep` to broad `ps`, inspect `git diff --stat` before targeted diffs, and suppress successful verbose build logs while retaining a bounded failure tail.
 
 ## Headroom: context transport
 
@@ -129,6 +130,7 @@ Avoid:
 - broad recursive grep when a semantic symbol query will work;
 - whole-file reads when one symbol is sufficient;
 - repeated retrieval of the same content;
+- repeated tool inventory/capability discovery after the needed tool is known;
 - Context7 lookups unrelated to a concrete dependency/API question;
 - huge raw test/build logs;
 - speculative exploration unrelated to the requested change.
