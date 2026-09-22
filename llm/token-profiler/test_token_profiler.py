@@ -158,8 +158,11 @@ class InnerSessionTest(unittest.TestCase):
         self.assertEqual(report.calls[2].cold_reason, "post-compaction")
         windows = token_profiler.model_call_windows(report)
         self.assertEqual([window["calls"] for window in windows], [1, 2])
+        self.assertEqual(windows[1]["first_call_input_tokens"], 200)
         self.assertEqual(windows[1]["first_call_fresh_tokens"], 190)
+        self.assertEqual(windows[1]["later_fresh_tokens"], 50)
         self.assertEqual(windows[1]["later_call_average_fresh_tokens"], 50)
+        self.assertEqual(windows[1]["first_call_share"], 0.7917)
 
 
 class CodexProgrammaticToolTest(unittest.TestCase):
@@ -453,6 +456,10 @@ class ClaudeSessionTest(unittest.TestCase):
         self.assertEqual(report.tool_calls["Bash"], 1)
         self.assertEqual(report.tool_calls["mcp__serena__find_symbol"], 1)
         self.assertGreater(report.tool_payloads["mcp__serena__find_symbol"], 0)
+        windows = token_profiler.model_call_windows(report)
+        self.assertEqual([window["calls"] for window in windows], [2, 1])
+        self.assertEqual(windows[1]["first_call_input_tokens"], 175)
+        self.assertEqual(windows[1]["first_call_fresh_tokens"], 75)
 
     def test_profile_subcommands_map_to_distinct_homes(self) -> None:
         personal = token_profiler.profile_for("claude")

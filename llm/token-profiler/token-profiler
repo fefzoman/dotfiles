@@ -37,7 +37,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 INNER_SESSION_GAP = dt.timedelta(minutes=30)
 
 import tiktoken  # type: ignore
@@ -1907,6 +1907,7 @@ def model_call_windows(report: SessionReport) -> list[dict[str, Any]]:
                     "started_at": call.timestamp,
                     "calls": 0,
                     "fresh_input_tokens": 0,
+                    "first_call_input_tokens": call.usage.input_tokens,
                     "first_call_fresh_tokens": fresh,
                     "later_fresh_tokens": 0,
                 }
@@ -1919,8 +1920,11 @@ def model_call_windows(report: SessionReport) -> list[dict[str, Any]]:
     for window in windows:
         later_calls = window["calls"] - 1
         window["later_call_average_fresh_tokens"] = round(
-            window.pop("later_fresh_tokens") / later_calls
+            window["later_fresh_tokens"] / later_calls
         ) if later_calls else 0
+        window["first_call_share"] = round(
+            window["first_call_fresh_tokens"] / window["fresh_input_tokens"], 4
+        ) if window["fresh_input_tokens"] else 0.0
     return windows
 
 
@@ -2193,13 +2197,19 @@ def render_model_call_windows(report: SessionReport) -> None:
         return
     print()
     print(style("MODEL-CALL WINDOWS — split after >30m gaps", "bold"))
-    print("─" * 84)
-    print(f"{'start':>5}  {'timestamp':<24} {'calls':>6} {'fresh':>9} {'first':>9} {'later avg':>10}")
+    print("─" * 112)
+    print(
+        f"{'start':>5}  {'timestamp':<24} {'calls':>6} {'resume ctx':>10} "
+        f"{'fresh':>9} {'first':>9} {'first %':>8} {'later':>9} {'later avg':>10}"
+    )
     for window in windows:
         print(
             f"{window['start_index']:>5}  {window['started_at'].replace('T', ' ')[:23]:<24} "
-            f"{window['calls']:>6} {human_int(window['fresh_input_tokens']):>9} "
+            f"{window['calls']:>6} {human_int(window['first_call_input_tokens']):>10} "
+            f"{human_int(window['fresh_input_tokens']):>9} "
             f"{human_int(window['first_call_fresh_tokens']):>9} "
+            f"{window['first_call_share'] * 100:>7.1f}% "
+            f"{human_int(window['later_fresh_tokens']):>9} "
             f"{human_int(window['later_call_average_fresh_tokens']):>10}"
         )
 
