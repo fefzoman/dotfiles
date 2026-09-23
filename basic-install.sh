@@ -121,6 +121,14 @@ install_python_runtime_macos() {
 
   [[ -x "$python_bin" ]] || { echo "Expected Python binary is missing: $python_bin" >&2; exit 1; }
 
+  if ! "$python_bin" -c 'import platform, xml.parsers.expat; raise SystemExit(not platform.mac_ver()[0])' >/dev/null 2>&1; then
+    echo "==> Homebrew Python is broken; using uv-managed Python ${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}..."
+    command -v uv >/dev/null 2>&1 || brew install uv
+    uv python install "${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}"
+    python_bin="$(uv python find "${TARGET_PYTHON_MAJOR}.${TARGET_PYTHON_MINOR}")"
+    uv pip install --python "$python_bin" --break-system-packages pip
+  fi
+
   mkdir -p "${HOME}/.local/bin"
   for shim in python python3; do
     cat > "${HOME}/.local/bin/$shim" <<EOF
@@ -673,7 +681,12 @@ nvim --headless +"lua require('nvim-treesitter').install({ 'bash', 'c', 'cpp', '
 echo "==> Writing tmux config to ~/.tmux.conf ..."
 backup_file "${HOME}/.tmux.conf"
 
-cat > "${HOME}/.tmux.conf" <<'TMUXCONF'
+TMUX_SHELL="$(command -v bash)"
+if [[ "$OS" == Darwin ]]; then
+  TMUX_SHELL="$(brew --prefix bash)/bin/bash"
+fi
+printf 'set -g default-shell "%s"\n' "$TMUX_SHELL" > "${HOME}/.tmux.conf"
+cat >> "${HOME}/.tmux.conf" <<'TMUXCONF'
 set -g status-position top
 set -g base-index 1
 setw -g pane-base-index 1

@@ -55,7 +55,8 @@ The installer reads the account login shell from macOS Directory Service or
 the Linux passwd database. It verifies the result after `chsh` and stops before
 resetting existing shell files when the switch to Bash fails. Log out and back
 in after a successful shell change; `$SHELL` is not refreshed in the current
-login session.
+login session. Alacritty's tmux panes use the installed Bash even if `$SHELL`
+is stale.
 
 ## Installed Tools
 
@@ -192,7 +193,8 @@ python  python3  pip  pip3
 `break-system-packages = true`. On macOS, other pyenv Python versions and
 Homebrew Python formulae are removed when safe; Homebrew versions required by
 installed packages are retained. Set `FORCE_REMOVE_PYTHON=1` to force their
-removal despite dependencies. Linux uses a uv-managed Python and does not
+removal despite dependencies. A broken Homebrew Python falls back to a
+uv-managed Python. Linux uses a uv-managed Python and does not
 remove distribution-managed Python packages.
 
 ## Generated Configuration
