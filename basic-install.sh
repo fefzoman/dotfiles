@@ -297,6 +297,17 @@ install_lazygit_linux() {
   rm -rf "$work_dir"
 }
 
+install_broot_linux() {
+  local arch target work_dir
+
+  arch="$(linux_arch)"
+  [[ "$arch" == x86_64 ]] && target=x86_64-unknown-linux-musl || target=aarch64-unknown-linux-musl
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/broot-install.XXXXXX")"
+  curl -fsSL -o "$work_dir/broot" "https://dystroy.org/broot/download/$target/broot"
+  install -m 0755 "$work_dir/broot" "$HOME/.local/bin/broot"
+  rm -rf "$work_dir"
+}
+
 install_nerd_font_linux() {
   local work_dir font_dir
 
@@ -317,9 +328,56 @@ install_linux_user_tools() {
   install_kubectl_linux
   install_terraform_linux
   install_lazygit_linux
+  install_broot_linux
   npm install --global --prefix "$HOME/.local" tree-sitter-cli
   "$HOME/.local/bin/pip" install --upgrade basedpyright
   install_nerd_font_linux
+}
+
+install_broot_shell_function() {
+  local launcher="$HOME/.config/broot/launcher/bash/br"
+
+  # On macOS broot only uses ~/.config/broot when it already exists, otherwise
+  # it falls back to ~/Library/Application Support. Create it so the launcher
+  # lands in the same place on both platforms.
+  mkdir -p "$HOME/.config/broot"
+  # broot only patches shell rc files that already exist.
+  touch "$HOME/.bashrc"
+  # --install writes the br function and patches ~/.bashrc without prompting;
+  # it skips files that already source the launcher, so re-runs are safe.
+  broot --install
+  [[ -f "$launcher" ]] || { echo "broot launcher is missing at $launcher" >&2; return 1; }
+}
+
+# Must run after install_broot_shell_function: until the br function is marked
+# installed, broot's first launch tries to ask for permission to install it and
+# gives up before it writes any configuration.
+configure_broot() {
+  local conf="$HOME/.config/broot/conf.hjson"
+
+  mkdir -p "$HOME/.config/broot"
+  # broot writes its default configuration files on its first launch. It cannot
+  # start its interface without a terminal, so this headless run fails right
+  # after writing them; check for the file rather than the exit status.
+  [[ -f "$conf" ]] || broot --cmd ":quit" "$HOME/.config/broot" >/dev/null 2>&1 || true
+  [[ -f "$conf" ]] || { echo "broot did not write $conf" >&2; return 1; }
+
+  # The `g` flag shows the git status column, the current branch and the diff
+  # stats on every launch. An existing setting is left alone.
+  python - "$conf" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+conf = Path(sys.argv[1])
+text = conf.read_text(encoding="utf-8")
+if re.search(r"(?m)^\s*default_flags:", text):
+    raise SystemExit(0)
+patched, count = re.subn(r"(?m)^#\s*default_flags:.*$", "default_flags: g", text, count=1)
+if count == 0:
+    patched = text.rstrip() + "\n\ndefault_flags: g\n"
+conf.write_text(patched, encoding="utf-8")
+PY
 }
 
 install_alacritty() {
@@ -374,7 +432,7 @@ if [[ "$OS" == Darwin ]]; then
   install_python_runtime_macos
   echo "==> Installing CLI tools..."
   brew tap hashicorp/tap
-  brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd \
+  brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd broot \
     basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
   brew upgrade bash || true
 
@@ -387,6 +445,11 @@ else
   install_node_runtime_linux
   install_linux_user_tools
 fi
+
+echo "==> Installing the broot br shell function..."
+install_broot_shell_function
+echo "==> Writing broot configuration with git info enabled..."
+configure_broot
 
 BACKUP_TS="$(date +%Y%m%d%H%M%S)"
 backup_file() { [[ ! -f $1 ]] || cp "$1" "$1.bak.$BACKUP_TS"; }

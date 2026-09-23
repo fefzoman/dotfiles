@@ -324,6 +324,14 @@ fi
 EOF
 fi
 
+# This stage replaces ~/.bashrc, so the sourcing line basic-install.sh added for
+# the broot br function is gone. Re-running --install restores it and is a no-op
+# for everything else.
+if command -v broot >/dev/null 2>&1; then
+  bold "Restoring the broot br shell function..."
+  broot --install || warn "broot --install failed; the br function is unavailable."
+fi
+
 
 # --- Nerd Font install (before terminal theme import) ---
 if [[ "$(uname -s)" == "Darwin" ]]; then

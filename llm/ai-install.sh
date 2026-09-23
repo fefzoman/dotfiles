@@ -112,8 +112,8 @@ install_ai_tools() {
     exit 1
   fi
 
-  npm install --global --prefix "$HOME/.local" \
-    @anthropic-ai/claude-code@latest @upstash/context7-mcp@latest
+  npm install --global --prefix "$HOME/.local" @upstash/context7-mcp@latest
+  curl -fsSL https://claude.ai/install.sh | bash -s latest
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade serena-agent
 }
@@ -205,7 +205,7 @@ configure_agent_mcps() {
     done
     CODEX_HOME="$profile" "$codex_bin" mcp add serena -- \
       "$serena_bin" start-mcp-server --context=codex --project-from-cwd \
-      --open-web-dashboard false \
+      --open-web-dashboard false
     CODEX_HOME="$profile" "$codex_bin" mcp add context7 -- \
       "$context7_bin" --transport stdio
   done
@@ -217,7 +217,7 @@ configure_agent_mcps() {
     done
     CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp add --scope user serena -- \
       "$serena_bin" start-mcp-server --context=claude-code --project-from-cwd \
-      --open-web-dashboard false \
+      --open-web-dashboard false
     CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp add --scope user context7 -- \
       "$context7_bin" --transport stdio
   done

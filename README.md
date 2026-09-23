@@ -62,7 +62,7 @@ login session.
 | Area | Tools |
 |---|---|
 | Shell and terminal | latest Homebrew Bash, Oh My Bash, Alacritty, tmux, JetBrainsMono Nerd Font |
-| CLI | Git, curl, btop, Codex, Claude Code, Headroom, Ponytail, Serena, Context7, token profiler, RTK, LazyGit, ripgrep, fd |
+| CLI | Git, curl, btop, Codex, Claude Code, Headroom, Ponytail, Serena, Context7, token profiler, RTK, LazyGit, ripgrep, fd, broot (`br`) |
 | Infrastructure | kubectl, Terraform |
 | Development | LLVM/Clang, tree-sitter CLI |
 | Editor | Neovim, vim-plug, Telescope, Neo-tree, Treesitter, Mini Pairs, Mini Surround, indent guides, vim-airline, LazyGit integration |
