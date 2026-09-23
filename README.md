@@ -111,21 +111,20 @@ rtk gain --all --format json     # machine-readable savings
 
 [Headroom](https://github.com/headroomlabs-ai/headroom) is installed with its
 Codex and Claude proxies and code-compression dependencies in an isolated `uv`
-tool environment. All four profiles are routed through a session-local
-Headroom proxy:
+tool environment. The installer runs it as a persistent launchd/systemd proxy on
+port 8787 (`headroom install apply`) and routes all four profiles to it through
+their own config, so terminal CLIs and the VS Code extensions share one path:
 
-```bash
-codex             # Headroom + ~/.codex
-codex-work        # Headroom + ~/.codex-work
-claude            # Headroom + ~/.claude
-claude-work       # Headroom + ~/.claude-work
+```text
+~/.claude/settings.json, ~/.claude-work/settings.json   env.ANTHROPIC_BASE_URL
+~/.codex/config.toml,    ~/.codex-work/config.toml      model_provider = "headroom"
 ```
 
-The wrappers respect `CODEX_HOME` and `CLAUDE_CONFIG_DIR`, keep RTK enabled,
-and avoid installing a second Serena setup. If `headroom` is unavailable, each
-shell function falls back to its CLI directly. Headroom's anonymous beacon is
-disabled with `HEADROOM_BEACON=off`. Run `command codex` or `command claude` to
-intentionally bypass Headroom.
+The default Claude profile is always used without `CLAUDE_CONFIG_DIR`, because
+setting it (even to `~/.claude`) moves user MCPs such as Serena into
+`~/.claude/.claude.json`, which the VS Code extension never reads. Headroom's
+anonymous beacon is disabled with `HEADROOM_BEACON=off`. Check the proxy with
+`headroom install status`; remove it with `headroom install remove`.
 
 ## Ponytail
 

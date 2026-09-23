@@ -474,15 +474,22 @@ Filtering can omit details needed for unusual debugging. The escape hatch is sim
 
 ### What it does
 
-Headroom is a local context-compression layer. This repository wraps both
-agents while keeping Serena under the repository's direct configuration:
+Headroom is a local context-compression layer. This repository runs it as a
+persistent, supervised proxy and routes every profile to it through config,
+while keeping Serena under the repository's direct configuration:
 
 ```bash
-headroom wrap codex --code-memory none
-headroom wrap claude --code-memory none
+headroom install apply --preset persistent-service --scope provider \
+  --providers manual --target claude --target codex
 ```
 
-The wrappers start or reuse a local proxy and route model traffic through it.
+`install apply` writes `env.ANTHROPIC_BASE_URL` into `~/.claude/settings.json`
+and a `model_provider = "headroom"` block into `~/.codex/config.toml`; the
+installer applies the same entries to `~/.claude-work` and `~/.codex-work`.
+Config-level routing is used instead of `headroom wrap` because IDE
+extensions (Claude Code and Codex in VS Code) launch their own binaries and
+never pass through a shell wrapper, and `wrap codex` rewrites `config.toml`
+itself, which would fight the persistent block.
 
 Headroom's current default context posture is cache-oriented: it tries to preserve stable previous turns for provider prefix-cache efficiency while compressing the live part of the context.
 

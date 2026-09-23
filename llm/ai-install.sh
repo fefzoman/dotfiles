@@ -43,28 +43,8 @@ __codex_answer() {
 
 alias '??'='__codex_answer'
 
-codex() {
-  local codex_home="${CODEX_HOME:-$HOME/.codex}"
-
-  if command -v headroom >/dev/null 2>&1; then
-    CODEX_HOME="$codex_home" command headroom wrap codex \
-      --code-memory none -- "$@"
-  else
-    CODEX_HOME="$codex_home" command codex "$@"
-  fi
-}
-
-claude() {
-  local claude_config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-
-  if command -v headroom >/dev/null 2>&1; then
-    CLAUDE_CONFIG_DIR="$claude_config_dir" command headroom wrap claude \
-      --code-memory none -- "$@"
-  else
-    CLAUDE_CONFIG_DIR="$claude_config_dir" command claude "$@"
-  fi
-}
-
+# Headroom routing lives in each profile's config (see install_headroom), so
+# codex, claude and the VS Code extensions all reach the persistent proxy.
 code() {
   CODEX_HOME="${CODEX_HOME:-$HOME/.codex}" command code "$@"
 }
@@ -94,6 +74,19 @@ export PATH="$HOME/.local/bin:$PATH"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 PYTHON_VERSION=3.13
+
+# The default Claude profile must run without CLAUDE_CONFIG_DIR: setting it,
+# even to ~/.claude, moves user MCPs to ~/.claude/.claude.json, which the
+# VS Code extension never reads.
+with_claude_profile() {
+  local profile="$1"
+  shift
+  if [[ "$profile" == "$HOME/.claude" ]]; then
+    env -u CLAUDE_CONFIG_DIR "$@"
+  else
+    CLAUDE_CONFIG_DIR="$profile" "$@"
+  fi
+}
 
 install_ai_tools() {
   if [[ "$OS" == Darwin ]]; then
@@ -158,7 +151,7 @@ config.write_text(text.rstrip() + "\n\n" + block, encoding="utf-8")
 PY
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    RTK_TELEMETRY_DISABLED=1 CLAUDE_CONFIG_DIR="$profile" \
+    RTK_TELEMETRY_DISABLED=1 with_claude_profile "$profile" \
       "$rtk_bin" init -g --agent claude --auto-patch --no-trust-filters
   done
 }
@@ -185,13 +178,13 @@ install_ponytail() {
 
   claude_bin="$(type -P claude)"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    CLAUDE_CONFIG_DIR="$profile" "$claude_bin" plugin marketplace add \
+    with_claude_profile "$profile" "$claude_bin" plugin marketplace add \
       DietrichGebert/ponytail >/dev/null 2>&1 ||
-      CLAUDE_CONFIG_DIR="$profile" "$claude_bin" plugin marketplace update \
+      with_claude_profile "$profile" "$claude_bin" plugin marketplace update \
         ponytail >/dev/null
-    CLAUDE_CONFIG_DIR="$profile" "$claude_bin" plugin install \
+    with_claude_profile "$profile" "$claude_bin" plugin install \
       --scope user --yes ponytail@ponytail --json >/dev/null 2>&1 ||
-      CLAUDE_CONFIG_DIR="$profile" "$claude_bin" plugin update \
+      with_claude_profile "$profile" "$claude_bin" plugin update \
         --scope user --yes ponytail@ponytail --json >/dev/null
     echo "==> Ponytail installed for $profile"
   done
@@ -218,20 +211,44 @@ configure_agent_mcps() {
 
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     for server in serena context7; do
-      CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp remove \
+      with_claude_profile "$profile" "$claude_bin" mcp remove \
         --scope user "$server" >/dev/null 2>&1 || true
     done
-    CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp add --scope user serena -- \
+    with_claude_profile "$profile" "$claude_bin" mcp add --scope user serena -- \
       "$serena_bin" start-mcp-server --context=claude-code --project-from-cwd \
       --open-web-dashboard false
-    CLAUDE_CONFIG_DIR="$profile" "$claude_bin" mcp add --scope user context7 -- \
+    with_claude_profile "$profile" "$claude_bin" mcp add --scope user context7 -- \
       "$context7_bin" --transport stdio
   done
 }
 
 install_headroom() {
-  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(command -v uv)" tool install \
+  local uv_bin
+
+  uv_bin="$(command -v uv)"
+  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$uv_bin" tool install \
     --python "$PYTHON_VERSION" --upgrade 'headroom-ai[proxy,code]'
+  # A supervised proxy plus config-level routing reaches every launcher,
+  # including IDE extensions that never run a shell wrapper.
+  headroom install apply --preset persistent-service --scope provider \
+    --providers manual --target claude --target codex
+  # install apply routes only ~/.claude and ~/.codex; give the work profiles
+  # the same managed entries (Codex history retag and auth mode included).
+  "$("$uv_bin" tool dir)/headroom-ai/bin/python" - \
+    "$HOME/.claude-work" "$HOME/.codex-work" <<'PY'
+import sys
+from pathlib import Path
+
+import headroom.providers.claude.install as claude
+import headroom.providers.codex.install as codex
+from headroom.install.state import load_manifest
+
+manifest = load_manifest("default")
+claude.claude_settings_path = lambda: Path(sys.argv[1]) / "settings.json"
+codex.codex_config_path = lambda: Path(sys.argv[2]) / "config.toml"
+claude.apply_provider_scope(manifest)
+codex.apply_provider_scope(manifest)
+PY
 }
 
 install_global_agents() {

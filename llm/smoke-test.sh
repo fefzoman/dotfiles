@@ -86,16 +86,25 @@ mcp_enabled_for_codex() {
     python -c 'import json,sys; name=sys.argv[1]; raise SystemExit(not any(s.get("name")==name and s.get("enabled") for s in json.load(sys.stdin)))' "$server"
 }
 
-plugin_enabled_for_claude() {
-  local profile
+# Mirrors ai-install.sh: the default profile runs without CLAUDE_CONFIG_DIR,
+# exactly as the VS Code extension does.
+with_claude_profile() {
+  local profile="$1"
+  shift
+  if [[ "$profile" == "$HOME/.claude" ]]; then
+    env -u CLAUDE_CONFIG_DIR "$@"
+  else
+    CLAUDE_CONFIG_DIR="$profile" "$@"
+  fi
+}
 
-  profile="$1"
-  CLAUDE_CONFIG_DIR="$profile" command claude plugin list --json 2>/dev/null |
+plugin_enabled_for_claude() {
+  with_claude_profile "$1" claude plugin list --json 2>/dev/null |
     python -c 'import json,sys; data=json.load(sys.stdin); raise SystemExit(not any(p.get("id")=="ponytail@ponytail" and p.get("enabled", True) for p in data))'
 }
 
 mcp_enabled_for_claude() {
-  CLAUDE_CONFIG_DIR="$1" command claude mcp get "$2" >/dev/null 2>&1
+  with_claude_profile "$1" claude mcp get "$2" >/dev/null 2>&1
 }
 
 rtk_hook_enabled_for_claude() {
@@ -132,6 +141,33 @@ status = json.loads(settings.read_text(encoding="utf-8")).get("statusLine", {})
 raise SystemExit(
     status.get("type") != "command"
     or status.get("command") != 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
+)
+PY
+}
+
+claude_routed_through_headroom() {
+  python - "$1/settings.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+settings = Path(sys.argv[1])
+data = json.loads(settings.read_text(encoding="utf-8")) if settings.is_file() else {}
+raise SystemExit(data.get("env", {}).get("ANTHROPIC_BASE_URL") != "http://127.0.0.1:8787")
+PY
+}
+
+codex_routed_through_headroom() {
+  python - "$1/config.toml" <<'PY'
+import sys
+import tomllib
+from pathlib import Path
+
+config = tomllib.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+provider = config.get("model_providers", {}).get("headroom", {})
+raise SystemExit(
+    config.get("model_provider") != "headroom"
+    or provider.get("base_url") != "http://127.0.0.1:8787/v1"
 )
 PY
 }
@@ -189,16 +225,10 @@ else
   fail "Claude Code failed to start"
 fi
 
-if headroom wrap codex --help >/dev/null 2>&1; then
-  pass "Headroom exposes the Codex wrapper"
+if headroom install status >/dev/null 2>&1; then
+  pass "Headroom persistent proxy is installed and healthy"
 else
-  fail "Headroom Codex wrapper is unavailable"
-fi
-
-if headroom wrap claude --help >/dev/null 2>&1; then
-  pass "Headroom exposes the Claude wrapper"
-else
-  fail "Headroom Claude wrapper is unavailable"
+  fail "Headroom persistent proxy is not installed or not healthy"
 fi
 
 if token-profiler --version >/dev/null 2>&1; then
@@ -236,7 +266,7 @@ else
 fi
 
 if bash --noprofile --norc -c \
-  'source "$1"; declare -F codex >/dev/null; declare -F claude >/dev/null; declare -F code-work >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
+  'source "$1"; declare -F code-work >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
   _ "$HOME/.config/dotfiles/ai-install.sh"; then
   pass "Sourcing AI configuration loads functions without running the installer"
 else
@@ -262,6 +292,12 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     fail "Ponytail is missing or disabled in $profile"
   fi
 
+  if codex_routed_through_headroom "$profile"; then
+    pass "Codex routes through Headroom in $profile"
+  else
+    fail "Codex bypasses Headroom in $profile"
+  fi
+
   if codex_shell_path_has_rtk "$profile"; then
     pass "Codex command PATH includes RTK in $profile"
   else
@@ -280,6 +316,12 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     pass "Claude policy and RTK import are valid in $profile"
   else
     fail "Claude policy or RTK import is invalid in $profile"
+  fi
+
+  if claude_routed_through_headroom "$profile"; then
+    pass "Claude routes through Headroom in $profile"
+  else
+    fail "Claude bypasses Headroom in $profile"
   fi
 
   if rtk_hook_enabled_for_claude "$profile"; then
