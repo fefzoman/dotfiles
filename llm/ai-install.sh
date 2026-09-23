@@ -169,7 +169,13 @@ install_ponytail() {
   codex_bin="$(type -P codex)"
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     CODEX_HOME="$profile" "$codex_bin" plugin marketplace add \
-      DietrichGebert/ponytail --json >/dev/null
+      DietrichGebert/ponytail --json >/dev/null 2>&1 || {
+      # A 'ponytail' marketplace left over from another source blocks the add.
+      CODEX_HOME="$profile" "$codex_bin" plugin marketplace remove \
+        ponytail >/dev/null 2>&1 || true
+      CODEX_HOME="$profile" "$codex_bin" plugin marketplace add \
+        DietrichGebert/ponytail --json >/dev/null
+    }
     CODEX_HOME="$profile" "$codex_bin" plugin marketplace upgrade \
       ponytail --json >/dev/null
     CODEX_HOME="$profile" "$codex_bin" plugin add \
