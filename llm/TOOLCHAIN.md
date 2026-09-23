@@ -1,6 +1,6 @@
 # Coding Agent Efficiency Stack: Ponytail + Serena + Context7 + RTK + Headroom
 
-> Verified against upstream documentation on 2026-09-19. These projects evolve quickly; re-check their current installation commands before automating bootstrap.
+> Verified against upstream documentation and the installed transport paths on 2026-09-22. These projects evolve quickly; re-check their current installation commands before automating bootstrap.
 
 ## 1. Purpose
 
@@ -21,6 +21,15 @@ Codex and Claude Code. Serena and Context7 are user-level MCP servers,
 Ponytail is a native plugin, RTK uses Codex instructions or Claude hooks, and
 Headroom wraps each CLI. `token-profiler` reads local Codex and Claude Code
 sessions separately for personal and work profiles.
+
+Two small, local safeguards complement the five tools:
+
+- Codex receives a hook warning when a large same-thread context is close to a
+  quota stop;
+- Claude Code receives the equivalent warning through its native, token-free
+  status line, which also exposes prompt-cache state.
+
+Neither safeguard runs `/compact` automatically.
 
 ---
 
@@ -465,13 +474,15 @@ Filtering can omit details needed for unusual debugging. The escape hatch is sim
 
 ### What it does
 
-Headroom is a local context-compression layer. For Codex CLI, the normal entry point is:
+Headroom is a local context-compression layer. This repository wraps both
+agents while keeping Serena under the repository's direct configuration:
 
 ```bash
-headroom wrap codex
+headroom wrap codex --code-memory none
+headroom wrap claude --code-memory none
 ```
 
-The wrapper starts/reuses a local proxy and routes Codex model traffic through it.
+The wrappers start or reuse a local proxy and route model traffic through it.
 
 Headroom's current default context posture is cache-oriented: it tries to preserve stable previous turns for provider prefix-cache efficiency while compressing the live part of the context.
 
@@ -514,6 +525,87 @@ The Headroom project currently advertises large token savings in its examples/do
 - some compression latency;
 - debugging complexity if you forget traffic is passing through a proxy;
 - diminishing returns when Serena and RTK have already removed most waste.
+
+### Transport-specific behavior
+
+Do not assume that a Headroom feature applies to every protocol handled by the
+proxy. Verify the actual request handler before enabling an optimization.
+
+In the installed Headroom `0.37.0`:
+
+- Codex uses the OpenAI Responses API over WebSocket. Normal compression of
+  Codex `response.create` frames is active, but
+  `HEADROOM_COLD_RECOMPACT` and `HEADROOM_CACHE_TTL_LEARN` are not wired into
+  that WebSocket handler. Enabling them solely for Codex WS traffic would be a
+  placebo.
+- Claude Code uses the Anthropic `/v1/messages` path. Cold-prefix recompaction
+  and cache-observation calls exist in that handler. This repository still
+  does not enable either variable: TTL learning only records observations
+  until an offline estimator produces a learned table, and the reused proxy is
+  shared rather than safely scoped to one Claude profile.
+
+Normal Headroom compression remains enabled for both agents. Context should
+still be minimized before it reaches Headroom.
+
+### Same-thread compaction safeguards
+
+The goal is to reduce the first fresh-token spike after a long quota-reset
+pause without changing threads, handing off work, or sacrificing warm-cache
+efficiency prematurely.
+
+| Agent | Reliable local signals | Warning mechanism | Result |
+|---|---|---|---|
+| Codex | Rollout `token_count`: input context and active primary/secondary quota windows | `UserPromptSubmit` hook; warns once while the condition remains active | Recommend `/compact`, then resume the same thread |
+| Claude Code | Native status-line JSON: context tokens/percentage, 5-hour and 7-day usage, prompt-cache warmth | Token-free persistent status line | Recommend `/compact`, then continue the same conversation |
+
+The current warning threshold is:
+
+```text
+context >= 120,000 input tokens
+AND
+either active quota window >= 85% used
+```
+
+The implementations are:
+
+```text
+llm/codex_compact_warning.py
+llm/codex-hooks.json
+llm/claude_compact_statusline.py
+```
+
+Claude Code's native auto-compaction remains enabled. The installer does not
+set `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`: a lower fixed threshold is not
+quota-aware and could rewrite a still-warm prefix earlier than necessary.
+
+Automatic external `/compact` invocation is intentionally not attempted for
+either agent. A visible recommendation is safer than injecting a command into
+an interactive session when the CLI does not provide a reliable supported
+quota-aware trigger.
+
+### Token-profiler verification
+
+`token-profiler` supports all four profiles:
+
+```bash
+token-profiler codex
+token-profiler codex-work
+token-profiler claude
+token-profiler claude-work
+```
+
+For Codex and Claude, model-call windows split after gaps longer than 30
+minutes and report:
+
+- context size on the first resumed call;
+- first-call fresh input and its share of the window's fresh input;
+- later-call fresh total and average;
+- cold-start, idle-resume, and post-compaction attribution where the transcript
+  exposes enough evidence.
+
+Claude usage records additionally provide exact cache-read and cache-creation
+token counts. The profiler reads local session files and makes no model or API
+requests.
 
 ---
 
@@ -732,6 +824,20 @@ If the goal is to prove whether this stack is worthwhile, track per task:
 - test pass/fail;
 - number of reruns caused by missing context.
 
+For a same-thread quota-reset experiment, capture one row before and after each
+pause:
+
+- context size immediately before `/compact`;
+- context size immediately after `/compact`;
+- pause duration;
+- first resumed call: total input, cached input, and fresh input;
+- fresh input across the first ten resumed calls;
+- Headroom savings;
+- provider-cache warmth/coldness.
+
+Compare a compacted cycle with an otherwise similar uncompacted cycle. Do not
+sum Headroom, RTK, or cache percentages; their scopes overlap.
+
 The important metric is not maximum compression. It is **correct work per token and per unit time**.
 
 ---
@@ -767,3 +873,9 @@ The important metric is not maximum compression. It is **correct work per token 
 - https://github.com/headroomlabs-ai/headroom
 - https://github.com/headroomlabs-ai/headroom/blob/main/docs/content/docs/proxy.mdx
 - https://github.com/headroomlabs-ai/headroom/blob/main/docs/content/docs/mcp.mdx
+
+### Claude Code
+
+- https://code.claude.com/docs/en/statusline
+- https://code.claude.com/docs/en/commands
+- https://code.claude.com/docs/en/env-vars

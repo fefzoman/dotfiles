@@ -119,6 +119,23 @@ raise SystemExit("rtk hook claude" not in commands)
 PY
 }
 
+claude_statusline_enabled() {
+  python - "$1/settings.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+settings = Path(sys.argv[1])
+if not settings.is_file():
+    raise SystemExit(1)
+status = json.loads(settings.read_text(encoding="utf-8")).get("statusLine", {})
+raise SystemExit(
+    status.get("type") != "command"
+    or status.get("command") != 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
+)
+PY
+}
+
 codex_shell_path_has_rtk() {
   python - "$1/config.toml" "$(dirname "$(command -v rtk)")" <<'PY'
 import os
@@ -204,6 +221,20 @@ else
   fail "Installed AI shell configuration is missing or stale"
 fi
 
+if cmp -s "$SCRIPT_DIR/codex_compact_warning.py" \
+  "$HOME/.config/dotfiles/codex_compact_warning.py"; then
+  pass "Installed Codex compact-warning hook matches the repository"
+else
+  fail "Installed Codex compact-warning hook is missing or stale"
+fi
+
+if cmp -s "$SCRIPT_DIR/claude_compact_statusline.py" \
+  "$HOME/.config/dotfiles/claude_compact_statusline.py"; then
+  pass "Installed Claude compact-warning status line matches the repository"
+else
+  fail "Installed Claude compact-warning status line is missing or stale"
+fi
+
 if bash --noprofile --norc -c \
   'source "$1"; declare -F codex >/dev/null; declare -F claude >/dev/null; declare -F code-work >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
   _ "$HOME/.config/dotfiles/ai-install.sh"; then
@@ -213,6 +244,12 @@ else
 fi
 
 for profile in "$HOME/.codex" "$HOME/.codex-work"; do
+  if cmp -s "$SCRIPT_DIR/codex-hooks.json" "$profile/hooks.json"; then
+    pass "Codex compact-warning hook is configured in $profile"
+  else
+    warn "Codex compact-warning hook was not installed over existing hooks in $profile"
+  fi
+
   if policy_matches "$profile/AGENTS.md" "$profile/RTK.md"; then
     pass "Codex policy and RTK import are valid in $profile"
   else
@@ -233,6 +270,12 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
 done
 
 for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+  if claude_statusline_enabled "$profile"; then
+    pass "Claude compact-warning status line is enabled in $profile"
+  else
+    warn "Claude compact-warning status line is not enabled in $profile"
+  fi
+
   if policy_matches "$profile/CLAUDE.md" "$profile/RTK.md" '@RTK.md'; then
     pass "Claude policy and RTK import are valid in $profile"
   else

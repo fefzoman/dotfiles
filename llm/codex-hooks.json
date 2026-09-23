@@ -1,0 +1,16 @@
+{
+  "description": "Warn before a large Codex context meets an almost exhausted quota window.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/codex_compact_warning.py\"",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

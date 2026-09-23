@@ -100,7 +100,8 @@ Optimization measurements retain their original scopes and are never summed:
 - largest model calls ranked by both total and fresh input
 - model-call gaps and cold-prefix causes (start, idle resume, compaction, or
   indistinguishable cache-expiry/prefix changes)
-- per-work-window first-call cold cost and later-call fresh-input average
+- per-work-window resume context, first-call cold cost/share, and later-call
+  fresh-input total/average
 - Ponytail plugin/policy state
 
 Serena and Context7 calls made through Codex's programmatic `exec` wrapper are

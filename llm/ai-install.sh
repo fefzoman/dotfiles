@@ -241,6 +241,53 @@ install_global_agents() {
   done
 }
 
+install_codex_compact_warning() {
+  local config_dir="$HOME/.config/dotfiles" hooks profile
+
+  mkdir -p "$config_dir"
+  install -m 0755 "$SCRIPT_DIR/codex_compact_warning.py" \
+    "$config_dir/codex_compact_warning.py"
+  for profile in "$HOME/.codex" "$HOME/.codex-work"; do
+    mkdir -p "$profile"
+    hooks="$profile/hooks.json"
+    if [[ ! -e "$hooks" ]] || cmp -s "$SCRIPT_DIR/codex-hooks.json" "$hooks"; then
+      install -m 0644 "$SCRIPT_DIR/codex-hooks.json" "$hooks"
+    else
+      echo "Warning: preserving existing $hooks; merge codex-hooks.json manually." >&2
+    fi
+  done
+}
+
+install_claude_compact_statusline() {
+  local config_dir="$HOME/.config/dotfiles" profile settings
+
+  mkdir -p "$config_dir"
+  install -m 0755 "$SCRIPT_DIR/claude_compact_statusline.py" \
+    "$config_dir/claude_compact_statusline.py"
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    mkdir -p "$profile"
+    settings="$profile/settings.json"
+    python - "$settings" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+owned = {
+    "type": "command",
+    "command": 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"',
+}
+current = data.get("statusLine")
+if current not in (None, owned):
+    print(f"Warning: preserving existing {path} statusLine.", file=sys.stderr)
+else:
+    data["statusLine"] = owned
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+  done
+}
+
 install_shell_config() {
   local config_dir="$HOME/.config/dotfiles"
 
@@ -260,8 +307,12 @@ echo "==> Installing AI command-line tools..."
 install_ai_tools
 echo "==> Installing global Codex and Claude instructions..."
 install_global_agents
+echo "==> Installing Codex compact-warning hook..."
+install_codex_compact_warning
 echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
+echo "==> Installing Claude compact-warning status line..."
+install_claude_compact_statusline
 echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
