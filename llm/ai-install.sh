@@ -232,8 +232,7 @@ install_headroom() {
   # including IDE extensions that never run a shell wrapper.
   headroom install apply --preset persistent-service --scope provider \
     --providers manual --target claude --target codex
-  # install apply routes only ~/.claude and ~/.codex; give the work profiles
-  # the same managed entries (Codex history retag and auth mode included).
+  # install apply covers only ~/.claude and ~/.codex; this routes the work profiles.
   "$("$uv_bin" tool dir)/headroom-ai/bin/python" - \
     "$HOME/.claude-work" "$HOME/.codex-work" <<'PY'
 import sys
@@ -311,6 +310,25 @@ PY
   done
 }
 
+disable_claude_attribution() {
+  local profile
+
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    mkdir -p "$profile"
+    python - "$profile/settings.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+data["attribution"] = {"commit": "", "pr": ""}
+data.pop("includeCoAuthoredBy", None)
+path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+  done
+}
+
 install_shell_config() {
   local config_dir="$HOME/.config/dotfiles"
 
@@ -336,6 +354,8 @@ echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
 echo "==> Installing Claude compact-warning status line..."
 install_claude_compact_statusline
+echo "==> Disabling Claude commit and PR attribution..."
+disable_claude_attribution
 echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."

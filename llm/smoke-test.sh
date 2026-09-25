@@ -86,8 +86,7 @@ mcp_enabled_for_codex() {
     python -c 'import json,sys; name=sys.argv[1]; raise SystemExit(not any(s.get("name")==name and s.get("enabled") for s in json.load(sys.stdin)))' "$server"
 }
 
-# Mirrors ai-install.sh: the default profile runs without CLAUDE_CONFIG_DIR,
-# exactly as the VS Code extension does.
+# The default profile runs without CLAUDE_CONFIG_DIR, as the VS Code extension does.
 with_claude_profile() {
   local profile="$1"
   shift
@@ -142,6 +141,18 @@ raise SystemExit(
     status.get("type") != "command"
     or status.get("command") != 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
 )
+PY
+}
+
+claude_attribution_disabled() {
+  python - "$1/settings.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+settings = Path(sys.argv[1])
+data = json.loads(settings.read_text(encoding="utf-8")) if settings.is_file() else {}
+raise SystemExit(data.get("attribution") != {"commit": "", "pr": ""})
 PY
 }
 
@@ -316,6 +327,12 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     pass "Claude policy and RTK import are valid in $profile"
   else
     fail "Claude policy or RTK import is invalid in $profile"
+  fi
+
+  if claude_attribution_disabled "$profile"; then
+    pass "Claude commit and PR attribution is disabled in $profile"
+  else
+    fail "Claude adds commit or PR attribution in $profile"
   fi
 
   if claude_routed_through_headroom "$profile"; then
