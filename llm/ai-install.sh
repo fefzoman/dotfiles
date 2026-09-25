@@ -52,12 +52,6 @@ code() {
 alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
 alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
 
-code-work() {
-  CODEX_HOME="$HOME/.codex-work" \
-    CLAUDE_CONFIG_DIR="$HOME/.claude-work" \
-    code --user-data-dir "$HOME/.vscode-work" "$@"
-}
-
 claude-code-work() {
   CLAUDE_CONFIG_DIR="$HOME/.claude-work" \
     code --user-data-dir "$HOME/.vscode-claude-work" "$@"
@@ -109,6 +103,27 @@ install_ai_tools() {
   curl -fsSL https://claude.ai/install.sh | bash -s latest
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade serena-agent
+}
+
+install_vscode_commands() {
+  local vscode_cli="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
+
+  mkdir -p "$HOME/.local/bin"
+  if ! type -P code >/dev/null 2>&1; then
+    if [[ "$OS" != Darwin || ! -x "$vscode_cli" ]]; then
+      echo "VS Code's code command is required." >&2
+      return 1
+    fi
+    ln -s "$vscode_cli" "$HOME/.local/bin/code"
+  fi
+
+  cat > "$HOME/.local/bin/code-work" <<'EOF'
+#!/usr/bin/env bash
+export CODEX_HOME="$HOME/.codex-work"
+export CLAUDE_CONFIG_DIR="$HOME/.claude-work"
+exec code --user-data-dir "$HOME/.vscode-work" "$@"
+EOF
+  chmod +x "$HOME/.local/bin/code-work"
 }
 
 configure_rtk() {
@@ -346,6 +361,8 @@ EOF
 
 echo "==> Installing AI command-line tools..."
 install_ai_tools
+echo "==> Installing VS Code commands..."
+install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
 install_global_agents
 echo "==> Installing Codex compact-warning hook..."

@@ -220,7 +220,7 @@ check_mcp() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude rtk headroom token-profiler node uv serena context7-mcp; do
+for command_name in python codex claude rtk headroom token-profiler node uv serena context7-mcp code code-work; do
   require_command "$command_name"
 done
 
@@ -277,7 +277,7 @@ else
 fi
 
 if bash --noprofile --norc -c \
-  'source "$1"; declare -F code-work >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
+  'source "$1"; declare -F code >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
   _ "$HOME/.config/dotfiles/ai-install.sh"; then
   pass "Sourcing AI configuration loads functions without running the installer"
 else
