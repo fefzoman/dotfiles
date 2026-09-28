@@ -188,6 +188,8 @@ install_ponytail() {
       ponytail --json >/dev/null
     CODEX_HOME="$profile" "$codex_bin" plugin add \
       ponytail@ponytail --json >/dev/null
+    sed -i.bak 's/^codex_hooks[[:space:]]*=/hooks =/' "$profile/config.toml"
+    rm -f "$profile/config.toml.bak"
     echo "==> Ponytail installed for $profile"
   done
 
