@@ -167,7 +167,7 @@ install_linux_system_packages() {
   run_root env DEBIAN_FRONTEND=noninteractive apt-get update -y
   run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
     alacritty bash build-essential ca-certificates clangd curl dconf-cli fd-find fontconfig \
-    git ripgrep tmux unzip wget xclip xz-utils
+    fzf git ripgrep tmux unzip wget xclip xz-utils
   run_root env DEBIAN_FRONTEND=noninteractive apt-get install -y btop || true
 }
 
@@ -316,6 +316,23 @@ install_broot_linux() {
   rm -rf "$work_dir"
 }
 
+install_navi_linux() {
+  local arch target version work_dir archive
+
+  arch="$(linux_arch)"
+  [[ "$arch" == x86_64 ]] && target=x86_64-unknown-linux-musl || target=aarch64-unknown-linux-gnu
+  version="$(curl -fsSL https://api.github.com/repos/denisidoro/navi/releases/latest |
+    sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p' | head -n 1)"
+  [[ -n "$version" ]] || { echo "Cannot determine the latest Navi version." >&2; return 1; }
+  archive="navi-v${version}-${target}.tar.gz"
+  work_dir="$(mktemp -d "${TMPDIR:-/tmp}/navi-install.XXXXXX")"
+  curl -fsSL -o "$work_dir/$archive" \
+    "https://github.com/denisidoro/navi/releases/download/v$version/$archive"
+  tar -xzf "$work_dir/$archive" -C "$work_dir" navi
+  install -m 0755 "$work_dir/navi" "$HOME/.local/bin/navi"
+  rm -rf "$work_dir"
+}
+
 install_nerd_font_linux() {
   local work_dir font_dir
 
@@ -337,6 +354,7 @@ install_linux_user_tools() {
   install_terraform_linux
   install_lazygit_linux
   install_broot_linux
+  install_navi_linux
   npm install --global --prefix "$HOME/.local" tree-sitter-cli
   "$HOME/.local/bin/pip" install --upgrade basedpyright
   install_nerd_font_linux
@@ -386,6 +404,19 @@ if count == 0:
     patched = text.rstrip() + "\n\ndefault_flags: g\n"
 conf.write_text(patched, encoding="utf-8")
 PY
+}
+
+install_navi_cheatsheets() {
+  local cheats_dir repo_dir
+
+  cheats_dir="$(navi info default-cheats-path 2>/dev/null || navi info cheats-path)"
+  mkdir -p "$cheats_dir"
+  repo_dir="$cheats_dir/denisidoro__navi-tldr-pages"
+  if [[ -d "$repo_dir/.git" ]]; then
+    git -C "$repo_dir" pull --ff-only
+  else
+    git clone --depth 1 https://github.com/denisidoro/navi-tldr-pages.git "$repo_dir"
+  fi
 }
 
 install_alacritty() {
@@ -440,8 +471,9 @@ if [[ "$OS" == Darwin ]]; then
   install_python_runtime_macos
   echo "==> Installing CLI tools..."
   brew tap hashicorp/tap
-  brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd broot \
+  brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd broot fzf navi node \
     basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
+  brew list --formula tlrc >/dev/null 2>&1 && brew uninstall tlrc
   brew upgrade bash || true
 
   echo "==> Installing Alacritty and JetBrainsMono Nerd Font..."
@@ -454,10 +486,15 @@ else
   install_linux_user_tools
 fi
 
+echo "==> Installing Navi-compatible TLDR client..."
+npm install --global --prefix "$HOME/.local" tldr
+
 echo "==> Installing the broot br shell function..."
 install_broot_shell_function
 echo "==> Writing broot configuration with git info enabled..."
 configure_broot
+echo "==> Installing Navi TLDR cheatsheets..."
+install_navi_cheatsheets
 
 BACKUP_TS="$(date +%Y%m%d%H%M%S)"
 backup_file() { [[ ! -f $1 ]] || cp "$1" "$1.bak.$BACKUP_TS"; }
@@ -703,9 +740,10 @@ bind-key -r Left  select-pane -L
 bind-key -r Right select-pane -R
 bind-key -r Up    select-pane -U
 bind-key -r Down  select-pane -D
-
-bind-key , split-window -h
-bind-key . split-window -v
+bind-key -r C-Left  select-pane -L
+bind-key -r C-Right select-pane -R
+bind-key -r C-Up    select-pane -U
+bind-key -r C-Down  select-pane -D
 
 unbind-key &
 bind q confirm-before -p "kill window #W? (y/n)" kill-window

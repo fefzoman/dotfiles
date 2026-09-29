@@ -248,6 +248,11 @@ else
   ok "Oh My Bash already installed."
 fi
 
+# Activation refreshes Oh My Bash explicitly; background checks race when tmux
+# starts several shells at once and can leave a stale update lock.
+sed -i.bak 's/^# DISABLE_AUTO_UPDATE="true"$/DISABLE_AUTO_UPDATE="true"/' "$HOME/.bashrc"
+rm -f "$HOME/.bashrc.bak"
+
 write_two_line_font_theme
 write_extra_completions
 

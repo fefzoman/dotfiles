@@ -15,7 +15,7 @@ __codex_answer() {
 
   if (( $# > 0 )); then
     codex --ask-for-approval never exec \
-      --model gpt-5.6-luna \
+      --model gpt-6-sol \
       -c model_reasoning_effort=\"medium\" \
       --sandbox read-only \
       --skip-git-repo-check \
@@ -24,7 +24,7 @@ __codex_answer() {
       >/dev/null 2>"$err" && rc=0 || rc=$?
   else
     codex --ask-for-approval never exec \
-      --model gpt-5.6-luna \
+      --model gpt-6-sol \
       -c model_reasoning_effort=\"medium\" \
       --sandbox read-only \
       --skip-git-repo-check \
@@ -102,6 +102,8 @@ install_ai_tools() {
 
   npm install --global --prefix "$HOME/.local" @upstash/context7-mcp@latest
   curl -fsSL https://claude.ai/install.sh | bash -s latest
+  curl -fsSL https://raw.githubusercontent.com/danielmiessler/Fabric/main/scripts/installer/install.sh |
+    env INSTALL_DIR="$HOME/.local/bin" bash
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade serena-agent
 }
@@ -386,6 +388,7 @@ echo "==> Installing Codex and Claude token profiler..."
 bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."
 install_shell_config
+echo "==> Run 'fabric --setup' once to select Fabric's AI provider."
 echo "==> Review and trust Ponytail hooks with /hooks in each Codex profile."
 echo "==> Running LLM toolchain smoke test..."
 bash "$SCRIPT_DIR/smoke-test.sh"

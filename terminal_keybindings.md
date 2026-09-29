@@ -170,7 +170,7 @@ and pane numbering starts at `1`, and mouse support is enabled.
 | `Ctrl+b n` / `Ctrl+b p` | Next / previous window |
 | `Ctrl+b 1` ... `9` | Select window |
 | `Ctrl+b q` | Close current window with confirmation |
-| `Ctrl+b :`, then `rename-window NAME` | Rename window (`Ctrl+b ,` is used for splitting) |
+| `Ctrl+b ,` | Rename the current window (tmux default) |
 
 `Ctrl+b &` is disabled.
 
@@ -178,9 +178,9 @@ and pane numbering starts at `1`, and mouse support is enabled.
 
 | Keybinding | Action |
 |---|---|
-| `Ctrl+b ,` | Split left/right |
-| `Ctrl+b .` | Split top/bottom |
-| `Ctrl+b` + arrow | Move to the pane in that direction |
+| `Ctrl+b %` | Split left/right (tmux default) |
+| `Ctrl+b "` | Split top/bottom (tmux default) |
+| `Ctrl+b`, then arrow | Move to the pane in that direction; keeping `Ctrl` held also works |
 | `Ctrl+b x` | Kill pane |
 | `Ctrl+b z` | Toggle pane zoom |
 | `Ctrl+b {` / `Ctrl+b }` | Move pane left / right |
@@ -200,6 +200,6 @@ Open Alacritty -> main tmux session starts
 cd PROJECT && nvim
 Space e   file tree       Space ff  find file
 Space fg  search text     Space lg  Git UI
-Ctrl+b c  new window      Ctrl+b ,  left/right split
-Ctrl+b .  top/bottom split
+Ctrl+b c  new window      Ctrl+b %  left/right split
+Ctrl+b "  top/bottom split
 ```

@@ -41,7 +41,7 @@ The smoke test makes no model or API requests. `llm/ai-install.sh` runs the
 non-strict test automatically after installation.
 
 `basic-install.sh` owns general machine tooling, while `llm/ai-install.sh` owns
-Codex, Claude Code, RTK, Headroom, Ponytail, Serena, Context7, the token
+Codex, Claude Code, Fabric, RTK, Headroom, Ponytail, Serena, Context7, the token
 profiler, and AI profile shell commands. It configures every applicable tool
 for personal and work Codex/Claude profiles and installs `llm/AGENTS.md`
 globally for all four. When executed it installs the tools; when sourced it
@@ -60,15 +60,133 @@ is stale.
 
 ## Installed Tools
 
-| Area | Tools |
-|---|---|
-| Shell and terminal | latest Homebrew Bash, Oh My Bash, Alacritty, tmux, JetBrainsMono Nerd Font |
-| CLI | Git, curl, btop, Codex, Claude Code, Headroom, Ponytail, Serena, Context7, token profiler, RTK, LazyGit, ripgrep, fd, broot (`br`) |
-| Infrastructure | kubectl, Terraform |
-| Development | LLVM/Clang, tree-sitter CLI |
-| Editor | Neovim, vim-plug, Telescope, Neo-tree, Treesitter, Mini Pairs, Mini Surround, indent guides, vim-airline, LazyGit integration |
-| Infrastructure editing | YAML, Kubernetes, Helm, and Terraform plugins |
-| Language servers | BasedPyright (Python), clangd (C/C++) |
+The commands below are installed or configured by this repository. AWS CLI,
+Helm, and Minikube receive shell completions when already present, but this
+repository does not install them.
+
+### Shell and Terminal
+
+| Tool | Purpose | Common commands and examples |
+|---|---|---|
+| Bash | Login shell and command interpreter; macOS uses the latest Homebrew Bash | `bash --version`, `source ~/.bashrc`, `history`, `type COMMAND` |
+| Oh My Bash | Bash themes, aliases, and completions; background update checks are disabled to avoid stale locks in concurrent tmux shells | `source ~/.bashrc` reloads it; rerun `./activate.sh` to refresh it |
+| Alacritty | GPU-accelerated terminal that automatically attaches to tmux session `main` | `alacritty`, `alacritty --version`; aliases: `term`, `terminal`, `alac` |
+| tmux | Persistent terminal sessions, windows, and panes | `tmux new -s NAME`, `tmux ls`, `tmux attach -t NAME`, `tmux kill-session -t NAME` |
+| JetBrainsMono Nerd Font | Terminal text and icons used by the prompt, tmux, and Neovim | Select `JetBrainsMono Nerd Font`; Alacritty is configured automatically |
+
+See [terminal_keybindings.md](./terminal_keybindings.md) for all configured
+tmux, shell, and Neovim keybindings.
+
+### Core CLI
+
+| Tool | Purpose | Common commands and examples |
+|---|---|---|
+| Git | Source control | `git status`, `git diff`, `git log --oneline`, `git add FILE`, `git commit`, `git pull --rebase`, `git push` |
+| curl | HTTP requests and downloads | `curl -I URL`, `curl -fsSL URL`, `curl -o FILE URL` |
+| wget | Recursive or resumable downloads; installed directly on Linux and by the shell reset where available | `wget URL`, `wget -c URL`, `wget -O FILE URL` |
+| btop | Interactive CPU, memory, process, disk, and network monitor | `btop`; press `q` to quit and `?` for help |
+| LazyGit | Interactive Git interface | `lazygit`; in Neovim use `Space lg` |
+| ripgrep (`rg`) | Fast recursive text search that respects `.gitignore` | `rg PATTERN`, `rg PATTERN PATH`, `rg -g '*.py' PATTERN`, `rg --files` |
+| fd | Fast file and directory finder | `fd NAME`, `fd -e py`, `fd -t d NAME`; Linux maps `fd` to `fdfind` |
+| broot | Interactive tree navigation with Git status | `broot`, `broot PATH`; use `br` to change the parent shell's directory on exit |
+| fzf | Fuzzy selection from files, history, or piped text | `fzf`, `fd -t f \| fzf`, `git branch --format='%(refname:short)' \| fzf` |
+| Navi | Interactive command cheatsheets backed by TLDR pages | `navi`, `navi --tldr kubectl`, `navi --tldr terraform` |
+| TLDR | Short, example-oriented command documentation; the npm client is used on both platforms because Navi requires its `--markdown` output | `tldr tar`, `tldr kubectl`, `tldr --update` |
+
+### Infrastructure
+
+| Tool | Purpose | Common commands and examples |
+|---|---|---|
+| kubectl | Inspect and manage Kubernetes clusters | `kubectl config current-context`, `kubectl get pods -A`, `kubectl describe pod POD`, `kubectl logs -f POD`, `kubectl apply -f FILE`; alias: `k` |
+| Terraform | Provision and manage infrastructure as code | `terraform fmt -recursive`, `terraform init`, `terraform validate`, `terraform plan`, `terraform apply`, `terraform output`; alias: `tf` |
+
+### Runtimes and Build Tools
+
+| Tool | Purpose | Common commands and examples |
+|---|---|---|
+| Homebrew | Package manager bootstrapped and updated on macOS | `brew update`, `brew search NAME`, `brew install FORMULA`, `brew upgrade`, `brew list` |
+| Python 3.13 | Default Python runtime exposed as both `python` and `python3` | `python --version`, `python SCRIPT.py`, `python -m venv .venv`, `python -m unittest` |
+| pip | Global Python package installer for the managed Python 3.13 runtime | `pip list`, `pip show PACKAGE`, `pip install PACKAGE`, `pip install -U PACKAGE` |
+| uv | Python runtime and isolated tool manager used by the installer | `uv python list`, `uv python install 3.13`, `uv tool list`, `uv tool run TOOL` |
+| Node.js | JavaScript runtime; Linux installs current Node 22 LTS | `node --version`, `node FILE.js`, `node -e 'console.log("hello")'` |
+| npm / npx / Corepack | JavaScript packages, one-off package execution, and package-manager shims | `npm install`, `npm run SCRIPT`, `npx PACKAGE`, `corepack enable` |
+| LLVM/Clang | C and C++ compiler toolchain on macOS | `clang main.c -Wall -Wextra -o app`, `clang++ main.cpp -Wall -Wextra -std=c++20 -o app` |
+| build-essential | GCC, G++, Make, and standard build files on Debian/Ubuntu | `gcc main.c -Wall -Wextra -o app`, `g++ main.cpp -Wall -Wextra -std=c++20 -o app`, `make` |
+| tree-sitter CLI | Parse and inspect syntax trees; also supports Neovim parser development | `tree-sitter --version`, `tree-sitter parse FILE`, `tree-sitter highlight FILE` |
+
+Compile and run a single source file with:
+
+```bash
+clang main.c -Wall -Wextra -o main && ./main
+clang++ main.cpp -Wall -Wextra -std=c++20 -o main && ./main
+```
+
+On Debian or Ubuntu, use `gcc` and `g++` in place of `clang` and `clang++`.
+
+### Editor and Language Intelligence
+
+| Tool | Purpose | Common commands and examples |
+|---|---|---|
+| Neovim | Terminal editor configured for navigation, Git, completion, syntax parsing, and LSP | `nvim FILE`, `nvim .`; alias: `v`; inside Neovim: `:checkhealth`, `:PlugUpdate`, `:TSUpdate` |
+| vim-plug | Neovim plugin manager | `:PlugInstall`, `:PlugUpdate`, `:PlugClean`, `:PlugStatus` |
+| BasedPyright | Python type checker and language server | `basedpyright .`, `basedpyright FILE.py`; starts automatically for Python buffers |
+| clangd | C and C++ language server with background indexing and clang-tidy | `clangd --version`, `clangd --check=FILE`; starts automatically for C/C++ buffers |
+
+#### Neovim Plugins
+
+| Plugin | Purpose | Common command, key, or behavior |
+|---|---|---|
+| vim-airline | Status line and tab information | Enabled automatically |
+| vim-colors-violet | Editor color scheme | `:colorscheme violet` |
+| vim-devicons | File icons for Vim-style plugins | Enabled automatically; requires the Nerd Font |
+| plenary.nvim | Shared Lua utilities required by Telescope and other plugins | Support dependency; no direct command |
+| nvim-lspconfig | Connects BasedPyright and clangd to Neovim's LSP client | `:checkhealth vim.lsp`; use `gd`, `gr`, `K`, `Space rn`, `Space ca` |
+| Telescope | Fuzzy file, text, buffer, and help search | `Space ff`, `Space fg`, `Space fb`, `Space fh`; command: `:Telescope` |
+| lazygit.nvim | Opens LazyGit inside Neovim | `Space lg` or `:LazyGit` |
+| nui.nvim | UI components required by Neo-tree | Support dependency; no direct command |
+| nvim-web-devicons | File icons for Lua plugins | Enabled automatically; requires the Nerd Font |
+| Neo-tree | File explorer | `Space e`, `:Neotree reveal`, `:Neotree close` |
+| vim-yaml | YAML syntax and indentation support | Opens `*.yaml` and `*.yml` automatically |
+| vim-kubernetes | Kubernetes resource syntax support | Opens Kubernetes YAML automatically |
+| vim-helm | Helm template syntax support | Opens Helm templates automatically |
+| vim-terraform | Terraform/HCL syntax, alignment, and format-on-save | `:TerraformFmt`; `*.tf`, `*.tfvars`, and `*.hcl` are detected automatically |
+| mini.pairs | Inserts matching brackets and quotes | Type `(`, `[`, `{`, `"`, or `'` in insert mode |
+| mini.surround | Adds, removes, and replaces surrounding characters | `sa`, `sd`, `sr`; use `:help MiniSurround` |
+| indent-blankline.nvim | Displays indentation guides | Enabled automatically |
+| nvim-treesitter | Syntax-aware parsing and highlighting for configured languages | `:TSUpdate`, `:checkhealth nvim-treesitter` |
+
+Treesitter parsers are installed for Bash, C, C++, HCL/Terraform, Lua,
+Python, Vim, Vimdoc, and YAML.
+
+### AI Tooling
+
+| Tool | Purpose | Common commands and examples |
+|---|---|---|
+| Codex | Coding agent with shell, repository, MCP, plugin, and current-environment access | `codex`, `codex-work`, `codex exec 'PROMPT'`, `codex resume`; `?? 'QUESTION'` uses `gpt-6-sol` with medium reasoning |
+| Claude Code | Coding agent configured with the same optimization stack | `claude`, `claude-work`, `claude -p 'PROMPT'`, `claude --version` |
+| VS Code profile launchers | Open an existing VS Code installation with separate personal or work agent state | `code .`, `code-work .`, `claude-code-work .` |
+| Fabric | Pattern-based text transformation through a selected model provider; it does not inherit Codex CLI tools or live environment access | `fabric --setup`, `fabric --listpatterns`, `fabric -p summarize < FILE`, `fabric --stream 'PROMPT'` |
+| RTK | Compacts supported shell output before it enters an agent's context | `rtk gain`, `rtk gain --history`, `rtk discover --all --since 7`, `RTK_DISABLED=1 COMMAND` |
+| Headroom | Local proxy that compresses and manages Codex/Claude context | `headroom install status`, `headroom install apply`, `headroom install remove` |
+| Ponytail | Guides agents toward the smallest correct implementation | Codex: `@ponytail`, `@ponytail-review`; Claude: `/ponytail`, `/ponytail-review` |
+| Serena | Semantic repository navigation and symbol-level code operations through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `serena --help` |
+| Context7 | Retrieves current third-party library and API documentation through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `context7-mcp --help` |
+| token-profiler | Local usage, inner-session, context, and optimization reports for all four agent profiles | `token-profiler codex`, `token-profiler codex-work short`, `token-profiler claude current`, `token-profiler codex top --by command` |
+| tiktoken | Tokenizer used by token-profiler for diagnostic attribution estimates | `python -c 'import tiktoken; print(tiktoken.get_encoding("o200k_base"))'` |
+| LLM smoke test | Verifies commands, profile routing, policies, hooks, plugins, and MCPs without model calls | `bash ./llm/smoke-test.sh`, `bash ./llm/smoke-test.sh --strict` |
+
+### Linux Support Packages
+
+These Debian/Ubuntu packages support installation and desktop integration but
+are not primary interactive tools.
+
+| Package | Purpose | Useful command |
+|---|---|---|
+| ca-certificates | Validates HTTPS certificates used by download tools | `update-ca-certificates` |
+| dconf-cli | Desktop configuration support | `dconf dump /`, `dconf read KEY` |
+| fontconfig | Discovers and caches installed fonts | `fc-list`, `fc-cache -f` |
+| unzip / xz-utils | Extracts ZIP and XZ archives used by installers | `unzip FILE.zip`, `tar -xJf FILE.tar.xz` |
+| xclip | X11 clipboard provider used by the `pbcopy` compatibility alias | `printf text \| xclip -selection clipboard` |
 
 Homebrew tap trust checks are disabled during setup with
 `HOMEBREW_NO_REQUIRE_TAP_TRUST=1`.
@@ -202,7 +320,7 @@ remove distribution-managed Python packages.
 | Path | Purpose |
 |---|---|
 | `~/.bashrc` | Oh My Bash, aliases, completions, terminal variables, word navigation |
-| `~/.config/dotfiles/ai-install.sh` | Sourced Codex/Claude profiles, Headroom wrapper, `??`, and AI telemetry settings |
+| `~/.config/dotfiles/ai-install.sh` | Sourced Codex/Claude profiles, Codex `??` helper, and AI telemetry settings |
 | `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/AGENTS.md` |
 | `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/AGENTS.md` |
 | `~/.bash_profile` | Loads `~/.bashrc` for login shells |
@@ -238,10 +356,16 @@ Shell files and frameworks replaced by the Bash reset are moved to:
 | `claude [ARGS]` | Run Ponytail-enabled Claude through Headroom with `~/.claude` |
 | `claude-work [ARGS]` | Run Ponytail-enabled Claude through Headroom with `~/.claude-work` |
 | `claude-code-work [ARGS]` | Open VS Code with the Claude work profile |
+| `?? [QUESTION]` | Answer through Codex using `gpt-6-sol` with medium reasoning |
 
 Oh My Bash completions are enabled for AWS CLI, Terraform, kubectl, Helm,
 Minikube, pip, pip3, and uv. On Linux, `pbcopy` maps to `wl-copy`, `xclip`, or
 `xsel` when available.
+
+Run `navi`, `navi --tldr <command>`, or `tldr <command>` for community examples.
+The installer clones and updates
+[denisidoro/navi-tldr-pages](https://github.com/denisidoro/navi-tldr-pages) in
+Navi's platform-specific cheatsheet directory.
 
 See [terminal_keybindings.md](./terminal_keybindings.md) for Neovim, LSP, tmux,
 and shell controls.
