@@ -51,7 +51,7 @@ policy_matches() {
   local rtk_file="${2:-}"
   local rtk_reference="${3:-}"
 
-  python - "$SCRIPT_DIR/AGENTS.md" "$target" "$rtk_file" "$rtk_reference" <<'PY'
+  python - "$SCRIPT_DIR/__AGENTS.md" "$target" "$rtk_file" "$rtk_reference" <<'PY'
 import sys
 from pathlib import Path
 
@@ -196,6 +196,29 @@ raise SystemExit(sys.argv[2] not in path.split(os.pathsep))
 PY
 }
 
+codex_hooks_valid() {
+  python - "$SCRIPT_DIR/codex-hooks.json" "$1/hooks.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+def entries(path):
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    for event, groups in data.get("hooks", {}).items():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                yield event, group.get("matcher"), hook.get("type"), hook.get("command")
+
+required = set(entries(sys.argv[1]))
+installed = set(entries(sys.argv[2]))
+obsolete = any(
+    command and "serena-hooks reset" in command
+    for _, _, _, command in installed
+)
+raise SystemExit(not required.issubset(installed) or obsolete)
+PY
+}
+
 check_mcp() {
   local profile server
 
@@ -285,10 +308,10 @@ else
 fi
 
 for profile in "$HOME/.codex" "$HOME/.codex-work"; do
-  if cmp -s "$SCRIPT_DIR/codex-hooks.json" "$profile/hooks.json"; then
-    pass "Codex compact-warning hook is configured in $profile"
+  if codex_hooks_valid "$profile"; then
+    pass "Codex Serena and compact-warning hooks are configured in $profile"
   else
-    warn "Codex compact-warning hook was not installed over existing hooks in $profile"
+    fail "Codex Serena or compact-warning hooks are invalid in $profile"
   fi
 
   if policy_matches "$profile/AGENTS.md" "$profile/RTK.md"; then

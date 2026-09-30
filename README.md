@@ -43,7 +43,7 @@ non-strict test automatically after installation.
 `basic-install.sh` owns general machine tooling, while `llm/ai-install.sh` owns
 Codex, Claude Code, Fabric, RTK, Headroom, Ponytail, Serena, Context7, the token
 profiler, and AI profile shell commands. It configures every applicable tool
-for personal and work Codex/Claude profiles and installs `llm/AGENTS.md`
+for personal and work Codex/Claude profiles and installs `llm/__AGENTS.md`
 globally for all four. When executed it installs the tools; when sourced it
 only loads the AI environment, functions, and aliases. `activate.sh` runs all
 three stages in dependency order.
@@ -321,8 +321,9 @@ remove distribution-managed Python packages.
 |---|---|
 | `~/.bashrc` | Oh My Bash, aliases, completions, terminal variables, word navigation |
 | `~/.config/dotfiles/ai-install.sh` | Sourced Codex/Claude profiles, Codex `??` helper, and AI telemetry settings |
-| `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/AGENTS.md` |
-| `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/AGENTS.md` |
+| `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/__AGENTS.md` |
+| `~/.codex/hooks.json`, `~/.codex-work/hooks.json` | Serena activation/reminder/cleanup and context-warning hooks |
+| `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/__AGENTS.md` |
 | `~/.bash_profile` | Loads `~/.bashrc` for login shells |
 | `~/.oh-my-bash/custom/themes/font/font.theme.sh` | Two-line prompt with clock, host, path, Git branch, and status arrow |
 | `~/.config/alacritty/alacritty.toml` | Gruvbox theme, Thin output, Medium command input, narrow beam cursor, automatic tmux session |

@@ -725,7 +725,7 @@ Their responsibilities are distinct:
 
 ```text
 RTK       → PreToolUse Bash command rewriting
-Serena    → activation/reminders/reset/cleanup
+Serena    → activation/reminders/cleanup
 Ponytail  → session activation, mode tracking, subagent rules
 ```
 
@@ -754,7 +754,7 @@ It should tell Codex:
 - treat Headroom as transparent and never depend on compression for correctness;
 - minimize context before Headroom, rather than generating noise because “it will be compressed anyway.”
 
-This repository's companion `AGENTS.md` is intentionally short because every always-on instruction consumes context.
+This repository's companion `llm/__AGENTS.md` is intentionally short because every always-on instruction consumes context.
 
 If an installer adds a managed RTK block to `AGENTS.md`, preserve it or reconcile it with the equivalent rules rather than deleting it blindly.
 

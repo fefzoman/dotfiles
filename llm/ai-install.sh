@@ -275,15 +275,15 @@ install_global_agents() {
 
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
-    install -m 0644 "$SCRIPT_DIR/AGENTS.md" "$profile/AGENTS.md"
+    install -m 0644 "$SCRIPT_DIR/__AGENTS.md" "$profile/AGENTS.md"
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
-    install -m 0644 "$SCRIPT_DIR/AGENTS.md" "$profile/CLAUDE.md"
+    install -m 0644 "$SCRIPT_DIR/__AGENTS.md" "$profile/CLAUDE.md"
   done
 }
 
-install_codex_compact_warning() {
+install_codex_hooks() {
   local config_dir="$HOME/.config/dotfiles" hooks profile
 
   mkdir -p "$config_dir"
@@ -292,11 +292,50 @@ install_codex_compact_warning() {
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
     hooks="$profile/hooks.json"
-    if [[ ! -e "$hooks" ]] || cmp -s "$SCRIPT_DIR/codex-hooks.json" "$hooks"; then
-      install -m 0644 "$SCRIPT_DIR/codex-hooks.json" "$hooks"
-    else
-      echo "Warning: preserving existing $hooks; merge codex-hooks.json manually." >&2
-    fi
+    python - "$hooks" "$SCRIPT_DIR/codex-hooks.json" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+target = Path(sys.argv[1])
+required = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))["hooks"]
+data = json.loads(target.read_text(encoding="utf-8")) if target.exists() else {}
+events = data.setdefault("hooks", {})
+
+for event, groups in list(events.items()):
+    for group in groups:
+        group["hooks"] = [
+            hook
+            for hook in group.get("hooks", [])
+            if not re.search(
+                r"(?:^|/)serena-hooks\s+reset(?:\s|$)",
+                hook.get("command") or "",
+            )
+        ]
+    events[event] = [group for group in groups if group.get("hooks")]
+    if not events[event]:
+        del events[event]
+
+for event, groups in required.items():
+    installed_groups = events.setdefault(event, [])
+    for required_group in groups:
+        matcher = required_group.get("matcher")
+        installed_group = next(
+            (group for group in installed_groups if group.get("matcher") == matcher),
+            None,
+        )
+        if installed_group is None:
+            installed_group = {"hooks": []}
+            if matcher is not None:
+                installed_group["matcher"] = matcher
+            installed_groups.append(installed_group)
+        for hook in required_group["hooks"]:
+            if hook not in installed_group["hooks"]:
+                installed_group["hooks"].append(hook)
+
+target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
   done
 }
 
@@ -370,8 +409,8 @@ echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
 install_global_agents
-echo "==> Installing Codex compact-warning hook..."
-install_codex_compact_warning
+echo "==> Installing Codex Serena and compact-warning hooks..."
+install_codex_hooks
 echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
 echo "==> Installing Claude compact-warning status line..."

@@ -20,10 +20,14 @@ Understand the real code path before editing, make the smallest correct change, 
 
 ## Shell output (RTK) and transport (Headroom)
 
-- Claude Code: the hook rewrites commands. Codex: prefix `rtk` only on commands it compacts (git, tests, builds, grep, ls); never pass-through forms like `rtk sed`. This overrides the generic advice in `RTK.md`.
+- Use RTK for supported noisy commands whenever compacted output is sufficient.
+- Never assume RTK command rewriting is active merely because `RTK.md` or `rtk init` is present.
+- Claude Code: use the automatic rewrite hook when it is installed and active.
+- Codex: unless a working Codex `PreToolUse` RTK hook has been explicitly verified for this host/session, manually prefix supported noisy commands with `rtk`, including git, tests, builds, rg/grep, ls/find. RTK 0.49.x requires explicit prefixing.
+- Do not wrap unsupported commands or commands where exact output is required. In particular, do not invent pass-through forms such as `rtk sed`; run the native command instead.
 - Keep commands narrow: `pgrep` over `ps`, `git diff --stat` before targeted diffs, bounded failure tails instead of full build logs.
 - Headroom compresses traffic transparently. Don't produce broad output because it will be compressed, and never rely on compressed content for correctness.
-- If filtering or compression hid a needed detail, rerun that one command with `RTK_DISABLED=1` or use Headroom retrieval.
+- If filtering or compression hid a needed detail, rerun only that command with `RTK_DISABLED=1` or use Headroom retrieval.
 - Never start or configure another Serena instance unless asked.
 
 ## Finish
