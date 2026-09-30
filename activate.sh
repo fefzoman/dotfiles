@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
-
 usage() { echo "Usage: $0 [auto-approve]" >&2; exit 2; }
 (( $# <= 1 )) || usage
 [[ $# == 0 || $1 == auto-approve ]] || usage

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
 export PATH="$HOME/.local/bin:$PATH"
 DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
 OS="$(uname -s)"
@@ -471,6 +470,7 @@ if [[ "$OS" == Darwin ]]; then
   install_python_runtime_macos
   echo "==> Installing CLI tools..."
   brew tap hashicorp/tap
+  brew trust --formula hashicorp/tap/terraform
   brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd broot fzf navi node \
     basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
   brew list --formula tlrc >/dev/null 2>&1 && brew uninstall tlrc

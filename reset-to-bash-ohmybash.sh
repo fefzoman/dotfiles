@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
 DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
 
 ts="$(date +%Y%m%d%H%M%S)"

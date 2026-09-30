@@ -63,7 +63,6 @@ claude-code-work() {
 
 set -euo pipefail
 
-export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
 export PATH="$HOME/.local/bin:$PATH"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

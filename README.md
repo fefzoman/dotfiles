@@ -188,8 +188,8 @@ are not primary interactive tools.
 | unzip / xz-utils | Extracts ZIP and XZ archives used by installers | `unzip FILE.zip`, `tar -xJf FILE.tar.xz` |
 | xclip | X11 clipboard provider used by the `pbcopy` compatibility alias | `printf text \| xclip -selection clipboard` |
 
-Homebrew tap trust checks are disabled during setup with
-`HOMEBREW_NO_REQUIRE_TAP_TRUST=1`.
+Homebrew tap trust stays enabled; setup trusts only
+`hashicorp/tap/terraform`, the one non-official formula it installs.
 
 On macOS, Alacritty is installed from its pinned official DMG because Homebrew
 disabled the unnotarized cask on September 1, 2026. The installer verifies the
