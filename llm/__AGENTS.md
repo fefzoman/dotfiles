@@ -7,15 +7,15 @@ Understand the real code path before editing, make the smallest correct change, 
 - Stop at the first rung that works: not needed → already in the codebase → stdlib → native platform → installed dependency → one line → minimum new code.
 - No speculative abstractions, dependencies, configuration, scaffolding, or extra files.
 - Bugs: fix the shared root cause; check callers before changing shared behavior.
-- Comments describe only the current code, as briefly as possible: why it is this way, never history or provenance. Don't reference previous versions, edits, or who requested them. When editing code, rewrite or delete nearby comments that break this rule.
-- Run `ponytail-review` on non-trivial diffs when available.
+- Comments: default to none. Add one only for what the code can't say (a non-obvious constraint, workaround, or invariant), in one line, two at most. Never restate the code, explain its mechanics, point elsewhere or mention history, edits, or requesters; those belong in the commit message. Fix violating comments in lines you touch. 
+- Before committing, run the ponytail:ponytail-review skill (Codex: @ponytail-review) when the diff adds or changes more than ~30 lines of code (not config or generated files).
 
 ## Retrieval
 
 - This repository's code → Serena. External library/API behavior (version-sensitive, unfamiliar, fast-moving) → Context7. Stable, known language behavior → neither.
-- Serena: overview → symbol → references → only the bodies needed. Activate the project only if uninitialized or changed. Never read a whole file to find one known symbol. Prefer symbol-level edits when they are more precise.
+- Serena: overview → symbol → references → only the bodies needed. In a multi-repo workspace, call `activate_project` with the repo's path before symbol calls and again when moving to another repo; otherwise don't re-activate. Never read a whole file to find one known symbol. Prefer symbol-level edits when they are more precise.
 - Use plain file/search tools for non-code files, generated content, exact-text search, unsupported languages, or tiny known files.
-- Context7: query only the dependency in question, at the project's version, and apply the answer to the existing pattern.
+- Context7: query only the dependency in question, at the version the project's environment pins (`.venv`, `uv.lock`, `poetry.lock`, `requirements*.txt`, `node_modules`), named in the `libraryId` or the query; apply the answer to the existing pattern.
 - Don't re-read the same content or re-discover tools already known.
 
 ## Shell output (RTK) and transport (Headroom)
@@ -32,4 +32,4 @@ Understand the real code path before editing, make the smallest correct change, 
 
 ## Finish
 
-Check the final diff for scope growth, then report what changed, how it was validated, and any material limitation. If any of these tools is unavailable, continue with built-in tools under the same principles.
+Check the final diff for scope growth and reread every added comment: delete it if the code already says it, otherwise cut it to one line. Then report what changed, how it was validated, and any material limitation. If any of these tools is unavailable, continue with built-in tools under the same principles.

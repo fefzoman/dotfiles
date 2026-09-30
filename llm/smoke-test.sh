@@ -106,8 +106,8 @@ mcp_enabled_for_claude() {
   with_claude_profile "$1" claude mcp get "$2" >/dev/null 2>&1
 }
 
-rtk_hook_enabled_for_claude() {
-  python - "$1/settings.json" <<'PY'
+claude_hook_enabled() {
+  python - "$1/settings.json" "$2" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -123,7 +123,7 @@ commands = (
     for group in event
     for hook in group.get("hooks", [])
 )
-raise SystemExit("rtk hook claude" not in commands)
+raise SystemExit(sys.argv[2] not in commands)
 PY
 }
 
@@ -292,6 +292,13 @@ else
   fail "Installed Codex compact-warning hook is missing or stale"
 fi
 
+if cmp -s "$SCRIPT_DIR/context7_version_guard.py" \
+  "$HOME/.config/dotfiles/context7_version_guard.py"; then
+  pass "Installed Context7 version guard matches the repository"
+else
+  fail "Installed Context7 version guard is missing or stale"
+fi
+
 if cmp -s "$SCRIPT_DIR/claude_compact_statusline.py" \
   "$HOME/.config/dotfiles/claude_compact_statusline.py"; then
   pass "Installed Claude compact-warning status line matches the repository"
@@ -364,10 +371,16 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     fail "Claude bypasses Headroom in $profile"
   fi
 
-  if rtk_hook_enabled_for_claude "$profile"; then
+  if claude_hook_enabled "$profile" "rtk hook claude"; then
     pass "RTK command hook is enabled in $profile"
   else
     fail "RTK command hook is missing in $profile"
+  fi
+
+  if claude_hook_enabled "$profile" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'; then
+    pass "Context7 version guard is enabled in $profile"
+  else
+    fail "Context7 version guard is missing in $profile"
   fi
 
   if plugin_enabled_for_claude "$profile"; then

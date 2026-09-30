@@ -368,6 +368,39 @@ PY
   done
 }
 
+install_claude_context7_guard() {
+  local config_dir="$HOME/.config/dotfiles" profile
+
+  mkdir -p "$config_dir"
+  install -m 0755 "$SCRIPT_DIR/context7_version_guard.py" \
+    "$config_dir/context7_version_guard.py"
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    mkdir -p "$profile"
+    python - "$profile/settings.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+command = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
+entries = [
+    entry
+    for entry in data.setdefault("hooks", {}).get("PreToolUse", [])
+    if all(hook.get("command") != command for hook in entry.get("hooks", []))
+]
+entries.append(
+    {
+        "matcher": "mcp__context7__query-docs|mcp__claude_ai_Context7__query-docs",
+        "hooks": [{"type": "command", "command": command, "timeout": 5}],
+    }
+)
+data["hooks"]["PreToolUse"] = entries
+path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+  done
+}
+
 disable_claude_attribution() {
   local profile
 
@@ -414,6 +447,8 @@ echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
 echo "==> Installing Claude compact-warning status line..."
 install_claude_compact_statusline
+echo "==> Installing Claude Context7 version guard..."
+install_claude_context7_guard
 echo "==> Disabling Claude commit and PR attribution..."
 disable_claude_attribution
 echo "==> Installing Ponytail for Codex and Claude profiles..."

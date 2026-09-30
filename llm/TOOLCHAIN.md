@@ -307,6 +307,12 @@ Use Context7 when implementation depends on:
 
 Do **not** query Context7 automatically on every coding task.
 
+In Claude Code, `llm/context7_version_guard.py` (a `PreToolUse` hook) denies a
+`query-docs` call when the project's `.venv`, `venv`, `uv.lock`, `poetry.lock`,
+`requirements*.txt` or `node_modules` pins the library and neither the
+`libraryId` nor the query names that version. Codex gets the same rule through
+`AGENTS.md` only.
+
 A useful decision rule is:
 
 ```text
