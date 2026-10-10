@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Claude PreToolUse hook: deny Context7 queries that ignore the project's pinned version."""
+"""Claude and Codex PreToolUse hook: deny Context7 queries that ignore the project's pinned version."""
 
 import json
 import re

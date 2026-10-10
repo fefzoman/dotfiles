@@ -1,0 +1,34 @@
+# BEGIN DOTFILES
+export BASH_SILENCE_DEPRECATION_WARNING=1
+
+# Linux pbcopy
+if ! command -v pbcopy >/dev/null 2>&1; then
+  if command -v wl-copy >/dev/null 2>&1; then
+    alias pbcopy='wl-copy'
+  elif command -v xclip >/dev/null 2>&1; then
+    alias pbcopy='xclip -selection clipboard'
+  elif command -v xsel >/dev/null 2>&1; then
+    alias pbcopy='xsel --clipboard --input'
+  fi
+fi
+
+alias k='kubectl'
+alias tf='terraform'
+alias v='nvim'
+
+export PATH="$HOME/.local/bin:$PATH"
+export TERMINAL="alacritty"
+
+alias term="alacritty"
+alias terminal="alacritty"
+alias alac="alacritty"
+
+if [[ $- == *i* ]]; then
+  bind '"\e[1;5D": backward-word'
+  bind '"\e[5D": backward-word'
+  bind '"\e[1;5C": forward-word'
+  bind '"\e[5C": forward-word'
+  bind '"\e[1;3D": backward-word'
+  bind '"\e[1;3C": forward-word'
+fi
+# END DOTFILES

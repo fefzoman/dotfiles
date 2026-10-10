@@ -1751,6 +1751,19 @@ def discover_sessions(profile: Profile, include_archived: bool = False) -> list[
     )
 
 
+def has_claude_reply(path: Path) -> bool:
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if "assistant" not in line:
+                continue
+            try:
+                if json.loads(line).get("type") == "assistant":
+                    return True
+            except (json.JSONDecodeError, AttributeError):
+                continue
+    return False
+
+
 def resolve_session(value: str | None, profile: Profile, include_archived: bool = True) -> Path:
     if value:
         direct = Path(os.path.expanduser(value))
@@ -1762,6 +1775,8 @@ def resolve_session(value: str | None, profile: Profile, include_archived: bool 
         raise SystemExit(f"No {profile.agent} session files found under {profile.home}")
 
     if not value or value in {"current", "latest"}:
+        if profile.agent == "claude":
+            return next((p for p in sessions if has_claude_reply(p)), sessions[0])
         return sessions[0]
 
     matches = [p for p in sessions if value.lower() in p.name.lower()]
@@ -1956,7 +1971,7 @@ def read_rtk_savings(project: str) -> dict[str, Any] | None:
             capture_output=True,
             check=True,
             text=True,
-            timeout=5,
+            timeout=15,
         )
         payload = json.loads(result.stdout)
         if not isinstance(payload, dict) or not isinstance(payload.get("summary"), dict):
@@ -1988,7 +2003,7 @@ def read_headroom_savings() -> dict[str, Any] | None:
             capture_output=True,
             check=True,
             text=True,
-            timeout=5,
+            timeout=15,
         )
         payload = json.loads(result.stdout)
         lifetime = payload.get("lifetime")

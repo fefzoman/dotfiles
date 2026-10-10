@@ -9,6 +9,16 @@ from typing import Any
 
 CONTEXT_THRESHOLD = 120_000
 QUOTA_USED_THRESHOLD = 85.0
+BOLD, RESET = "\033[1m", "\033[0m"
+
+
+def color(text: str, hex_rgb: str) -> str:
+    r, g, b = bytes.fromhex(hex_rgb)
+    return f"\033[38;2;{r};{g};{b}m{text}\033[39m"
+
+
+def percent(value: float) -> str:
+    return color(f"{value:.0f}%", "21C23E" if value < 40 else "F0ED24" if value <= 75 else "E53B12")
 
 
 def render(data: dict[str, Any]) -> str:
@@ -16,7 +26,7 @@ def render(data: dict[str, Any]) -> str:
     input_tokens = context.get("total_input_tokens")
     used = context.get("used_percentage")
     parts = [
-        f"context {used:.0f}% ({input_tokens / 1000:.0f}k)"
+        f"context {percent(used)} ({input_tokens / 1000:.0f}k)"
         if isinstance(used, int | float) and isinstance(input_tokens, int | float)
         else "context --"
     ]
@@ -26,20 +36,21 @@ def render(data: dict[str, Any]) -> str:
         value = data.get("rate_limits", {}).get(key, {}).get("used_percentage")
         if isinstance(value, int | float):
             quota_used.append(float(value))
-            parts.append(f"{label} {value:.0f}%")
+            parts.append(f"{label} {percent(value)}")
 
     cache = data.get("prompt_cache", {})
     if cache.get("caching_observed"):
-        parts.append("cache warm" if cache.get("warm") else "cache cold")
+        parts.append(color("cache warm", "E35812") if cache.get("warm") else color("cache cold", "4CBFD4"))
 
+    line = BOLD + " | ".join(parts) + RESET
     if (
         isinstance(input_tokens, int | float)
         and input_tokens >= CONTEXT_THRESHOLD
         and quota_used
         and max(quota_used) >= QUOTA_USED_THRESHOLD
     ):
-        parts.append("WARNING: run /compact before a long pause or quota reset")
-    return " | ".join(parts)
+        line += " | " + color("WARNING: run /compact before a long pause or quota reset", "D4CB24")
+    return line
 
 
 def main() -> int:

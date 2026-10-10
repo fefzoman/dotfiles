@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -533,6 +534,23 @@ class ClaudeSessionTest(unittest.TestCase):
         self.assertEqual(report.total.output_tokens, 15)
         self.assertEqual(report.model_calls, 2)
         self.assertEqual(report.inner_model_calls, 2)
+
+    def test_latest_claude_session_skips_transcripts_without_replies(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            project = home / "projects" / "project"
+            project.mkdir(parents=True)
+            answered = project / "answered.jsonl"
+            answered.write_text(json.dumps({"type": "assistant", "message": {}}) + "\n", encoding="utf-8")
+            empty = project / "empty.jsonl"
+            empty.write_text(json.dumps({"type": "user", "message": {"content": "/clear"}}) + "\n", encoding="utf-8")
+            os.utime(answered, (1, 1))
+
+            profile = token_profiler.profile_for("claude", home)
+            self.assertEqual(token_profiler.resolve_session(None, profile), answered)
+
+            answered.unlink()
+            self.assertEqual(token_profiler.resolve_session(None, profile), empty)
 
 
 if __name__ == "__main__":

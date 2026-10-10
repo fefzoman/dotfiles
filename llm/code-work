@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+export CODEX_HOME="$HOME/.codex-work"
+export CLAUDE_CONFIG_DIR="$HOME/.claude-work"
+exec code --user-data-dir "$HOME/.vscode-work" "$@"

@@ -1,3 +1,4 @@
+import re
 import unittest
 
 from llm import claude_compact_statusline as statusline
@@ -16,9 +17,19 @@ class ClaudeCompactStatuslineTest(unittest.TestCase):
             }
         )
 
-        self.assertIn("context 65% (130k)", output)
-        self.assertIn("cache cold", output)
-        self.assertIn("run /compact", output)
+        plain = re.sub(r"\033\[[0-9;]*m", "", output)
+        self.assertIn("context 65% (130k) | 5h 90% | 7d 40% | cache cold | WARNING", plain)
+        self.assertIn(statusline.color("65%", "F0ED24"), output)
+        self.assertIn(statusline.color("90%", "E53B12"), output)
+        self.assertIn(statusline.color("cache cold", "4CBFD4"), output)
+        self.assertTrue(output.startswith(statusline.BOLD))
+        self.assertIn(statusline.RESET + " | " + statusline.color("WARNING", "D4CB24")[:-5], output)
+
+    def test_percent_colors(self) -> None:
+        self.assertEqual(statusline.percent(39), statusline.color("39%", "21C23E"))
+        self.assertEqual(statusline.percent(40), statusline.color("40%", "F0ED24"))
+        self.assertEqual(statusline.percent(75), statusline.color("75%", "F0ED24"))
+        self.assertEqual(statusline.percent(76), statusline.color("76%", "E53B12"))
 
     def test_does_not_warn_without_both_signals(self) -> None:
         self.assertNotIn(

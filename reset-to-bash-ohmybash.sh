@@ -2,23 +2,15 @@
 set -euo pipefail
 
 DOTFILES_AUTO_APPROVE=${DOTFILES_AUTO_APPROVE:-0}
-
-ts="$(date +%Y%m%d%H%M%S)"
-BACKUP_DIR="$HOME/.shell-reset-backup/$ts"
+CONFIG_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/config/bash"
+BACKUP_DIR="$HOME/.shell-reset-backup/$(date +%Y%m%d%H%M%S)"
+LOGIN_USER="${SUDO_USER:-${USER:-$(id -un)}}"
+OS="$(uname -s)"
 mkdir -p "$BACKUP_DIR"
 
 bold() { printf "\033[1m%s\033[0m\n" "$*"; }
 warn() { printf "\033[33m%s\033[0m\n" "$*"; }
 ok()   { printf "\033[32m%s\033[0m\n" "$*"; }
-
-move_to_backup() {
-  local source="$1" target="$BACKUP_DIR/${1#"$HOME"/}"
-  [[ -e "$source" || -L "$source" ]] || return 0
-  mkdir -p "$(dirname "$target")"
-  bold "Backing up: $source"
-  mv "$source" "$target"
-}
-
 have() { command -v "$1" >/dev/null 2>&1; }
 
 run_root() {
@@ -27,7 +19,7 @@ run_root() {
   elif ! have sudo; then
     warn "sudo is unavailable; skipped: $*"
     return 1
-  elif [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
+  elif [[ $DOTFILES_AUTO_APPROVE == 1 ]]; then
     sudo -n "$@"
   else
     sudo "$@"
@@ -51,312 +43,126 @@ install_pkgs() {
   fi
 }
 
-latest_stable_bash_path() {
-  local brew_bash
-
+latest_bash_path() {
+  local prefix
   if have brew; then
     brew install bash >/dev/null 2>&1 || true
     brew upgrade bash >/dev/null 2>&1 || true
-    brew_bash="$(brew --prefix bash 2>/dev/null || true)"
-    if [[ -n "$brew_bash" && -x "${brew_bash}/bin/bash" ]]; then
-      printf '%s\n' "${brew_bash}/bin/bash"
-      return 0
-    fi
+    prefix="$(brew --prefix bash 2>/dev/null || true)"
+    if [[ -n $prefix && -x $prefix/bin/bash ]]; then echo "$prefix/bin/bash"; return; fi
   fi
-
-  if [[ "$(uname -s)" == Linux && -x /bin/bash ]]; then
-    printf '/bin/bash\n'
-    return 0
-  fi
-
+  if [[ $OS == Linux && -x /bin/bash ]]; then echo /bin/bash; return; fi
   command -v bash || true
 }
 
-ensure_login_shell_registered() {
-  local shell_path="$1"
+account_login_shell() {
+  if [[ $OS == Darwin ]] && have dscl; then
+    dscl . -read "/Users/$LOGIN_USER" UserShell 2>/dev/null | awk '{print $2}'
+  elif have getent; then
+    getent passwd "$LOGIN_USER" | awk -F: '{print $7}'
+  else
+    awk -F: -v user="$LOGIN_USER" '$1 == user { print $7 }' /etc/passwd
+  fi
+}
 
+register_login_shell() {
   [[ -f /etc/shells ]] || return 0
-  grep -Fxq "$shell_path" /etc/shells 2>/dev/null && return 0
-
-  bold "Registering login shell: $shell_path"
+  ! grep -Fxq "$1" /etc/shells || return 0
+  bold "Registering login shell: $1"
   if [[ -w /etc/shells ]]; then
-    printf '%s\n' "$shell_path" >> /etc/shells
-  elif ! printf '%s\n' "$shell_path" | run_root tee -a /etc/shells >/dev/null; then
-    warn "Cannot update /etc/shells; run: echo '$shell_path' | sudo tee -a /etc/shells"
+    echo "$1" >> /etc/shells
+  elif ! echo "$1" | run_root tee -a /etc/shells >/dev/null; then
+    warn "Cannot update /etc/shells; run: echo '$1' | sudo tee -a /etc/shells"
     return 1
   fi
 }
 
 change_login_shell() {
-  local shell_path="$1" login_user="${SUDO_USER:-${USER:-$(id -un)}}"
-  if [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
-    run_root chsh -s "$shell_path" "$login_user"
+  if [[ $DOTFILES_AUTO_APPROVE == 1 ]]; then
+    run_root chsh -s "$1" "$LOGIN_USER"
   else
-    chsh -s "$shell_path"
+    chsh -s "$1"
   fi
 }
 
-account_login_shell() {
-  local login_user="${SUDO_USER:-${USER:-$(id -un)}}"
+bold "=== 1) Switch login shell to Bash ==="
+BASH_PATH="$(latest_bash_path)"
+[[ -n $BASH_PATH ]] || { warn "bash not found in PATH."; exit 1; }
+CURRENT_SHELL="$(account_login_shell)"
 
-  if [[ "$(uname -s)" == Darwin ]] && have dscl; then
-    dscl . -read "/Users/$login_user" UserShell 2>/dev/null | awk '{print $2}'
-  elif have getent; then
-    getent passwd "$login_user" | awk -F: '{print $7}'
-  else
-    awk -F: -v user="$login_user" '$1 == user { print $7 }' /etc/passwd
-  fi
-}
-
-bold "=== 1) Switch login shell to Bash (disable Zsh as default) ==="
-BASH_PATH="$(latest_stable_bash_path)"
-[[ -n "$BASH_PATH" ]] || { warn "bash not found in PATH."; exit 1; }
-CURRENT_LOGIN_SHELL="$(account_login_shell)"
-
-if [[ "$CURRENT_LOGIN_SHELL" != "$BASH_PATH" ]]; then
-  ensure_login_shell_registered "$BASH_PATH" || exit 1
+if [[ $CURRENT_SHELL == "$BASH_PATH" ]]; then
+  ok "The account login shell already points to Bash: $BASH_PATH"
+else
+  register_login_shell "$BASH_PATH" || exit 1
   have chsh || { warn "chsh is unavailable; cannot set the login shell."; exit 1; }
-  bold "Changing the login shell from ${CURRENT_LOGIN_SHELL:-unknown} to $BASH_PATH"
+  bold "Changing the login shell from ${CURRENT_SHELL:-unknown} to $BASH_PATH"
   if ! change_login_shell "$BASH_PATH"; then
-    warn "Could not change the login shell."
-    if [[ "$DOTFILES_AUTO_APPROVE" == "1" ]]; then
-      warn "auto-approve cannot supply administrator credentials. Run: sudo chsh -s '$BASH_PATH' '${SUDO_USER:-${USER:-$(id -un)}}'"
+    if [[ $DOTFILES_AUTO_APPROVE == 1 ]]; then
+      warn "Could not change the login shell; auto-approve cannot supply credentials. Run: sudo chsh -s '$BASH_PATH' '$LOGIN_USER'"
     else
-      warn "Run manually: chsh -s '$BASH_PATH'"
+      warn "Could not change the login shell. Run manually: chsh -s '$BASH_PATH'"
     fi
     exit 1
   fi
-  CURRENT_LOGIN_SHELL="$(account_login_shell)"
-  [[ "$CURRENT_LOGIN_SHELL" == "$BASH_PATH" ]] || {
-    warn "The account login shell is still ${CURRENT_LOGIN_SHELL:-unknown}; expected $BASH_PATH."
-    exit 1
-  }
+  CURRENT_SHELL="$(account_login_shell)"
+  [[ $CURRENT_SHELL == "$BASH_PATH" ]] || { warn "The login shell is still ${CURRENT_SHELL:-unknown}; expected $BASH_PATH."; exit 1; }
   ok "Login shell set to Bash. Log out and back in before checking \$SHELL."
-else
-  ok "The account login shell already points to Bash: $BASH_PATH"
 fi
 
-bold $'\n=== 2) Reset Bash/Zsh customizations (backup + clean start) ==='
+bold $'\n=== 2) Back up and remove Bash/Zsh customizations ==='
 for path in \
   .bashrc .bash_profile .bash_login .profile .inputrc .bash_aliases \
   .zshrc .zprofile .zshenv .zlogin .zlogout .oh-my-zsh .zinit .antigen .p10k.zsh \
   .config/starship.toml .oh-my-bash .bash_it; do
-  move_to_backup "$HOME/$path"
+  [[ -e $HOME/$path || -L $HOME/$path ]] || continue
+  bold "Backing up: $HOME/$path"
+  mkdir -p "$(dirname "$BACKUP_DIR/$path")"
+  mv "$HOME/$path" "$BACKUP_DIR/$path"
 done
-
-ok "Backups stored in: $BACKUP_DIR"
 warn "If you use chezmoi (or similar), it may re-apply old dotfiles after this."
 
-bold $'\n=== 3) Install Oh My Bash + apply prompt and completions ==='
-
-bold "Installing dependencies (git, curl, wget, dconf-cli if possible)..."
+bold $'\n=== 3) Install Oh My Bash, prompt and completions ==='
 install_pkgs git curl wget dconf-cli
 
-write_two_line_font_theme() {
-  local theme_dir="$HOME/.oh-my-bash/custom/themes/font"
-
-  mkdir -p "$theme_dir"
-
-  cat > "$theme_dir/font.theme.sh" <<'EOF'
-#! bash oh-my-bash.module
-#
-# Minimal two-line variant of the built-in font theme.
-# Keeps timestamp, user, host, and path on the first line.
-# Places only the prompt arrow on its own line.
-
-CLOCK_THEME_PROMPT_PREFIX=''
-CLOCK_THEME_PROMPT_SUFFIX=' '
-THEME_SHOW_CLOCK=${THEME_SHOW_CLOCK:-"true"}
-THEME_CLOCK_COLOR=${THEME_CLOCK_COLOR:-"$_omb_prompt_gray"}
-THEME_CLOCK_FORMAT=${THEME_CLOCK_FORMAT:-"%I:%M:%S"}
-OMB_PROMPT_VIRTUALENV_FORMAT='(%s) '
-OMB_PROMPT_SHOW_PYTHON_VENV=${OMB_PROMPT_SHOW_PYTHON_VENV:=true}
-
-function _omb_theme_git_branch_suffix() {
-  local branch
-
-  if ! command -v git >/dev/null 2>&1; then
-    return
-  fi
-
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    return
-  fi
-
-  branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || true)"
-
-  if [[ -n "$branch" ]]; then
-    printf '%s' "$branch"
-  fi
-}
-
-function _omb_theme_PROMPT_COMMAND() {
-  local RC="$?"
-  local hostname="${_omb_prompt_gray}\u@\h"
-  local python_venv
-  _omb_prompt_get_python_venv python_venv=$_omb_prompt_white$python_venv
-  local git_branch
-  git_branch="$(_omb_theme_git_branch_suffix)"
-  if [[ -n "$git_branch" ]]; then
-    git_branch=" \[\e[38;5;240m\] ${git_branch}\[\e[0m\]"
-  fi
-  local ret_status
-
-  if [[ ${RC} == 0 ]]; then
-    ret_status="${_omb_prompt_gray}❯"
-  else
-    ret_status="${_omb_prompt_brown}❯"
-  fi
-
-  history -a
-  # Keep the prompt and command output thin, but type commands at medium weight.
-  PS1="$(clock_prompt)$python_venv${hostname} ${_omb_prompt_teal}\W${git_branch}\n${ret_status} ${_omb_prompt_normal}\[\e[1m\]"
-  PS0='\[\e[0m\]'
-}
-
-_omb_util_add_prompt_command _omb_theme_PROMPT_COMMAND
-EOF
-}
-
-write_extra_completions() {
-  local custom_dir="$HOME/.oh-my-bash/custom"
-
-  mkdir -p "$custom_dir"
-
-  cat > "$custom_dir/tool-completions.sh" <<'EOF'
-#! bash oh-my-bash.module
-#
-# Extra completions for cloud, Terraform, Kubernetes, and Python tooling.
-#
-
-if declare -F _omb_module_require_completion >/dev/null 2>&1; then
-  _omb_module_require_completion awscli terraform kubectl helm minikube pip pip3 uv
-fi
-
-EOF
-}
-
-# Install Oh My Bash (official installer)
-if [[ ! -d "$HOME/.oh-my-bash" ]]; then
+if [[ -d $HOME/.oh-my-bash ]]; then
+  ok "Oh My Bash already installed."
+else
   bold "Installing Oh My Bash..."
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  curl -fsSL "https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh" -o "$tmp/install-omb.sh"
+  curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh -o "$tmp/install-omb.sh"
   bash "$tmp/install-omb.sh" --unattended
-else
-  ok "Oh My Bash already installed."
 fi
 
-# Activation refreshes Oh My Bash explicitly; background checks race when tmux
-# starts several shells at once and can leave a stale update lock.
+# Activation updates Oh My Bash itself; parallel tmux shells racing on auto-update leave a stale lock.
 sed -i.bak 's/^# DISABLE_AUTO_UPDATE="true"$/DISABLE_AUTO_UPDATE="true"/' "$HOME/.bashrc"
 rm -f "$HOME/.bashrc.bak"
 
-write_two_line_font_theme
-write_extra_completions
-
-# Ensure ~/.bashrc exists
-touch "$HOME/.bashrc"
-
-# Make login shells load ~/.bashrc too.
-cat > "$HOME/.bash_profile" <<'EOF'
-# Load interactive Bash settings from ~/.bashrc.
-if [[ -f "$HOME/.bashrc" ]]; then
-  source "$HOME/.bashrc"
-fi
-EOF
-
-# Persist silence deprecation warning (macOS) in bashrc (instead of exporting only in this script)
-if ! grep -qE '^[[:space:]]*export[[:space:]]+BASH_SILENCE_DEPRECATION_WARNING=' "$HOME/.bashrc" 2>/dev/null; then
-  printf '\nexport BASH_SILENCE_DEPRECATION_WARNING=1\n' >> "$HOME/.bashrc"
+mkdir -p "$HOME/.oh-my-bash/custom/themes/font"
+cp "$CONFIG_DIR/font.theme.sh" "$HOME/.oh-my-bash/custom/themes/font/font.theme.sh"
+cp "$CONFIG_DIR/tool-completions.sh" "$HOME/.oh-my-bash/custom/tool-completions.sh"
+cp "$CONFIG_DIR/bash_profile" "$HOME/.bash_profile"
+if ! grep -qx '# BEGIN DOTFILES' "$HOME/.bashrc"; then
+  { echo; cat "$CONFIG_DIR/bashrc"; } >> "$HOME/.bashrc"
 fi
 
-# Add pbcopy alias (Linux) if pbcopy doesn't exist
-# - On macOS pbcopy already exists, so we do nothing.
-# - On Linux we map pbcopy to xclip or wl-copy if available.
-if ! grep -qE '^[[:space:]]*alias[[:space:]]+pbcopy=' "$HOME/.bashrc" 2>/dev/null; then
-  cat >> "$HOME/.bashrc" <<'EOF'
-
-# pbcopy compatibility (managed)
-if ! command -v pbcopy >/dev/null 2>&1; then
-  if command -v wl-copy >/dev/null 2>&1; then
-    alias pbcopy='wl-copy'
-  elif command -v xclip >/dev/null 2>&1; then
-    alias pbcopy='xclip -selection clipboard'
-  elif command -v xsel >/dev/null 2>&1; then
-    alias pbcopy='xsel --clipboard --input'
-  fi
-fi
-EOF
-fi
-
-cat >> "$HOME/.bashrc" <<'EOF'
-
-alias k='kubectl'
-alias tf='terraform'
-alias v='nvim'
-
-EOF
-
-if ! grep -q "BEGIN MAIN TERMINAL SETUP" "$HOME/.bashrc" 2>/dev/null; then
-  cat >> "$HOME/.bashrc" <<'EOF'
-
-# BEGIN MAIN TERMINAL SETUP
-export PATH="$HOME/.local/bin:$PATH"
-export TERMINAL="alacritty"
-
-alias term="alacritty"
-alias terminal="alacritty"
-alias alac="alacritty"
-# END MAIN TERMINAL SETUP
-EOF
-fi
-
-if ! grep -q "BEGIN SHELL WORD NAVIGATION" "$HOME/.bashrc" 2>/dev/null; then
-  cat >> "$HOME/.bashrc" <<'EOF'
-
-# BEGIN SHELL WORD NAVIGATION
-if [[ $- == *i* ]]; then
-  bind '"\e[1;5D": backward-word'
-  bind '"\e[5D": backward-word'
-  bind '"\e[1;5C": forward-word'
-  bind '"\e[5C": forward-word'
-  bind '"\e[1;3D": backward-word'
-  bind '"\e[1;3C": forward-word'
-fi
-# END SHELL WORD NAVIGATION
-EOF
-fi
-
-# This stage replaces ~/.bashrc, so the sourcing line basic-install.sh added for
-# the broot br function is gone. Re-running --install restores it and is a no-op
-# for everything else.
-if command -v broot >/dev/null 2>&1; then
+# Replacing ~/.bashrc dropped the line that sources broot's br function.
+if have broot; then
   bold "Restoring the broot br shell function..."
   broot --install || warn "broot --install failed; the br function is unavailable."
 fi
 
-
-# --- Nerd Font install (before terminal theme import) ---
-if [[ "$(uname -s)" == "Darwin" ]]; then
-  if command -v brew >/dev/null 2>&1; then
-    bold "Installing Nerd Font (JetBrainsMono Nerd Font) via Homebrew..."
+if [[ $OS == Darwin ]]; then
+  if have brew; then
+    bold "Installing JetBrainsMono Nerd Font via Homebrew..."
     brew install --cask font-jetbrains-mono-nerd-font || true
   else
-    warn "Homebrew not found. Install a Nerd Font manually (JetBrainsMono Nerd Font) on macOS."
+    warn "Homebrew not found. Install JetBrainsMono Nerd Font manually."
   fi
 fi
 
+touch "$HOME/.hushlogin"
 
 bold $'\n=== Done ==='
-ok "1) Close ALL terminals and reopen."
-ok "2) Log out/in to ensure your login shell is bash."
-ok "3) Verify:"
-echo "   echo \$SHELL"
-echo "   bash --version"
-echo
-ok "Your backups are in: $BACKUP_DIR"
-warn "If you want to restore: copy files back from that folder into \$HOME."
-
-# That suppresses the “Last login” banner in new Terminal sessions.
-touch ~/.hushlogin
+ok "Close all terminals, log out and back in, then verify with: echo \$SHELL; bash --version"
+ok "Backups are in $BACKUP_DIR; copy files back into \$HOME to restore."

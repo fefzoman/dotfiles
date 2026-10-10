@@ -25,7 +25,7 @@ clear error if non-interactive administrator access is unavailable. Run
 Run the stages separately when debugging:
 
 ```bash
-bash ./basic-install.sh
+bash ./base-macos.sh   # or ./base-linux.sh on Debian/Ubuntu
 bash ./reset-to-bash-ohmybash.sh
 bash ./llm/ai-install.sh
 ```
@@ -40,7 +40,7 @@ bash ./llm/smoke-test.sh --strict # warnings also fail the test
 The smoke test makes no model or API requests. `llm/ai-install.sh` runs the
 non-strict test automatically after installation.
 
-`basic-install.sh` owns general machine tooling, while `llm/ai-install.sh` owns
+`base-macos.sh` / `base-linux.sh` (sharing `base-common.sh`) own general machine tooling, while `llm/ai-install.sh` owns
 Codex, Claude Code, Fabric, RTK, Headroom, Ponytail, Serena, Context7, the token
 profiler, and AI profile shell commands. It configures every applicable tool
 for personal and work Codex/Claude profiles and installs `llm/__AGENTS.md`
@@ -164,7 +164,7 @@ Python, Vim, Vimdoc, and YAML.
 |---|---|---|
 | Codex | Coding agent with shell, repository, MCP, plugin, and current-environment access | `codex`, `codex-work`, `codex exec 'PROMPT'`, `codex resume`; `?? 'QUESTION'` uses `gpt-6-sol` with medium reasoning |
 | Claude Code | Coding agent configured with the same optimization stack | `claude`, `claude-work`, `claude -p 'PROMPT'`, `claude --version` |
-| VS Code profile launchers | Open an existing VS Code installation with separate personal or work agent state | `code .`, `code-work .`, `claude-code-work .` |
+| VS Code profile launchers | Open an existing VS Code installation with separate personal or work agent state | `code .`, `code-work .` |
 | Fabric | Pattern-based text transformation through a selected model provider; it does not inherit Codex CLI tools or live environment access | `fabric --setup`, `fabric --listpatterns`, `fabric -p summarize < FILE`, `fabric --stream 'PROMPT'` |
 | RTK | Compacts supported shell output before it enters an agent's context | `rtk gain`, `rtk gain --history`, `rtk discover --all --since 7`, `RTK_DISABLED=1 COMMAND` |
 | Headroom | Local proxy that compresses and manages Codex/Claude context | `headroom install status`, `headroom install apply`, `headroom install remove` |
@@ -315,6 +315,12 @@ removal despite dependencies. A broken Homebrew Python falls back to a
 uv-managed Python. Linux uses a uv-managed Python and does not
 remove distribution-managed Python packages.
 
+Each run records the top-level packages of the active non-system Python in
+`~/.local/state/dotfiles/python-packages.txt` before touching Python, then
+reinstalls them with `pip install --upgrade` into the target version, so
+changing `PY_VERSION` carries packages over. Global npm packages live in
+`~/.local` and are updated with `npm update --global` on every run.
+
 ## Generated Configuration
 
 | Path | Purpose |
@@ -350,14 +356,18 @@ Shell files and frameworks replaced by the Bash reset are moved to:
 | `tf` | `terraform` |
 | `v` | `nvim` |
 | `term`, `terminal`, `alac` | Open Alacritty |
-| `code [ARGS]` | Open VS Code with `~/.codex` as `CODEX_HOME` |
-| `codex [ARGS]` | Run Ponytail-enabled Codex through Headroom with `~/.codex` |
-| `codex-work [ARGS]` | Run Ponytail-enabled Codex through Headroom with `~/.codex-work` |
-| `code-work [ARGS]` | Open VS Code with the Codex work profile |
-| `claude [ARGS]` | Run Ponytail-enabled Claude through Headroom with `~/.claude` |
-| `claude-work [ARGS]` | Run Ponytail-enabled Claude through Headroom with `~/.claude-work` |
-| `claude-code-work [ARGS]` | Open VS Code with the Claude work profile |
+| `codex [ARGS]` | Ponytail-enabled Codex through Headroom with `~/.codex` |
+| `codex-work [ARGS]` | Same with `~/.codex-work` |
+| `claude [ARGS]` | Ponytail-enabled Claude through Headroom with `~/.claude` |
+| `claude-work [ARGS]` | Same with `~/.claude-work` |
 | `?? [QUESTION]` | Answer through Codex using `gpt-6-sol` with medium reasoning |
+
+VS Code:
+
+| Command | Codex profile | Claude profile | VS Code data |
+|---|---|---|---|
+| `code [ARGS]` | `~/.codex` | `~/.claude` | default |
+| `code-work [ARGS]` | `~/.codex-work` | `~/.claude-work` | `~/.vscode-work` |
 
 Oh My Bash completions are enabled for AWS CLI, Terraform, kubectl, Helm,
 Minikube, pip, pip3, and uv. On Linux, `pbcopy` maps to `wl-copy`, `xclip`, or

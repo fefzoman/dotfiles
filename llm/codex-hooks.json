@@ -1,5 +1,5 @@
 {
-  "description": "Serena lifecycle reminders and Codex context warnings.",
+  "description": "Serena lifecycle reminders, Context7 version guard, and Codex context warnings.",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +8,16 @@
           {
             "type": "command",
             "command": "serena-hooks remind --client=codex"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__context7__query-docs",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/context7_version_guard.py\"",
+            "timeout": 5
           }
         ]
       }
@@ -40,6 +50,11 @@
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/codex_compact_warning.py\"",
             "timeout": 2
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" guard --client codex",
+            "timeout": 10
           }
         ]
       }

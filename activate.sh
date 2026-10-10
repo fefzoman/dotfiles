@@ -11,12 +11,17 @@ if [[ ${1:-} == auto-approve ]]; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-BASIC_INSTALL="${SCRIPT_DIR}/basic-install.sh"
 RESET_SCRIPT="${SCRIPT_DIR}/reset-to-bash-ohmybash.sh"
 AI_INSTALL="${SCRIPT_DIR}/llm/ai-install.sh"
 
-echo "==> Running basic install..."
-bash "$BASIC_INSTALL"
+case "$(uname -s)" in
+  Darwin) BASE_INSTALL="${SCRIPT_DIR}/base-macos.sh" ;;
+  Linux) BASE_INSTALL="${SCRIPT_DIR}/base-linux.sh" ;;
+  *) echo "Unsupported operating system: $(uname -s)" >&2; exit 1 ;;
+esac
+
+echo "==> Running base install ($(basename "$BASE_INSTALL"))..."
+bash "$BASE_INSTALL"
 
 if ! command -v brew >/dev/null 2>&1; then
   for brew_bin in /opt/homebrew/bin/brew /usr/local/bin/brew; do

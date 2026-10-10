@@ -1,807 +1,273 @@
 # Coding Agent Efficiency Stack: Ponytail + Serena + Context7 + RTK + Headroom
 
-> Verified against upstream documentation and the installed transport paths on 2026-09-22. These projects evolve quickly; re-check their current installation commands before automating bootstrap.
+> Verified against upstream docs and the installed transport paths on 2026-09-22. These projects move fast; re-check install commands before automating bootstrap.
 
 ## 1. Purpose
 
-These five tools solve different sources of waste in an agentic coding session:
-
-| Tool | Layer | Primary question | Main effect |
+| Tool | Layer | Question | Effect |
 |---|---|---|---|
-| **Ponytail** | Solution policy | *How much should we build?* | Smaller, simpler implementations; fewer abstractions/dependencies/files |
-| **Serena** | Internal code intelligence | *How does this repository work?* | Symbol-level retrieval, reference tracing, semantic editing |
-| **Context7** | External dependency knowledge | *How does this library/API work in the relevant version?* | Retrieves current library/API docs and examples |
-| **RTK** | Shell execution | *How much terminal output does the model need?* | Rewrites supported shell commands to compact equivalents |
-| **Headroom** | LLM transport/context | *How much accumulated context must reach the model?* | Local compression, cache-aware context management, reversible retrieval |
+| **Ponytail** | Solution policy | How much should we build? | Smaller implementations; fewer abstractions/dependencies/files |
+| **Serena** | Internal code intelligence | How does this repo work? | Symbol-level retrieval, reference tracing, semantic editing |
+| **Context7** | External dependency knowledge | How does this library/API work in this version? | Current library/API docs and examples |
+| **RTK** | Shell execution | How much terminal output does the model need? | Rewrites supported commands to compact equivalents |
+| **Headroom** | LLM transport/context | How much accumulated context must reach the model? | Local compression, cache-aware context management, reversible retrieval |
 
-The stack is useful because the tools operate at different stages. Their savings overlap, so percentages must **not** be added together.
+The tools act at different stages; their savings overlap, so percentages are **never added**.
 
-This repository installs the stack for personal and work profiles of both
-Codex and Claude Code. Serena and Context7 are user-level MCP servers,
-Ponytail is a native plugin, RTK uses Codex instructions or Claude hooks, and
-Headroom wraps each CLI. `token-profiler` reads local Codex and Claude Code
-sessions separately for personal and work profiles.
+This repo installs the stack for personal and work profiles of Codex and Claude Code: Serena and Context7 as user-level MCP servers, Ponytail as a native plugin, RTK via Codex instructions or Claude hooks, Headroom as a shared local proxy that every profile reaches through its config (§7). `token-profiler` reads local Codex and Claude sessions per profile.
 
-Two small, local safeguards complement the five tools:
+Two local safeguards complement them, neither runs `/compact` automatically:
 
-- Codex receives a hook warning when a large same-thread context is close to a
-  quota stop;
-- Claude Code receives the equivalent warning through its native, token-free
-  status line, which also exposes prompt-cache state.
-
-Neither safeguard runs `/compact` automatically.
-
----
+- Codex: a hook warning when a large same-thread context nears a quota stop;
+- Claude Code: the same warning in its native, token-free status line, which also shows prompt-cache state.
 
 ## 2. Mental model
 
 ```text
-                    Project instructions
-                 + Ponytail solution policy
-                           │
-                           ▼
-                    ┌─────────────┐
-                    │Codex/Claude │
-                    │ reasoning   │
-                    └──────┬──────┘
-                           │ chooses what it needs
-        ┌──────────────────┬──────────────────┐
-        │                  │                  │
-        ▼                  ▼                  ▼
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│    Serena    │   │   Context7   │   │     Bash     │
-│ internal code│   │ external docs│   └──────┬───────┘
-│ navigation   │   │ and APIs     │          │
-└──────┬───────┘   └──────┬───────┘          ▼
-       │                  │            ┌──────────────┐
-       │                  │            │     RTK      │
-       │                  │            │ rewrite/filter
-       │                  │            └──────┬───────┘
-       └──────────┬───────┴───────────────┬──┘
-                  │                       │
-                  └───────────┬───────────┘
-                          │ tool results
-                          ▼
-                   next model request
-                          │
-                          ▼
-                  ┌───────────────┐
-                  │   Headroom    │
-                  │ local proxy   │
-                  │ compression   │
-                  └───────┬───────┘
-                          │
-                          ▼
-                         LLM
+project instructions + Ponytail policy → Codex/Claude reasoning
+  → chooses: Serena (internal code) | Context7 (external docs) | Bash → RTK (rewrite/filter)
+  → tool results → next model request → Headroom (local proxy compression) → LLM
 ```
 
-This diagram is conceptual. Headroom sits on the model transport path, so it operates on each request that flows through its proxy. Ponytail is not a transport component: it changes the agent's implementation decisions throughout the task.
-
----
+Conceptual only. Headroom sits on the transport path and processes every request through its proxy. Ponytail is not transport: it shapes implementation decisions throughout the task.
 
 ## 3. Ponytail
 
-### What it does
-
-Ponytail is an implementation-policy skill/plugin. Its core rule is to stop at the earliest solution that satisfies the task:
-
-1. Does this need to exist at all?
-2. Does it already exist in the codebase?
-3. Can the standard library do it?
-4. Can the native platform do it?
-5. Can an already-installed dependency do it?
-6. Can it be one line?
-7. Only then write the minimum new code that works.
-
-It explicitly says minimalism comes **after understanding the real flow**. It also protects validation at trust boundaries, data-loss prevention, security, accessibility, and explicitly requested requirements.
-
-### Codex integration
-
-Current upstream Codex plugin installation:
+Implementation-policy plugin: stop at the earliest rung that works — (1) needed at all? (2) already in the codebase? (3) stdlib? (4) native platform? (5) installed dependency? (6) one line? (7) minimum new code. Minimalism comes **after understanding the real flow**; trust-boundary validation, data-loss prevention, security, accessibility and explicit requirements are never cut.
 
 ```bash
-codex plugin marketplace add DietrichGebert/ponytail
-codex plugin add ponytail@ponytail
+codex plugin marketplace add DietrichGebert/ponytail && codex plugin add ponytail@ponytail
+claude plugin marketplace add DietrichGebert/ponytail && claude plugin install ponytail@ponytail
 ```
 
-The plugin provides skills and lifecycle hooks. In Codex, skills can be invoked with `@`, for example:
+- Codex: skills + lifecycle hooks; invoke with `@ponytail`, `@ponytail-review`. A root `AGENTS.md` can carry the core policy where the plugin isn't active.
+- Claude: `/ponytail` commands. This repo installs once for `~/.claude` and once with `CLAUDE_CONFIG_DIR=~/.claude-work`.
 
-```text
-@ponytail
-@ponytail-review
-```
+**Reduces:** generated LOC, new abstractions, unnecessary dependencies, files changed, and code later read/tested/diffed/reviewed/sent back through context. The project's own benchmark reports ~54% less LOC, 22% fewer tokens, 20% lower cost, 27% less elapsed time — project-reported, not universal; token savings are a side effect and vary by model and task.
 
-A root `AGENTS.md` can also carry the same core policy, which is useful for hosts where the full plugin is not active.
-
-### Claude Code integration
-
-```bash
-claude plugin marketplace add DietrichGebert/ponytail
-claude plugin install ponytail@ponytail
-```
-
-Claude exposes the corresponding `/ponytail` commands. This repository runs
-those commands once for `~/.claude` and once with
-`CLAUDE_CONFIG_DIR=~/.claude-work`.
-
-### Impact
-
-Ponytail primarily reduces:
-
-- generated LOC;
-- new abstractions;
-- unnecessary dependencies;
-- files changed;
-- code that later has to be read, tested, diffed, reviewed, and sent back through the model context.
-
-The Ponytail project's current benchmark reports, for its specific benchmark setup, approximately:
-
-- 54% less LOC;
-- 22% fewer tokens;
-- 20% lower cost;
-- 27% lower elapsed time.
-
-Treat these as **project-reported benchmark results, not expected universal savings**. The project itself notes that token savings are a side effect and can vary by model and task.
-
-### Main risk
-
-Over-minimization can be harmful if the agent skips understanding, validation, security, or required edge cases. The Ponytail rules explicitly guard against this.
-
----
+**Risk:** over-minimization that skips understanding, validation, security or required edge cases (the rules guard against this).
 
 ## 4. Serena
 
-### What it does
+Semantic code-intelligence MCP server exposing IDE-like, language-server-backed symbol operations: `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`, `replace_symbol_body`. It replaces *grep huge repo → read whole files → infer relationships* with *find symbol → inspect structure → trace references → read only needed bodies → edit at the symbol boundary*.
 
-Serena is a semantic code-intelligence MCP server. It exposes IDE-like operations at the symbol level using language-server information.
-
-Typical high-value operations include:
-
-```text
-get_symbols_overview
-find_symbol
-find_referencing_symbols
-replace_symbol_body
-```
-
-The goal is to avoid this pattern:
-
-```text
-grep huge repository
-→ read several whole files
-→ manually infer symbol relationships
-```
-
-and instead do:
-
-```text
-find relevant symbol
-→ inspect its structure
-→ trace references/callers
-→ read only the bodies needed
-→ edit at the symbol boundary when appropriate
-```
-
-### Codex integration
-
-Current upstream shortcut:
+Setup (`configure_agent_mcps` in `llm/ai-install.sh`, all four profiles):
 
 ```bash
-serena setup codex
+codex mcp add serena -- serena start-mcp-server --context=codex --project-from-cwd --open-web-dashboard false
+claude mcp add --scope user serena -- serena start-mcp-server --context=claude-code --project-from-cwd --open-web-dashboard false
 ```
 
-Equivalent Codex MCP configuration is currently documented as:
+Upstream's `serena setup codex` writes the equivalent Codex entry. Verify with `/mcp`. Codex App sessions not started in the project dir: say "Activate the current dir as project using serena." Serena also documents Codex lifecycle hooks that nudge the agent back to symbolic retrieval when it drifts into repeated grep/full-file reads.
 
-```toml
-[mcp_servers.serena]
-startup_timeout_sec = 15
-command = "serena"
-args = ["start-mcp-server", "--project-from-cwd", "--context=codex"]
-```
+**Retrieval order:** activate project if needed → overview → target symbol → references/callers when siblings may be affected → bodies only when needed → smallest correct edit. Use raw file/search tools for non-code files, generated artifacts, exact-text search, unsupported languages, and tiny known files.
 
-Verification:
+**Reduces:** full-file reads, broad grep output, context spent discovering structure, edits in the wrong layer, time finding callers. Value grows with repo size and reference complexity.
 
-```text
-/mcp
-```
-
-For Codex App sessions that do not start in the project directory, Serena recommends activating the project at session start:
-
-```text
-Activate the current dir as project using serena.
-```
-
-Serena also documents Codex lifecycle hooks that remind the agent to prefer symbolic retrieval when it drifts into repeated grep/full-file reads.
-
-### Preferred retrieval pattern
-
-Use this sequence when working with normal source code:
-
-```text
-1. activate project if necessary
-2. get symbol/file overview
-3. find target symbol
-4. find references/callers when behavior can affect siblings
-5. fetch bodies only when needed
-6. make the smallest correct edit
-```
-
-Use raw filesystem/search tools when they are more appropriate, for example:
-
-- non-code files;
-- generated artifacts;
-- exact text searches;
-- unsupported language-server cases;
-- very small known files where semantic lookup adds no value.
-
-### Impact
-
-Serena mainly lowers:
-
-- full-file reads;
-- broad grep output;
-- context spent discovering code structure;
-- accidental edits in the wrong layer;
-- time spent finding callers and related symbols.
-
-Its value grows with repository size and symbol/reference complexity.
-
-### Main costs
-
-- language-server startup/indexing;
-- extra MCP process/state;
-- language-specific LSP limitations;
-- possible duplication if more than one Serena instance is configured.
-
----
+**Costs:** LSP startup/indexing, extra MCP process/state, per-language LSP limits, duplication if more than one Serena instance is configured.
 
 ## 5. Context7
 
-### What it does
+Current docs/examples for third-party libraries and APIs — external knowledge, not repo navigation. Serena: "how does OUR code work?" (where is our FastAPI app initialized?). Context7: "how does THIS dependency work?" (how does `StreamingResponse` behave in the current FastAPI?).
 
-Context7 provides current documentation and examples for third-party libraries and APIs. Its role is external knowledge, not repository navigation.
+Install via `npx ctx7 setup --codex`, or `codex plugin marketplace add upstash/context7 && codex plugin add context7@context7-marketplace`. `AGENTS.md` should say only *when* to use it, not how to bootstrap it.
 
-The key distinction is:
+**Use when** the work depends on third-party APIs, version-specific behavior, recently changed frameworks, SDK/provider config, or unfamiliar dependencies already in the repo. Not on every task.
 
-```text
-Serena   → "How does OUR code work?"
-Context7 → "How does THIS dependency/API work?"
-```
+**Version guard:** in Claude Code and Codex, `llm/context7_version_guard.py` (`PreToolUse`) denies `query-docs` when the project's `.venv`, `venv`, `uv.lock`, `poetry.lock`, `requirements*.txt` or `node_modules` pins the library and neither `libraryId` nor the query names that version.
 
-For example:
+**Decision rule:** about this repo → Serena; about an external library/API → Context7; stable, known language/runtime behavior → neither.
 
-```text
-Where is our FastAPI app initialized?
-    → Serena
+**Interactions:**
+- Ponytail asks "can an installed dependency do this?"; Context7 answers "yes, use library X's API", so the agent reuses it instead of building or adding something.
+- With Serena, e.g.: Serena finds where the project uses SQLAlchemy → Context7 gets the relevant API behavior → agent applies it to the existing pattern.
+- Headroom can compress/dedupe Context7 snippets on later requests, but that doesn't justify broad queries; retrieve narrowly first.
 
-How does StreamingResponse behave in the current FastAPI version?
-    → Context7
-```
-
-### Codex integration
-
-Current upstream options include:
-
-```bash
-npx ctx7 setup --codex
-```
-
-or Codex plugin installation:
-
-```bash
-codex plugin marketplace add upstash/context7
-codex plugin add context7@context7-marketplace
-```
-
-Use whichever installation path matches the host/bootstrap strategy. The project `AGENTS.md` should only describe **when to use Context7**, not require one particular bootstrap mechanism.
-
-### Preferred usage pattern
-
-Use Context7 when implementation depends on:
-
-- third-party library APIs;
-- version-specific behavior;
-- recently changed frameworks;
-- SDK/provider configuration;
-- unfamiliar dependencies already present in the repository.
-
-Do **not** query Context7 automatically on every coding task.
-
-In Claude Code, `llm/context7_version_guard.py` (a `PreToolUse` hook) denies a
-`query-docs` call when the project's `.venv`, `venv`, `uv.lock`, `poetry.lock`,
-`requirements*.txt` or `node_modules` pins the library and neither the
-`libraryId` nor the query names that version. Codex gets the same rule through
-`AGENTS.md` only.
-
-A useful decision rule is:
-
-```text
-Need information?
-
-About this repository?
-    → Serena
-
-About an external library/API?
-    → Context7
-
-Stable language/runtime behavior already known?
-    → use neither
-```
-
-### Interaction with Ponytail
-
-Ponytail asks whether an already-installed dependency already solves the problem.
-
-Context7 can answer that efficiently:
-
-```text
-Ponytail:
-"Can an installed dependency already do this?"
-
-        ↓
-
-Context7:
-"Yes — use library X's existing API."
-
-        ↓
-
-Codex:
-reuse the dependency instead of building a new abstraction
-```
-
-This can reduce both generated code and unnecessary dependency additions.
-
-### Interaction with Serena
-
-Serena and Context7 are complementary:
-
-```text
-                   Codex
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-          ▼                     ▼
-       Serena                Context7
-   internal project       external dependency
-      knowledge               knowledge
-```
-
-A typical task may legitimately need both:
-
-```text
-1. Serena finds where the project uses SQLAlchemy.
-2. Context7 retrieves the relevant SQLAlchemy API behavior.
-3. Codex applies that API to the existing project pattern.
-```
-
-### Interaction with Headroom
-
-Context7 introduces additional documentation snippets into context.
-
-Headroom can compress/deduplicate those snippets on subsequent model requests, but this does **not** justify querying Context7 broadly. Prefer targeted retrieval first, then let Headroom optimize what remains.
-
-### Impact
-
-Context7 primarily reduces:
-
-- stale API assumptions;
-- hallucinated library methods/options;
-- unnecessary web searches;
-- custom code written because Codex did not know an installed library already supports the requirement;
-- rework caused by version mismatch.
-
-### Main cost
-
-External documentation is itself context. Unnecessary Context7 calls can increase token consumption.
-
-Use it conditionally, not reflexively.
-
+**Reduces:** stale API assumptions, hallucinated methods/options, unnecessary web searches, custom code for features an installed library already has, version-mismatch rework. **Cost:** docs are context; use conditionally, not reflexively.
 
 ## 6. RTK
 
-### What it does
+CLI proxy/filter that shrinks shell output **before it becomes model context** (Headroom compresses after). Example: Codex wants `cargo test` → `PreToolUse` hook runs `rtk rewrite "cargo test"` → executes `rtk cargo test` → compact, task-relevant output.
 
-RTK is a CLI proxy/filter for common developer commands. It reduces the terminal output an agent has to ingest.
+Codex native hook: `rtk init --codex` (project: creates/updates `.codex/hooks.json` and `AGENTS.md`) or `rtk init --global --codex`. Restart Codex and trust project hooks. Per RTK docs the hook transparently rewrites supported `Bash` commands, so Codex shouldn't manually prefix `rtk` when the hook is healthy. Force raw output: `RTK_DISABLED=1 <command>` (e.g. `RTK_DISABLED=1 git diff`).
 
-Conceptually:
-
-```text
-Codex wants:
-    cargo test
-
-Codex PreToolUse hook:
-    rtk rewrite "cargo test"
-
-Executed command:
-    rtk cargo test
-
-Result:
-    compact, task-relevant output
-```
-
-This is different from Headroom: RTK reduces the **source shell output before it becomes model context**.
-
-### Codex integration
-
-RTK now documents a native Codex `PreToolUse` hook:
-
-```bash
-rtk init --codex
-```
-
-Project-scoped setup currently creates/updates:
-
-```text
-.codex/hooks.json
-AGENTS.md
-```
-
-Global setup:
-
-```bash
-rtk init --global --codex
-```
-
-After setup, restart Codex and trust project hooks when prompted.
-
-Current RTK documentation says the native Codex hook transparently rewrites supported `Bash` commands. Therefore, Codex generally should **not manually add `rtk` to every command** when the hook is healthy.
-
-To force raw execution for a particular command:
-
-```bash
-RTK_DISABLED=1 <command>
-```
-
-Example:
-
-```bash
-RTK_DISABLED=1 git diff
-```
-
-### Impact
-
-RTK's project documentation advertises up to roughly 90% fewer Bash-output bytes for supported workflows. That figure applies to tool output, **not necessarily total session tokens**.
-
-RTK is especially useful for:
-
-- test suites;
-- build output;
-- git output;
-- package-manager output;
-- repetitive command results.
-
-### Main risk
-
-Filtering can omit details needed for unusual debugging. The escape hatch is simple: rerun the specific command with RTK disabled or narrow the raw command manually.
-
----
+**Impact:** advertised up to ~90% fewer Bash-output bytes for supported workflows — tool output, not total session tokens. Best on tests, builds, git, package managers, repetitive output. **Risk:** filtering can hide details for unusual debugging; rerun that command raw or narrow it.
 
 ## 7. Headroom
 
-### What it does
-
-Headroom is a local context-compression layer. This repository runs it as a
-persistent, supervised proxy and routes every profile to it through config,
-while keeping Serena under the repository's direct configuration:
+Local context-compression layer. This repo runs it as a persistent, supervised proxy and routes every profile to it via config, keeping Serena under the repo's direct configuration:
 
 ```bash
 headroom install apply --preset persistent-service --scope provider \
-  --providers manual --target claude --target codex
+  --providers manual --target claude --target codex --env HEADROOM_DEDUPE=0
 ```
 
-`install apply` writes `env.ANTHROPIC_BASE_URL` into `~/.claude/settings.json`
-and a `model_provider = "headroom"` block into `~/.codex/config.toml`; the
-installer applies the same entries to `~/.claude-work` and `~/.codex-work`.
-Config-level routing is used instead of `headroom wrap` because IDE
-extensions (Claude Code and Codex in VS Code) launch their own binaries and
-never pass through a shell wrapper, and `wrap codex` rewrites `config.toml`
-itself, which would fight the persistent block.
+This installs the `com.headroom.default` launchd service on `127.0.0.1:8787` and writes `env.ANTHROPIC_BASE_URL` into `~/.claude/settings.json` and a `model_provider = "headroom"` block into `~/.codex/config.toml`. `install apply` covers only those two; `agent_config.py headroom-work` applies the same entries to `~/.claude-work` and `~/.codex-work` using Headroom's own installer modules. Config routing is used instead of `headroom wrap` because IDE extensions (Claude Code, Codex in VS Code) launch their own binaries without a shell wrapper, and `wrap codex` rewrites `config.toml` itself, fighting the persistent block. `HEADROOM_DEDUPE=0` because dedup edits replay from a 10-minute tracker, so idle gaps under the 1-hour prompt cache would still miss it.
 
-Headroom's current default context posture is cache-oriented: it tries to preserve stable previous turns for provider prefix-cache efficiency while compressing the live part of the context.
+The Codex block gets `requires_openai_auth = true` only when that profile is logged in with ChatGPT at install time. After a later ChatGPT login (e.g. `codex-work`, currently logged out), rerun the installer, or requests fail with 401 "Missing bearer".
 
-It operates on content such as:
+Default posture is cache-oriented: keep stable earlier turns intact for provider prefix caching, compress the live part. It acts on tool results, logs, files, structured data, retrieved chunks and history, with reversible compression/retrieval to recover originals.
 
-- tool results;
-- logs;
-- files;
-- structured data;
-- retrieved chunks;
-- conversation history.
+**MCP:** config routing registers no MCP servers; Serena is owned by the installer (§9). On Claude, the proxy itself injects and resolves `headroom_retrieve`, so no `headroom mcp serve` server is needed.
 
-Headroom also provides reversible compression/retrieval mechanisms so the original can be recovered when needed.
-
-### Serena relationship
-
-This is important: current Headroom `wrap` behavior registers **Serena as its default code-memory MCP** for semantic, symbol-level navigation.
-
-To disable that registration:
-
-```bash
-headroom wrap codex --code-memory none
-```
-
-Therefore, do **not** independently configure another Serena instance unless you deliberately disable Headroom's Serena management.
-
-### Impact
-
-Headroom primarily reduces:
-
-- accumulated input tokens reaching the model;
-- repeated/stale context;
-- large tool outputs that still remain after upstream filtering.
-
-The Headroom project currently advertises large token savings in its examples/documentation, but actual results depend heavily on content type. Repetitive logs/JSON generally compress much better than already-concise source code.
-
-### Main costs
-
-- local proxy process;
-- some compression latency;
-- debugging complexity if you forget traffic is passing through a proxy;
-- diminishing returns when Serena and RTK have already removed most waste.
+**Reduces:** accumulated input tokens, repeated/stale context, large tool outputs left after upstream filtering. Advertised savings depend on content: repetitive logs/JSON compress far better than concise source. **Costs:** local proxy process, compression latency, debugging confusion when you forget the proxy, diminishing returns after Serena and RTK.
 
 ### Transport-specific behavior
 
-Do not assume that a Headroom feature applies to every protocol handled by the
-proxy. Verify the actual request handler before enabling an optimization.
+Don't assume a Headroom feature applies to every protocol; check the actual request handler first. In installed `0.40.0` (re-checked in source on 2026-10-10):
 
-In the installed Headroom `0.37.0`:
+- Codex uses the OpenAI Responses API over WebSocket. `response.create` frames are compressed, but `HEADROOM_COLD_RECOMPACT` and `HEADROOM_CACHE_TTL_LEARN` aren't wired into that handler — enabling them for Codex is a placebo.
+- Claude Code uses Anthropic `/v1/messages`, whose handler does have cold-prefix recompaction and cache observation. Neither is enabled: TTL learning only records observations until an offline estimator builds a learned table, and the reused proxy is shared, not scoped to one Claude profile.
 
-- Codex uses the OpenAI Responses API over WebSocket. Normal compression of
-  Codex `response.create` frames is active, but
-  `HEADROOM_COLD_RECOMPACT` and `HEADROOM_CACHE_TTL_LEARN` are not wired into
-  that WebSocket handler. Enabling them solely for Codex WS traffic would be a
-  placebo.
-- Claude Code uses the Anthropic `/v1/messages` path. Cold-prefix recompaction
-  and cache-observation calls exist in that handler. This repository still
-  does not enable either variable: TTL learning only records observations
-  until an offline estimator produces a learned table, and the reused proxy is
-  shared rather than safely scoped to one Claude profile.
-
-Normal Headroom compression remains enabled for both agents. Context should
-still be minimized before it reaches Headroom.
+Normal compression stays on for both; still minimize context before it reaches Headroom.
 
 ### Same-thread compaction safeguards
 
-The goal is to reduce the first fresh-token spike after a long quota-reset
-pause without changing threads, handing off work, or sacrificing warm-cache
-efficiency prematurely.
+Goal: cut the first fresh-token spike after a long quota-reset pause without switching threads, handing off, or giving up warm cache early.
 
-| Agent | Reliable local signals | Warning mechanism | Result |
+| Agent | Signals | Mechanism | Result |
 |---|---|---|---|
-| Codex | Rollout `token_count`: input context and active primary/secondary quota windows | `UserPromptSubmit` hook; warns once while the condition remains active | Recommend `/compact`, then resume the same thread |
-| Claude Code | Native status-line JSON: context tokens/percentage, 5-hour and 7-day usage, prompt-cache warmth | Token-free persistent status line | Recommend `/compact`, then continue the same conversation |
+| Codex | Rollout `token_count`: input context, active primary/secondary quota windows | `UserPromptSubmit` hook; warns once while the condition holds | Recommend `/compact`, resume same thread |
+| Claude Code | Status-line JSON: context tokens/%, 5-hour and 7-day usage, cache warmth | Token-free persistent status line | Recommend `/compact`, continue same conversation |
 
-The current warning threshold is:
+Threshold: context ≥ 120,000 input tokens **and** either active quota window ≥ 85% used. Code: `llm/codex_compact_warning.py`, `llm/codex-hooks.json`, `llm/claude_compact_statusline.py`.
 
-```text
-context >= 120,000 input tokens
-AND
-either active quota window >= 85% used
-```
+Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is not set, since a lower fixed threshold isn't quota-aware and could rewrite a still-warm prefix early. No automatic external `/compact` for either agent: a visible recommendation beats injecting commands into an interactive session without a supported quota-aware trigger.
 
-The implementations are:
+### Idle compaction
 
-```text
-llm/codex_compact_warning.py
-llm/codex-hooks.json
-llm/claude_compact_statusline.py
-```
+`llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour; the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK, Serena and Headroom shrink tool output and can't touch this; Claude's auto-compaction starts only near 1M tokens.
 
-Claude Code's native auto-compaction remains enabled. The installer does not
-set `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`: a lower fixed threshold is not
-quota-aware and could rewrite a still-warm prefix earlier than necessary.
+Fix: write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
-Automatic external `/compact` invocation is intentionally not attempted for
-either agent. A visible recommendation is safer than injecting a command into
-an interactive session when the CLI does not provide a reliable supported
-quota-aware trigger.
+It shares the 120K floor with the quota safeguard and splits the work: idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 3-hour gap, where the idle hint already suggests `/compact`.
 
-### Token-profiler verification
+#### One idle period (Claude, context ≥ 120K)
 
-`token-profiler` supports all four profiles:
+1. **Reply arrives.** The `Stop` hook starts `arm` in the background (`asyncRewake: true`, `timeout: 4000`). It sleeps until 54 min after the last call (0.9 of cache lifetime, the native compactor's fraction); a new message or newer arm token cancels it.
+2. **At 54 min** `arm` exits 2, waking the session with a checkpoint request plus a script-built digest. The model writes the checkpoint without tools; the turn reads from cache and renews it for an hour, keeping the full session cheap until ~1h54m after last activity.
+3. **Next `Stop`** stores the reply's text blocks (never thinking) as the checkpoint, plus a cleaned transcript.
+4. **Return after expiry.** The `UserPromptSubmit` guard blocks the first prompt once, shows rebuild size and checkpoint time, and repeats the prompt. The user either opens a new chat (or `/clear`) and runs `/pitstop`, or resends to keep the full session.
+5. **`/pitstop`** (`llm/pitstop.md`, installed to each profile's `commands/`) runs `idle_compact.py resume`: the newest checkpoint for the current project whose chat had no prompt since, in fixed section order, then the digest, repo drift since the checkpoint (HEAD moves, uncommitted files), and a resume protocol: state goal and first next step, ask to confirm, treat Decisions and Dead ends as settled, fetch missing detail with `turn` or `search`, never read `transcript.md` whole. Nothing loads unless asked; `/clear` keeps stock behavior.
 
-```bash
-token-profiler codex
-token-profiler codex-work
-token-profiler claude
-token-profiler claude-work
-```
+Codex only gets a non-blocking `systemMessage` suggesting `/compact` when context ≥ 120K after a gap ≥ 3 hours: its hooks can't run in the background, and its cache mostly survives long gaps (82% of input still cached after gaps over 3 hours).
 
-For Codex and Claude, model-call windows split after gaps longer than 30
-minutes and report:
+#### Checkpoint content
 
-- context size on the first resumed call;
-- first-call fresh input and its share of the window's fresh input;
-- later-call fresh total and average;
-- cold-start, idle-resume, and post-compaction attribution where the transcript
-  exposes enough evidence.
+The script extracts what can be listed exactly; the model writes only what needs judgment. The digest lands at the end of context, giving the model a whole-session index right before it writes.
 
-Claude usage records additionally provide exact cache-read and cache-creation
-token counts. The profiler reads local session files and makes no model or API
-requests.
+| Part | By | Holds |
+|---|---|---|
+| Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps | Model | Goal in the user's words; decisions with reason and rejected alternative; abandoned approaches; a first next step concrete enough to start |
+| Pointers | Model | Turn numbers with detail too long to carry (traces, pasted specs) |
+| Digest | Script | Non-routine requests with turn numbers, edited files with counts, repo branch/HEAD/uncommitted/commits, last error, open todos; capped ~3K tokens |
 
----
+Test for every item: would a fresh session act wrongly or waste time without it? Keep exact names of files, functions, commands, errors; drop routine operations, tool output, reasoning. A later checkpoint in the same session updates the earlier one (kept as `checkpoint-<n>.md`). Length 300–1,200 words.
 
-## 8. How the five tools reinforce each other
-
-A useful way to think about the stack is **waste prevention as early as possible**:
+#### Storage and lookup
 
 ```text
-Ponytail
-    ↓
-avoid unnecessary implementation work
-
-Serena
-    ↓
-avoid unnecessary repository reads/searches
-
-Context7
-    ↓
-avoid stale or guessed dependency/API knowledge
-
-RTK
-    ↓
-avoid unnecessary shell-output volume
-
-Headroom
-    ↓
-compress remaining context before the model sees it
+~/.local/state/idle-compact/        mode 0700
+  sessions/<id>.{arm,fired,stored,guard}       one writer each; 7 days
+  checkpoints/<project>/<date>-<id>/            one folder per session; 30 days
+    checkpoint.md    metadata header + model sections
+    digest.json      script-extracted facts
+    transcript.md    one `## T<n> · kind · time` heading per turn; tool output
+                     cut to 2K chars, thinking dropped, secrets redacted
 ```
 
-Earlier reductions are usually preferable because they prevent downstream work entirely.
+Plain files, one folder per session: no shared writer, no locks, atomic rename on every write. `idle_compact.py search "<words>"` (`--all`, `--session`, `--since <days>`) ranks checkpoints and transcript turns by matched words, returning ≤ 5 snippets; `idle_compact.py turn <session> T<n>` returns one turn with its neighbors' headings. Both cap output at 2,000 chars. SQLite, a local search engine, Postgres and vector stores were rejected: data never crosses chats and output is capped anyway.
 
-### Example: bug fix
+#### Rejected alternatives
 
-Task:
+| Option | Why not |
+|---|---|
+| Native idle compactor (`tengu_sunny_locket`) | Server flag only; `arm` steps aside when its mode is `compact` |
+| Keep-warm pings | Context never shrinks; each hour away still costs ~0.1× context |
+| Inject `/compact` into the open session | No interface in the VS Code extension |
+| Headless `claude -p --resume <id> /compact` | The open panel keeps appending its in-memory history |
+| Compact inside Headroom | The model would see a summary the client never shows |
 
-```text
-Deleted users still appear in /users.
-```
+#### Settings and safety
 
-Without the stack, an agent may:
+- `IDLE_COMPACT=off` disables the hooks. `IDLE_COMPACT_TEST_SECONDS` replaces the 54-min wait and `IDLE_COMPACT_TEST_MIN_TOKENS` the 120K floor, for live tests only.
+- Any parse failure exits 0; a killed sleeper changes nothing since state is written only at fire time.
+- Common secrets (API keys, bearer tokens, private keys, password assignments) are redacted before writing.
+- The old session stays resumable, so a checkpoint that misses a detail loses nothing.
 
-1. grep broadly;
-2. read multiple complete files;
-3. patch only the route mentioned by the ticket;
-4. run a noisy full test suite;
-5. send large logs and diffs through several model turns.
+#### Open questions
 
-With the stack:
+- Does Codex show a non-blocking `systemMessage` from `UserPromptSubmit`?
+- What do Claude Code's `precomputeCompactionEnabled` and `awaySummaryEnabled` do? They may cover part of this natively.
+- What does the checkpoint turn cost at `xhigh` effort?
+- Is 3 hours the right Codex threshold?
+- Does the new chat follow the resume protocol's confirm step?
+- Does Headroom keep the cache warm across 10–60 min gaps? On 0.39.1 the checkpoint turn read 25K and rewrote 480K; re-measure on 0.40.0 (#3934).
 
-1. **Ponytail** says: find the root cause and fix it once, in the shared path.
-2. **Serena** finds the endpoint, shared service/repository symbol, and all callers.
-3. If the fix depends on third-party behavior, **Context7** retrieves the relevant current API/docs.
-4. Codex reads only the required symbol bodies and external documentation.
-5. Codex makes the smallest root-cause diff.
-6. **RTK** compacts test/git output.
-7. **Headroom** compresses the remaining accumulated context for the next model call.
-8. **Ponytail review** can check the diff for accidental abstractions or unnecessary files.
+### Token-profiler
 
----
+`token-profiler codex | codex-work | claude | claude-work`. Model-call windows split after gaps > 30 min and report: context size on the first resumed call; first-call fresh input and its share of the window's fresh input; later-call fresh total and average; cold-start, idle-resume and post-compaction attribution where the transcript shows enough. Claude records add exact cache-read and cache-creation counts. Reads local session files only; no model/API requests.
 
-## 9. Configuration ownership: avoid duplicate machinery
+## 8. How the tools reinforce each other
 
-### Serena: choose exactly one owner
+Prevent waste as early as possible — earlier cuts remove downstream work entirely:
 
-#### Option A — Headroom owns Serena
+Ponytail (unneeded implementation) → Serena (unneeded repo reads) → Context7 (stale/guessed API knowledge) → RTK (shell-output volume) → Headroom (compress what remains).
 
-Use:
+**Example — "Deleted users still appear in /users."** Without the stack: broad grep, whole-file reads, patch only the named route, noisy full test run, large logs/diffs over several turns. With it:
 
-```bash
-headroom wrap codex
-```
+1. **Ponytail**: find the root cause, fix it once in the shared path.
+2. **Serena**: find the endpoint, shared service/repository symbol, and all callers.
+3. **Context7**, only if the fix depends on third-party behavior.
+4. Read only required bodies and docs; make the smallest root-cause diff.
+5. **RTK** compacts test/git output; **Headroom** compresses the rest for the next call.
+6. **Ponytail review** checks the diff for accidental abstractions or files.
 
-Do not separately register another Serena MCP server.
+## 9. Configuration ownership
 
-This is the simplest Codex CLI path if Headroom is always your launcher.
+Each piece has exactly one owner:
 
-#### Option B — Serena owns itself
+| Piece | Owner | Mechanism |
+|---|---|---|
+| Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
+| Headroom routing + service | `headroom install apply` + `agent_config.py headroom-work` | Config entries pointing at the shared proxy (§7) |
 
-Configure Serena directly:
+`headroom wrap` is not used: it would register its own Serena code-memory MCP (unless `--code-memory none`) and rewrite Codex's `config.toml`. If a profile still shows a `headroom` MCP server (`headroom mcp serve`) from an earlier `wrap`, remove it with `claude mcp remove --scope user headroom`.
 
-```bash
-serena setup codex
-```
-
-Then launch Codex through Headroom without Headroom-managed code memory:
-
-```bash
-headroom wrap codex --code-memory none
-```
-
-This is useful when you want Serena configured independently of Headroom.
-
-### Do not run two Serena servers for the same project
-
-Two Serena instances can cause:
-
-- duplicate tools;
-- duplicate indexing/LSP processes;
-- more memory;
-- confusing project activation/state;
-- uncertain tool selection by the agent.
-
----
+Two Serena servers on one project mean duplicate tools, duplicate indexing/LSP processes, more memory, confused activation/state, and uncertain tool choice.
 
 ## 10. Hook coexistence
 
-RTK, Serena, and Ponytail can all use Codex lifecycle hooks.
+All three can use Codex lifecycle hooks with distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → activation/reminders/cleanup; Ponytail → session activation, mode tracking, subagent rules. `rtk init --codex` may manage `.codex/hooks.json` and an RTK section in `AGENTS.md`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are trusted and active.
 
-Their responsibilities are distinct:
+## 11. `AGENTS.md`
 
-```text
-RTK       → PreToolUse Bash command rewriting
-Serena    → activation/reminders/cleanup
-Ponytail  → session activation, mode tracking, subagent rules
-```
+Describe behavior, not install manuals: prefer Serena for semantic exploration; Context7 conditionally for third-party APIs; let RTK's hook handle supported commands; apply Ponytail's minimum-correct discipline; treat Headroom as transparent and never rely on compression for correctness; minimize context upstream instead of producing noise "because it will be compressed". `llm/__AGENTS.md` stays short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
 
-Do not replace an existing hook file blindly. Merge hook entries when manual configuration is necessary.
+## 12. Task workflow
 
-In particular:
-
-- `rtk init --codex` may manage `.codex/hooks.json` and an RTK section in `AGENTS.md`;
-- Serena documents user-level Codex hooks in `~/.codex/hooks.json`;
-- Ponytail's Codex plugin carries its own lifecycle-hook definition.
-
-After installation, inspect Codex's hook view and verify all expected hooks are trusted and active.
-
----
-
-## 11. `AGENTS.md` relationship
-
-The project-root `AGENTS.md` should describe **behavior**, not reproduce installation manuals.
-
-It should tell Codex:
-
-- prefer Serena for semantic code exploration;
-- use Context7 conditionally for third-party library/API knowledge;
-- let RTK's hook handle supported shell commands;
-- apply Ponytail's minimum-correct-solution discipline;
-- treat Headroom as transparent and never depend on compression for correctness;
-- minimize context before Headroom, rather than generating noise because “it will be compressed anyway.”
-
-This repository's companion `llm/__AGENTS.md` is intentionally short because every always-on instruction consumes context.
-
-If an installer adds a managed RTK block to `AGENTS.md`, preserve it or reconcile it with the equivalent rules rather than deleting it blindly.
-
----
-
-## 12. Recommended task workflow
-
-```text
 1. Understand the request.
-2. Activate/check Serena when semantic code work is needed.
-3. Locate symbols and references semantically.
-4. If implementation depends on third-party behavior, query Context7 narrowly for the relevant library/API.
-5. Apply Ponytail's ladder to choose the smallest correct solution.
-6. Edit the fewest files necessary.
-7. Run the narrowest useful validation.
-8. Let RTK compact supported terminal output.
-9. Inspect the final diff.
-10. Use @ponytail-review for non-trivial changes when available.
-11. Let Headroom optimize transport/context automatically.
-```
-
-The ordering matters: do not use Headroom as an excuse for broad reads or huge commands. Prevent waste upstream first.
-
----
+2. Activate/check Serena when semantic code work is needed; locate symbols and references.
+3. Query Context7 narrowly if third-party behavior matters.
+4. Apply Ponytail's ladder; edit the fewest files.
+5. Run the narrowest useful validation (RTK compacts output).
+6. Inspect the final diff; `@ponytail-review` for non-trivial changes when available.
+7. Headroom optimizes transport automatically — never an excuse for broad reads or huge commands.
 
 ## 13. When to bypass a layer
 
 | Situation | Action |
 |---|---|
-| Serena cannot understand a file/language | Use Codex filesystem/search tools narrowly |
-| External dependency docs are unnecessary/stable | Skip Context7 |
-| Context7 lacks the needed library/version | Use authoritative upstream docs or inspect the installed package narrowly |
-| Exact raw command output is required | `RTK_DISABLED=1 <command>` |
-| Suspect compression hid a necessary detail | Retrieve the original if Headroom retrieval is available, or rerun a narrow raw read/command |
-| User explicitly requests an abstraction/dependency/design | Ponytail should follow the explicit requirement |
-| Security, trust-boundary validation, accessibility, data-loss protection | Never simplify these away |
-| Tool unavailable/broken | Continue with built-in Codex capabilities; correctness must not depend on the optimization stack |
+| Serena can't handle a file/language | Built-in filesystem/search tools, narrowly |
+| Dependency docs unnecessary/stable | Skip Context7 |
+| Context7 lacks the library/version | Authoritative upstream docs, or inspect the installed package narrowly |
+| Exact raw output required | `RTK_DISABLED=1 <command>` |
+| Compression may have hidden a detail | Headroom retrieval if available, or a narrow raw rerun |
+| User explicitly requests an abstraction/dependency/design | Ponytail follows the requirement |
+| Security, trust-boundary validation, accessibility, data-loss protection | Never simplified away |
+| Tool unavailable/broken | Continue with built-ins; correctness never depends on the stack |
 
----
-
-## 14. Expected impact by dimension
+## 14. Expected impact
 
 | Dimension | Ponytail | Serena | Context7 | RTK | Headroom |
 |---|---:|---:|---:|---:|---:|
@@ -813,82 +279,15 @@ The ordering matters: do not use Headroom as an excuse for broad reads or huge c
 | Conversation/context tokens | Indirect | Medium | Medium | Medium | High |
 | Repository understanding | Medium | High | None | None | Low |
 | Dependency/API accuracy | Medium | Low | High | None | Low |
-| Runtime overhead | Very low | Index/LSP cost | Retrieval/network cost | Very low | Proxy/compression cost |
+| Runtime overhead | Very low | Index/LSP | Retrieval/network | Very low | Proxy/compression |
 | Main failure mode | Underbuilding | LSP/tool mismatch | Unnecessary/stale retrieval | Hidden raw detail | Over-compression / proxy debugging |
 
-The tools are complementary, but their gains are **not additive**. For example, if RTK reduces a 10,000-line test log to a small failure summary, Headroom has much less left to compress.
-
----
+Not additive: if RTK reduces a 10,000-line test log to a failure summary, Headroom has little left to compress.
 
 ## 15. What to measure
 
-If the goal is to prove whether this stack is worthwhile, track per task:
+Per task: model input/output tokens; Headroom savings/ratio; raw vs RTK shell bytes; full-file reads; Serena symbolic retrievals; Context7 lookups and whether they changed decisions; diff LOC; files changed; dependencies added; latency; test pass/fail; reruns caused by missing context.
 
-- total model input/output tokens;
-- Headroom tokens saved/compression ratio;
-- raw vs RTK shell-output bytes;
-- number of full-file reads;
-- number of Serena symbolic retrievals;
-- number of Context7 lookups and whether they changed implementation decisions;
-- generated diff LOC;
-- number of files changed;
-- dependencies added;
-- task latency;
-- test pass/fail;
-- number of reruns caused by missing context.
+Same-thread quota-reset experiment, one row per pause: context just before and after `/compact`; pause duration; first resumed call's total, cached and fresh input; fresh input across the first ten resumed calls; Headroom savings; provider-cache warmth. Compare against a similar uncompacted cycle; don't sum Headroom, RTK or cache percentages (scopes overlap).
 
-For a same-thread quota-reset experiment, capture one row before and after each
-pause:
-
-- context size immediately before `/compact`;
-- context size immediately after `/compact`;
-- pause duration;
-- first resumed call: total input, cached input, and fresh input;
-- fresh input across the first ten resumed calls;
-- Headroom savings;
-- provider-cache warmth/coldness.
-
-Compare a compacted cycle with an otherwise similar uncompacted cycle. Do not
-sum Headroom, RTK, or cache percentages; their scopes overlap.
-
-The important metric is not maximum compression. It is **correct work per token and per unit time**.
-
----
-
-## 16. Upstream references
-
-### Ponytail
-
-- https://github.com/DietrichGebert/ponytail
-- https://github.com/DietrichGebert/ponytail/blob/main/AGENTS.md
-- https://github.com/DietrichGebert/ponytail/blob/main/.codex-plugin/plugin.json
-- https://github.com/DietrichGebert/ponytail/blob/main/hooks/claude-codex-hooks.json
-
-### Serena
-
-- https://github.com/oraios/serena
-- https://github.com/oraios/serena/blob/main/docs/02-usage/030_clients.md
-- https://github.com/oraios/serena/blob/main/docs/02-usage/050_configuration.md
-- https://github.com/oraios/serena/blob/main/src/serena/tools/symbol_tools.py
-
-### Context7
-
-- https://github.com/upstash/context7
-- https://github.com/upstash/context7/blob/master/docs/clients/codex.mdx
-
-### RTK
-
-- https://github.com/rtk-ai/rtk
-- https://github.com/rtk-ai/rtk/blob/develop/docs/guide/getting-started/supported-agents.md
-
-### Headroom
-
-- https://github.com/headroomlabs-ai/headroom
-- https://github.com/headroomlabs-ai/headroom/blob/main/docs/content/docs/proxy.mdx
-- https://github.com/headroomlabs-ai/headroom/blob/main/docs/content/docs/mcp.mdx
-
-### Claude Code
-
-- https://code.claude.com/docs/en/statusline
-- https://code.claude.com/docs/en/commands
-- https://code.claude.com/docs/en/env-vars
+The metric that matters is **correct work per token and per unit time**, not maximum compression.

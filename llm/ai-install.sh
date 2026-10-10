@@ -13,25 +13,14 @@ __codex_answer() {
   out="$dir/answer"
   err="$dir/error"
 
-  if (( $# > 0 )); then
-    codex --ask-for-approval never exec \
-      --model gpt-6-sol \
-      -c model_reasoning_effort=\"medium\" \
-      --sandbox read-only \
-      --skip-git-repo-check \
-      --output-last-message "$out" \
-      "$*" \
-      >/dev/null 2>"$err" && rc=0 || rc=$?
-  else
-    codex --ask-for-approval never exec \
-      --model gpt-6-sol \
-      -c model_reasoning_effort=\"medium\" \
-      --sandbox read-only \
-      --skip-git-repo-check \
-      --output-last-message "$out" \
-      - \
-      >/dev/null 2>"$err" && rc=0 || rc=$?
-  fi
+  codex --ask-for-approval never exec \
+    --model gpt-6-sol \
+    -c model_reasoning_effort=\"medium\" \
+    --sandbox read-only \
+    --skip-git-repo-check \
+    --output-last-message "$out" \
+    "${*:--}" \
+    >/dev/null 2>"$err" && rc=0 || rc=$?
 
   [[ ! -s "$out" ]] || cat "$out"
   if (( rc != 0 )) && [[ -s "$err" ]]; then
@@ -47,16 +36,11 @@ alias '??'='__codex_answer'
 # Headroom routing lives in each profile's config (see install_headroom), so
 # codex, claude and the VS Code extensions all reach the persistent proxy.
 code() {
-  CODEX_HOME="${CODEX_HOME:-$HOME/.codex}" command code "$@"
+  env -u CLAUDE_CONFIG_DIR CODEX_HOME="$HOME/.codex" code "$@"
 }
 
 alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
 alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
-
-claude-code-work() {
-  CLAUDE_CONFIG_DIR="$HOME/.claude-work" \
-    code --user-data-dir "$HOME/.vscode-claude-work" "$@"
-}
 
 # Sourcing configures the shell; executing continues with installation.
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
@@ -68,6 +52,10 @@ export PATH="$HOME/.local/bin:$PATH"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 PYTHON_VERSION=3.13
+
+agent_config() {
+  python "$SCRIPT_DIR/agent_config.py" "$@"
+}
 
 # The default Claude profile must run without CLAUDE_CONFIG_DIR: setting it,
 # even to ~/.claude, moves user MCPs to ~/.claude/.claude.json, which the
@@ -119,13 +107,7 @@ install_vscode_commands() {
     ln -s "$vscode_cli" "$HOME/.local/bin/code"
   fi
 
-  cat > "$HOME/.local/bin/code-work" <<'EOF'
-#!/usr/bin/env bash
-export CODEX_HOME="$HOME/.codex-work"
-export CLAUDE_CONFIG_DIR="$HOME/.claude-work"
-exec code --user-data-dir "$HOME/.vscode-work" "$@"
-EOF
-  chmod +x "$HOME/.local/bin/code-work"
+  install -m 0755 "$SCRIPT_DIR/code-work" "$HOME/.local/bin/code-work"
 }
 
 configure_rtk() {
@@ -137,35 +119,7 @@ configure_rtk() {
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     RTK_TELEMETRY_DISABLED=1 CODEX_HOME="$profile" \
       "$rtk_bin" init -g --codex --no-trust-filters
-    python - "$profile/config.toml" "$shell_path" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-config = Path(sys.argv[1])
-path = sys.argv[2]
-text = config.read_text(encoding="utf-8") if config.exists() else ""
-begin = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
-end = "# END AI TOOLING SHELL ENVIRONMENT"
-text = re.sub(
-    rf"\n?{re.escape(begin)}.*?{re.escape(end)}\n?",
-    "\n",
-    text,
-    flags=re.DOTALL,
-)
-if re.search(r"(?m)^\s*(?:\[shell_environment_policy(?:\.|\])|shell_environment_policy\.)", text):
-    raise SystemExit(
-        f"{config} already defines shell_environment_policy; add {path!r} to its PATH"
-    )
-block = (
-    f"{begin}\n"
-    "[shell_environment_policy]\n"
-    f"set = {{ PATH = {json.dumps(path)} }}\n"
-    f"{end}\n"
-)
-config.write_text(text.rstrip() + "\n\n" + block, encoding="utf-8")
-PY
+    agent_config codex-shell-path "$profile/config.toml" "$shell_path"
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     RTK_TELEMETRY_DISABLED=1 with_claude_profile "$profile" \
@@ -249,24 +203,12 @@ install_headroom() {
     --python "$PYTHON_VERSION" --upgrade 'headroom-ai[proxy,code]'
   # A supervised proxy plus config-level routing reaches every launcher,
   # including IDE extensions that never run a shell wrapper.
+  # Dedup edits are replayed from a 10-minute tracker, so idle gaps under the 1h prompt cache still miss.
   headroom install apply --preset persistent-service --scope provider \
-    --providers manual --target claude --target codex
+    --providers manual --target claude --target codex --env HEADROOM_DEDUPE=0
   # install apply covers only ~/.claude and ~/.codex; this routes the work profiles.
-  "$("$uv_bin" tool dir)/headroom-ai/bin/python" - \
-    "$HOME/.claude-work" "$HOME/.codex-work" <<'PY'
-import sys
-from pathlib import Path
-
-import headroom.providers.claude.install as claude
-import headroom.providers.codex.install as codex
-from headroom.install.state import load_manifest
-
-manifest = load_manifest("default")
-claude.claude_settings_path = lambda: Path(sys.argv[1]) / "settings.json"
-codex.codex_config_path = lambda: Path(sys.argv[2]) / "config.toml"
-claude.apply_provider_scope(manifest)
-codex.apply_provider_scope(manifest)
-PY
+  "$("$uv_bin" tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" \
+    headroom-work "$HOME/.claude-work" "$HOME/.codex-work"
 }
 
 install_global_agents() {
@@ -283,88 +225,26 @@ install_global_agents() {
 }
 
 install_codex_hooks() {
-  local config_dir="$HOME/.config/dotfiles" hooks profile
+  local config_dir="$HOME/.config/dotfiles" profile
 
   mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/codex_compact_warning.py" \
-    "$config_dir/codex_compact_warning.py"
+  install -m 0755 "$SCRIPT_DIR/codex_compact_warning.py" "$SCRIPT_DIR/context7_version_guard.py" \
+    "$config_dir/"
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
-    hooks="$profile/hooks.json"
-    python - "$hooks" "$SCRIPT_DIR/codex-hooks.json" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-target = Path(sys.argv[1])
-required = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))["hooks"]
-data = json.loads(target.read_text(encoding="utf-8")) if target.exists() else {}
-events = data.setdefault("hooks", {})
-
-for event, groups in list(events.items()):
-    for group in groups:
-        group["hooks"] = [
-            hook
-            for hook in group.get("hooks", [])
-            if not re.search(
-                r"(?:^|/)serena-hooks\s+reset(?:\s|$)",
-                hook.get("command") or "",
-            )
-        ]
-    events[event] = [group for group in groups if group.get("hooks")]
-    if not events[event]:
-        del events[event]
-
-for event, groups in required.items():
-    installed_groups = events.setdefault(event, [])
-    for required_group in groups:
-        matcher = required_group.get("matcher")
-        installed_group = next(
-            (group for group in installed_groups if group.get("matcher") == matcher),
-            None,
-        )
-        if installed_group is None:
-            installed_group = {"hooks": []}
-            if matcher is not None:
-                installed_group["matcher"] = matcher
-            installed_groups.append(installed_group)
-        for hook in required_group["hooks"]:
-            if hook not in installed_group["hooks"]:
-                installed_group["hooks"].append(hook)
-
-target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-PY
+    agent_config codex-hooks "$profile/hooks.json" "$SCRIPT_DIR/codex-hooks.json"
   done
 }
 
 install_claude_compact_statusline() {
-  local config_dir="$HOME/.config/dotfiles" profile settings
+  local config_dir="$HOME/.config/dotfiles" profile
 
   mkdir -p "$config_dir"
   install -m 0755 "$SCRIPT_DIR/claude_compact_statusline.py" \
     "$config_dir/claude_compact_statusline.py"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
-    settings="$profile/settings.json"
-    python - "$settings" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-owned = {
-    "type": "command",
-    "command": 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"',
-}
-current = data.get("statusLine")
-if current not in (None, owned):
-    print(f"Warning: preserving existing {path} statusLine.", file=sys.stderr)
-else:
-    data["statusLine"] = owned
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-PY
+    agent_config statusline "$profile/settings.json"
   done
 }
 
@@ -376,28 +256,19 @@ install_claude_context7_guard() {
     "$config_dir/context7_version_guard.py"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
-    python - "$profile/settings.json" <<'PY'
-import json
-import sys
-from pathlib import Path
+    agent_config context7-guard "$profile/settings.json"
+  done
+}
 
-path = Path(sys.argv[1])
-data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-command = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
-entries = [
-    entry
-    for entry in data.setdefault("hooks", {}).get("PreToolUse", [])
-    if all(hook.get("command") != command for hook in entry.get("hooks", []))
-]
-entries.append(
-    {
-        "matcher": "mcp__context7__query-docs|mcp__claude_ai_Context7__query-docs",
-        "hooks": [{"type": "command", "command": command, "timeout": 5}],
-    }
-)
-data["hooks"]["PreToolUse"] = entries
-path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-PY
+install_idle_compact() {
+  local config_dir="$HOME/.config/dotfiles" profile
+
+  mkdir -p "$config_dir"
+  install -m 0755 "$SCRIPT_DIR/idle_compact.py" "$config_dir/idle_compact.py"
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    mkdir -p "$profile/commands"
+    install -m 0644 "$SCRIPT_DIR/pitstop.md" "$profile/commands/pitstop.md"
+    agent_config idle-compact "$profile/settings.json"
   done
 }
 
@@ -406,17 +277,18 @@ disable_claude_attribution() {
 
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
-    python - "$profile/settings.json" <<'PY'
-import json
-import sys
-from pathlib import Path
+    agent_config attribution "$profile/settings.json"
+  done
+}
 
-path = Path(sys.argv[1])
-data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-data["attribution"] = {"commit": "", "pr": ""}
-data.pop("includeCoAuthoredBy", None)
-path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-PY
+disable_claude_connectors() {
+  local claude_bin listing profile
+
+  claude_bin="$(type -P claude)"
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    mkdir -p "$profile"
+    listing="$(with_claude_profile "$profile" "$claude_bin" mcp list 2>/dev/null || true)"
+    agent_config connectors "$profile/settings.json" "$listing"
   done
 }
 
@@ -426,12 +298,7 @@ install_shell_config() {
   mkdir -p "$config_dir"
   install -m 0644 "$SCRIPT_DIR/ai-install.sh" "$config_dir/ai-install.sh"
   if ! grep -q '^# BEGIN AI TOOLING$' "$HOME/.bashrc" 2>/dev/null; then
-    cat >> "$HOME/.bashrc" <<'EOF'
-
-# BEGIN AI TOOLING
-source "$HOME/.config/dotfiles/ai-install.sh"
-# END AI TOOLING
-EOF
+    cat "$SCRIPT_DIR/bashrc-snippet.sh" >> "$HOME/.bashrc"
   fi
 }
 
@@ -441,7 +308,7 @@ echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
 install_global_agents
-echo "==> Installing Codex Serena and compact-warning hooks..."
+echo "==> Installing Codex Serena, Context7 guard and compact-warning hooks..."
 install_codex_hooks
 echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
@@ -449,8 +316,12 @@ echo "==> Installing Claude compact-warning status line..."
 install_claude_compact_statusline
 echo "==> Installing Claude Context7 version guard..."
 install_claude_context7_guard
+echo "==> Installing idle compaction hooks..."
+install_idle_compact
 echo "==> Disabling Claude commit and PR attribution..."
 disable_claude_attribution
+echo "==> Disabling unused claude.ai connectors in Claude profiles..."
+disable_claude_connectors
 echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."

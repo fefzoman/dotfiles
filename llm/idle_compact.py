@@ -1,0 +1,610 @@
+#!/usr/bin/env python3
+"""Checkpoint idle Claude Code sessions while the prompt cache is warm; guard cold resumes."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import uuid
+from collections import Counter
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+MIN_TOKENS = 120_000
+FIRE_FRACTION = 0.9
+CODEX_GAP = 3 * 3600
+SESSION_DAYS = 7
+CHECKPOINT_DAYS = 30
+OUTPUT_CAP = 2000
+DIGEST_CAP = 12_000
+TAIL_BYTES = 2_000_000
+HEADER = "## Idle checkpoint"
+IDE_NOTE = re.compile(r"(?s)<(ide_[a-z_]+|system-reminder)>.*?</\1>")
+SECTIONS = ("Goal", "Constraints", "Decisions", "Dead ends", "Done", "Current state", "Next steps", "Pointers")
+EDIT_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
+ROUTINE = re.compile(
+    r"(yes|no|ok(ay)?|continue|go( on| ahead)?|proceed|thanks?( you)?|lgtm|do it|next|"
+    r"commit( and push)?|push|run (the )?tests?)[.!]*",
+    re.I,
+)
+SECRET = re.compile(
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----"
+    r"|\b(?:sk-(?:ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abpors]-[A-Za-z0-9-]{10,}"
+    r"|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,})"
+    r"|(?i:bearer)\s+[A-Za-z0-9._~+/=-]{20,}"
+    r"|(?i:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*\S{8,}",
+    re.S,
+)
+REQUEST = (
+    "Idle checkpoint: the user is away and the prompt cache expires in about {left}. Do not call "
+    "tools. Write a checkpoint that lets a fresh session, with no access to this conversation, continue the "
+    "work. Keep an item only if that session would act wrongly or waste time without it. Skip routine "
+    "operations (commit, push, lint, test reruns), minor fixes that left no decision, tool output, your own "
+    "reasoning, and anything the digest below already lists unless you add why. Name exact files, functions, "
+    "commands and errors. If an earlier Idle checkpoint is in this conversation, update it instead of "
+    f"starting over. Under `{HEADER}`, use exactly these headings: Goal, Done, Decisions, Dead ends, Current "
+    "state, Constraints, Next steps, Pointers (turn numbers from the digest). Write 300-1,200 words, scaled "
+    'to the work. End with: "After {until}, open a new chat and run /pitstop to continue from this checkpoint."'
+)
+PROTOCOL = (
+    "Resume protocol: before any tool call, state the goal and the first next step in two lines and ask the "
+    "user to confirm. Treat Decisions and Dead ends as settled unless the user reopens them. For a missing "
+    "detail run `python3 ~/.config/dotfiles/idle_compact.py turn {session} T<n>` on the turn a pointer names, "
+    '`python3 ~/.config/dotfiles/idle_compact.py search "<words>"` for anything else; never read or grep '
+    "transcript.md whole."
+)
+
+
+def state_dir() -> Path:
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "idle-compact"
+
+
+def marker(session: str, kind: str) -> Path:
+    return state_dir() / "sessions" / f"{session}.{kind}"
+
+
+def lifetime() -> float:
+    test = os.environ.get("IDLE_COMPACT_TEST_SECONDS")
+    return float(test) / FIRE_FRACTION if test else 3600.0
+
+
+def min_tokens() -> int:
+    return int(os.environ.get("IDLE_COMPACT_TEST_MIN_TOKENS") or MIN_TOKENS)
+
+
+def write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_relative_to(state_dir()):
+        os.chmod(state_dir(), 0o700)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def read(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def minutes(seconds: float) -> str:
+    count = max(1, round(seconds / 60))
+    return f"{count} minute{'s' if count != 1 else ''}"
+
+
+def clock(stamp: float) -> str:
+    return datetime.fromtimestamp(stamp).strftime("%H:%M")
+
+
+def git(cwd: str, *args: str) -> str:
+    try:
+        return subprocess.run(
+            ["git", "-C", cwd, *args], capture_output=True, text=True, timeout=5, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def project_of(cwd: str) -> str:
+    root = Path(git(cwd, "rev-parse", "--show-toplevel") or cwd)
+    return f"{re.sub(r'[^A-Za-z0-9._-]+', '-', root.name) or 'root'}-{hashlib.sha1(str(root).encode()).hexdigest()[:6]}"
+
+
+def redact(text: str) -> str:
+    return SECRET.sub("[REDACTED]", text)
+
+
+# Claude transcripts
+
+
+def records(path: Path, tail: int | None = None) -> list[dict[str, Any]]:
+    try:
+        with path.open("rb") as stream:
+            size = stream.seek(0, os.SEEK_END)
+            stream.seek(max(0, size - tail) if tail else 0)
+            if tail and size > tail:
+                stream.readline()
+            lines = stream.read().splitlines()
+    except OSError:
+        return []
+    out = []
+    for raw in lines:
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            continue
+        if isinstance(record, dict) and not record.get("isSidechain"):
+            out.append(record)
+    return out
+
+
+def stamp(record: dict[str, Any]) -> float:
+    try:
+        return datetime.fromisoformat(record["timestamp"].replace("Z", "+00:00")).timestamp()
+    except (KeyError, ValueError, AttributeError):
+        return 0.0
+
+
+def blocks(record: dict[str, Any]) -> list[dict[str, Any]]:
+    message = record.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        return [{"type": "text", "text": content}]
+    return [b for b in content or [] if isinstance(b, dict)]
+
+
+def text_of(record: dict[str, Any]) -> str:
+    return "\n".join(b.get("text", "") for b in blocks(record) if b.get("type") == "text").strip()
+
+
+def is_prompt(record: dict[str, Any]) -> bool:
+    if record.get("type") != "user" or record.get("isMeta"):
+        return False
+    origin = record.get("origin")
+    if isinstance(origin, dict):
+        return origin.get("kind") == "human"
+    text = text_of(record)
+    return bool(text) and not text.startswith("<") and all(b.get("type") != "tool_result" for b in blocks(record))
+
+
+def usage(record: dict[str, Any]) -> dict[str, Any] | None:
+    message = record.get("message")
+    found = message.get("usage") if record.get("type") == "assistant" and isinstance(message, dict) else None
+    return found if isinstance(found, dict) else None
+
+
+def last_call(recs: list[dict[str, Any]]) -> tuple[float, int] | None:
+    for record in reversed(recs):
+        if found := usage(record):
+            tokens = sum(found.get(k) or 0 for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+            return stamp(record), tokens
+    return None
+
+
+def one_hour_cache(recs: list[dict[str, Any]]) -> bool:
+    for record in reversed(recs):
+        created = (usage(record) or {}).get("cache_creation") or {}
+        if created.get("ephemeral_1h_input_tokens"):
+            return True
+        if created.get("ephemeral_5m_input_tokens"):
+            return False
+    return False
+
+
+def last_message(recs: list[dict[str, Any]]) -> float:
+    return max((stamp(r) for r in recs if r.get("type") in ("user", "assistant")), default=0.0)
+
+
+def last_prompt(recs: list[dict[str, Any]]) -> float:
+    return max((stamp(r) for r in recs if is_prompt(r)), default=0.0)
+
+
+def turns(recs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+
+    def add(kind: str, when: float, text: str) -> None:
+        out.append({"n": len(out) + 1, "kind": kind, "time": when, "text": redact(text)})
+
+    for record in recs:
+        when = stamp(record)
+        if is_prompt(record):
+            add("user", when, IDE_NOTE.sub("", text_of(record)).strip())
+            continue
+        for block in blocks(record):
+            if record.get("type") == "assistant" and block.get("type") == "text" and block.get("text", "").strip():
+                add("assistant", when, block["text"].strip())
+            elif block.get("type") == "tool_use":
+                add("tool", when, f"{block.get('name')} {json.dumps(block.get('input'), ensure_ascii=False)}"[:300])
+            elif block.get("type") == "tool_result":
+                body = block.get("content")
+                body = body if isinstance(body, str) else " ".join(
+                    b.get("text", "") for b in body or [] if isinstance(b, dict)
+                )
+                add("error" if block.get("is_error") else "result", when, body[:OUTPUT_CAP])
+    return out
+
+
+def render_transcript(items: list[dict[str, Any]]) -> str:
+    return "\n\n".join(
+        f"## T{t['n']} · {t['kind']} · {datetime.fromtimestamp(t['time']):%Y-%m-%d %H:%M}\n\n{t['text']}" for t in items
+    ) + "\n"
+
+
+def edited_files(recs: list[dict[str, Any]]) -> Counter[str]:
+    files: Counter[str] = Counter()
+    for record in recs:
+        for block in blocks(record):
+            if block.get("type") == "tool_use":
+                args = block.get("input") or {}
+                name = str(block.get("name", ""))
+                path = args.get("file_path") or args.get("notebook_path")
+                if name in EDIT_TOOLS and path:
+                    files[path] += 1
+                elif ("replace" in name or "insert" in name) and args.get("relative_path"):
+                    files[args["relative_path"]] += 1
+    return files
+
+
+def todos(recs: list[dict[str, Any]]) -> list[str]:
+    for record in reversed(recs):
+        for block in blocks(record):
+            if block.get("type") == "tool_use" and block.get("name") == "TodoWrite":
+                return [
+                    f"{t.get('status')}: {t.get('content')}"
+                    for t in (block.get("input") or {}).get("todos") or []
+                    if isinstance(t, dict) and t.get("status") != "completed"
+                ]
+    return []
+
+
+def repo_state(path: str, since: float) -> dict[str, Any] | None:
+    root = git(path, "rev-parse", "--show-toplevel")
+    if not root:
+        return None
+    return {
+        "path": root,
+        "branch": git(root, "branch", "--show-current"),
+        "head": git(root, "rev-parse", "--short", "HEAD"),
+        "uncommitted": git(root, "status", "--porcelain").splitlines()[:30],
+        "diffstat": git(root, "diff", "--stat", "HEAD").splitlines()[-1:],
+        "commits": git(root, "log", f"--since=@{int(since)}", "--oneline", "-n", "20").splitlines(),
+    }
+
+
+def build_digest(recs: list[dict[str, Any]], cwd: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    started = min((t["time"] for t in items), default=time.time())
+    files = edited_files(recs)
+    roots = {cwd, *(str(Path(f).parent) for f in files if os.path.isabs(f))}
+    repos = {r["path"]: r for r in filter(None, (repo_state(p, started) for p in sorted(roots)[:8]))}
+    errors = [t for t in items if t["kind"] == "error"]
+    return {
+        "cwd": cwd,
+        "started": started,
+        "requests": [
+            {"n": t["n"], "time": t["time"], "text": " ".join(t["text"].split())[:160]}
+            for t in items
+            if t["kind"] == "user" and not ROUTINE.fullmatch(t["text"].strip()) and not t["text"].startswith("/")
+        ],
+        "files": files.most_common(40),
+        "repos": list(repos.values()),
+        "last_error": {"n": errors[-1]["n"], "text": errors[-1]["text"][:300]} if errors else None,
+        "todos": todos(recs),
+    }
+
+
+def render_digest(digest: dict[str, Any]) -> str:
+    def text(requests: list[dict[str, Any]]) -> str:
+        lines = ["Digest of this session (turn numbers match transcript.md):", "Requests:"]
+        lines += [f"- T{r['n']} {clock(r['time'])} {r['text']}" for r in requests]
+        if digest["files"]:
+            lines.append("Files edited: " + ", ".join(f"{f} ({n})" for f, n in digest["files"]))
+        for repo in digest["repos"]:
+            lines.append(
+                f"Repo {repo['path']}: {repo['branch'] or 'detached'} @ {repo['head']}, "
+                f"{len(repo['uncommitted'])} uncommitted, {' '.join(repo['diffstat'])}"
+            )
+            lines += [f"  commit {c}" for c in repo["commits"]]
+        if digest["last_error"]:
+            lines.append(f"Last error, T{digest['last_error']['n']}: {digest['last_error']['text']}")
+        if digest["todos"]:
+            lines.append("Open todos: " + "; ".join(digest["todos"]))
+        return "\n".join(lines)
+
+    requests = list(digest["requests"])
+    while len(text(requests)) > DIGEST_CAP and requests:
+        requests.pop(0)
+    return text(requests)[:DIGEST_CAP]
+
+
+# Checkpoint folders
+
+
+def folder_for(session: str, cwd: str | None = None) -> Path | None:
+    found = sorted(state_dir().glob(f"checkpoints/*/*-{session}"))
+    if found or cwd is None:
+        return found[-1] if found else None
+    return state_dir() / "checkpoints" / project_of(cwd) / f"{datetime.now():%Y-%m-%d}-{session}"
+
+
+def store_checkpoint(folder: Path, session: str, reply: str, cwd: str, transcript: Path) -> None:
+    current = folder / "checkpoint.md"
+    previous = ""
+    if current.exists():
+        count = len(list(folder.glob("checkpoint-*.md"))) + 1
+        previous = f"checkpoint-{count}.md"
+        os.replace(current, folder / previous)
+    repo = repo_state(cwd, time.time()) or {}
+    header = [
+        f"session: {session}",
+        "client: claude",
+        f"project: {folder.parent.name}",
+        f"cwd: {cwd}",
+        f"transcript: {transcript}",
+        f"branch: {repo.get('branch', '')}",
+        f"head: {repo.get('head', '')}",
+        f"time: {datetime.now():%Y-%m-%d %H:%M}",
+        f"previous: {previous}",
+    ]
+    body = reply[reply.find(HEADER):] if HEADER in reply else reply
+    write(current, "---\n" + "\n".join(header) + "\n---\n\n" + redact(body).strip() + "\n")
+
+
+def ordered_sections(body: str) -> str:
+    parts = re.split(r"(?m)^(?:#{2,4}\s+|\*\*(?=[A-Z][^*\n]{0,30}:?\*\*))", body)
+    named = {}
+    for part in parts[1:]:
+        title, _, rest = part.partition("\n")
+        if "**" in title:
+            title, _, inline = title.partition("**")
+            rest = f"{inline.lstrip(': ')}\n{rest}".strip()
+        key = next((s for s in SECTIONS if title.strip().lower().startswith(s.lower())), None)
+        if key and key not in named:
+            named[key] = rest.strip()
+    if len(named) < 3:
+        return body.strip()
+    return "\n\n".join(f"### {s}\n{named[s]}" for s in SECTIONS if s in named)
+
+
+def prune() -> None:
+    marker = state_dir() / "pruned"
+    if marker.exists() and time.time() - marker.stat().st_mtime < 86400:
+        return
+    write(marker, "")
+    now = time.time()
+    for path in state_dir().glob("sessions/*"):
+        if now - path.stat().st_mtime > SESSION_DAYS * 86400:
+            path.unlink(missing_ok=True)
+    for folder in state_dir().glob("checkpoints/*/*"):
+        if now - folder.stat().st_mtime > CHECKPOINT_DAYS * 86400:
+            for path in folder.iterdir():
+                path.unlink(missing_ok=True)
+            folder.rmdir()
+
+
+# Hooks
+
+
+def native_idle_compact() -> bool:
+    base = os.environ.get("CLAUDE_CONFIG_DIR")
+    config = Path(base) / ".claude.json" if base else Path.home() / ".claude.json"
+    try:
+        flag = json.loads(config.read_text(encoding="utf-8"))["cachedGrowthBookFeatures"]["tengu_sunny_locket"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return isinstance(flag, dict) and flag.get("mode") == "compact"
+
+
+def arm(hook: dict[str, Any]) -> int:
+    session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
+    recs = records(transcript, TAIL_BYTES)
+    fired = float(read(marker(session, "fired")) or 0)
+    if fired and fired > last_prompt(recs):
+        reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= fired - 1)
+        folder = folder_for(session)
+        if reply and folder and read(marker(session, "stored")) != str(fired):
+            store_checkpoint(folder, session, reply, cwd, transcript)
+            write(marker(session, "stored"), str(fired))
+        return 0
+    call = last_call(recs)
+    if not call or call[1] < min_tokens() or not one_hour_cache(recs) or native_idle_compact():
+        return 0
+    prune()
+    token = uuid.uuid4().hex
+    write(marker(session, "arm"), token)
+    seen = last_message(recs)
+    fire_at = call[0] + lifetime() * FIRE_FRACTION
+    while (wait := fire_at - time.time()) > 0:
+        time.sleep(min(60.0, wait))
+        if read(marker(session, "arm")) != token or last_message(records(transcript, TAIL_BYTES)) > seen:
+            return 0
+    full = records(transcript)
+    items = turns(full)
+    folder = folder_for(session, cwd)
+    digest = build_digest(full, cwd, items)
+    write(folder / "digest.json", json.dumps(digest, indent=2, ensure_ascii=False) + "\n")
+    write(folder / "transcript.md", render_transcript(items))
+    now = time.time()
+    write(marker(session, "fired"), str(now))
+    left = minutes(call[0] + lifetime() - now)
+    print(REQUEST.format(left=left, until=clock(now + lifetime())) + "\n\n" + render_digest(digest), file=sys.stderr)
+    return 2
+
+
+def codex_last_call(path: Path) -> tuple[float, int] | None:
+    for line in reversed(records(path, TAIL_BYTES)):
+        payload = line.get("payload") or {}
+        tokens = ((payload.get("info") or {}).get("last_token_usage") or {}).get("input_tokens")
+        if line.get("type") == "event_msg" and payload.get("type") == "token_count" and isinstance(tokens, int):
+            return stamp(line), tokens
+    return None
+
+
+def unguarded(session: str, call: tuple[float, int] | None, gap: float) -> bool:
+    return bool(call) and call[1] >= min_tokens() and time.time() - call[0] >= gap and read(marker(session, "guard")) != str(call[0])
+
+
+def codex_guard(hook: dict[str, Any]) -> int:
+    session, call = hook["session_id"], codex_last_call(Path(hook["transcript_path"]))
+    if not unguarded(session, call, CODEX_GAP):
+        return 0
+    write(marker(session, "guard"), str(call[0]))
+    message = (
+        f"This thread has {call[1] // 1000}K tokens of context after a {(time.time() - call[0]) / 3600:.0f}-hour "
+        "pause. Run /compact now to keep the following turns small."
+    )
+    print(json.dumps({"systemMessage": message}))
+    return 0
+
+
+def guard(hook: dict[str, Any]) -> int:
+    session, recs = hook["session_id"], records(Path(hook["transcript_path"]), TAIL_BYTES)
+    call = last_call(recs)
+    if not unguarded(session, call, lifetime()):
+        return 0
+    folder = folder_for(session)
+    checkpoint = folder / "checkpoint.md" if folder else None
+    if not checkpoint or not checkpoint.exists() or checkpoint.stat().st_mtime < last_prompt(recs):
+        return 0
+    write(marker(session, "guard"), str(call[0]))
+    prompt = str(hook.get("prompt", ""))
+    reason = (
+        f"Idle checkpoint: the prompt cache expired {minutes(time.time() - call[0])} ago, so continuing "
+        f"this session re-sends about {call[1] // 1000}K tokens at the cache-write price. A checkpoint was written "
+        f"at {clock(checkpoint.stat().st_mtime)}. To continue from it, open a new chat (or /clear) and run /pitstop, then paste your prompt; or "
+        f"send the prompt again to continue the full session.\n\nYour prompt:\n{prompt[:1500]}"
+    )
+    print(json.dumps({"decision": "block", "reason": reason}))
+    return 0
+
+
+def drift(digest: dict[str, Any]) -> str:
+    lines = []
+    for repo in digest.get("repos", []):
+        head = git(repo["path"], "rev-parse", "--short", "HEAD")
+        if head and head != repo["head"]:
+            commits = git(repo["path"], "log", "--oneline", "-n", "20", f"{repo['head']}..HEAD")
+            lines.append(f"{repo['path']}: HEAD moved {repo['head']} -> {head}\n{commits}")
+        now = git(repo["path"], "status", "--porcelain").splitlines()
+        if sorted(now) != sorted(repo["uncommitted"]):
+            lines.append(f"{repo['path']}: uncommitted files now: " + ", ".join(line[3:] for line in now[:30]))
+    return "\n".join(lines) or "No repo changes since the checkpoint."
+
+
+def resume(cwd: str) -> str:
+    folders = sorted(state_dir().glob(f"checkpoints/{project_of(cwd)}/*"), key=lambda f: f.stat().st_mtime, reverse=True)
+    for folder in folders:
+        checkpoint = folder / "checkpoint.md"
+        header, found, body = read(checkpoint).partition("\n---\n")
+        if not found:
+            continue
+        written = checkpoint.stat().st_mtime
+        old = re.search(r"(?m)^transcript: (.+)$", header)
+        # A chat that kept going after its checkpoint has moved past it.
+        if old and last_prompt(records(Path(old[1]), TAIL_BYTES)) > written:
+            continue
+        session = folder.name[11:]
+        digest = json.loads(read(folder / "digest.json") or "{}")
+        return "\n\n".join(
+            [
+                f"Continuing from the idle checkpoint of session {session}, written "
+                f"{datetime.fromtimestamp(written):%Y-%m-%d %H:%M} (folder {folder}).",
+                ordered_sections(body),
+                render_digest(digest) if digest else "",
+                "Changes since the checkpoint:\n" + drift(digest),
+                PROTOCOL.format(session=session),
+            ]
+        )
+    return "No idle checkpoint for this project."
+
+
+# Commands for the model
+
+
+def chunks(path: Path) -> list[tuple[str, str]]:
+    text = read(path)
+    if path.name == "transcript.md":
+        return [(m.group(1), m.group(0)) for m in re.finditer(r"(?ms)^## (T\d+ · [^\n]*)\n.*?(?=^## T\d+ · |\Z)", text)]
+    return [(path.name, text)]
+
+
+def search(query: str, cwd: str, everywhere: bool, session: str | None, since_days: float | None) -> str:
+    terms = [t.lower() for t in query.split() if t]
+    project = "*" if everywhere else project_of(cwd)
+    hits = []
+    for folder in state_dir().glob(f"checkpoints/{project}/*"):
+        if session and session not in folder.name:
+            continue
+        if since_days and time.time() - folder.stat().st_mtime > since_days * 86400:
+            continue
+        for rank, name in ((0, "checkpoint*.md"), (1, "transcript.md")):
+            for path in folder.glob(name):
+                for label, text in chunks(path):
+                    low = text.lower()
+                    matched = sum(1 for t in terms if t in low)
+                    if matched:
+                        hits.append((-matched, rank, -folder.stat().st_mtime, folder.name, label, text))
+    lines = []
+    for *_, name, label, text in sorted(hits)[:5]:
+        words = text.split()
+        at = next((i for i, w in enumerate(words) if any(t in w.lower() for t in terms)), 0)
+        lines.append(f"{name} {label}: …{' '.join(words[max(0, at - 12):at + 13])}…")
+    return ("\n".join(lines) or "No matches.")[:OUTPUT_CAP]
+
+
+def turn(session: str, number: str) -> str:
+    folder = folder_for(session)
+    if not folder:
+        return "No checkpoint folder for that session."
+    parts = chunks(folder / "transcript.md")
+    index = next((i for i, (label, _) in enumerate(parts) if label.split(" ")[0] == number.upper()), None)
+    if index is None:
+        return f"No turn {number} in {folder / 'transcript.md'}."
+    around = [parts[i][0] for i in (index - 1, index + 1) if 0 <= i < len(parts)]
+    return (parts[index][1].strip()[:OUTPUT_CAP - 200] + "\n\nNearby: " + " | ".join(around))[:OUTPUT_CAP]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("arm")
+    commands.add_parser("resume")
+    commands.add_parser("guard").add_argument("--client", choices=("claude", "codex"), default="claude")
+    find = commands.add_parser("search")
+    find.add_argument("query")
+    find.add_argument("--all", action="store_true")
+    find.add_argument("--session")
+    find.add_argument("--since", type=float, help="days")
+    show = commands.add_parser("turn")
+    show.add_argument("session")
+    show.add_argument("number")
+    args = parser.parse_args()
+    if args.command == "search":
+        print(search(args.query, os.getcwd(), args.all, args.session, args.since))
+        return 0
+    if args.command == "turn":
+        print(turn(args.session, args.number))
+        return 0
+    if args.command == "resume":
+        print(resume(os.getcwd()))
+        return 0
+    if os.environ.get("IDLE_COMPACT") == "off":
+        return 0
+    try:
+        hook = json.load(sys.stdin)
+        if args.command == "arm":
+            return arm(hook)
+        return codex_guard(hook) if args.client == "codex" else guard(hook)
+    except (OSError, ValueError, KeyError, TypeError):
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

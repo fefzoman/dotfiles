@@ -8,14 +8,17 @@ import mmap
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 CONTEXT_THRESHOLD = 120_000
 REMAINING_THRESHOLD = 15.0
+# Matches idle_compact.CODEX_GAP: after such a gap its idle hint already suggests /compact.
+IDLE_GAP = 3 * 3600
 
 
-def latest_snapshot(path: Path) -> tuple[int, list[tuple[float, int | None]]] | None:
+def latest_snapshot(path: Path) -> tuple[int, list[tuple[float, int | None]], float] | None:
     try:
         with path.open("rb") as stream:
             if stream.seek(0, os.SEEK_END) == 0:
@@ -49,14 +52,18 @@ def latest_snapshot(path: Path) -> tuple[int, list[tuple[float, int | None]]] | 
                         window = limits.get(name)
                         if isinstance(window, dict) and isinstance(window.get("used_percent"), int | float):
                             windows.append((100.0 - float(window["used_percent"]), window.get("resets_at")))
-                    return context, windows
+                    try:
+                        at = datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).timestamp()
+                    except (KeyError, AttributeError, ValueError):
+                        at = 0.0
+                    return context, windows, at
     except (OSError, ValueError):
         return None
     return None
 
 
-def warning(snapshot: tuple[int, list[tuple[float, int | None]]], now: float) -> str | None:
-    context, windows = snapshot
+def warning(snapshot: tuple[int, list[tuple[float, int | None]], float], now: float) -> str | None:
+    context, windows, _ = snapshot
     active = [remaining for remaining, reset in windows if reset is None or reset > now]
     if context < CONTEXT_THRESHOLD or not active or min(active) > REMAINING_THRESHOLD:
         return None
@@ -77,7 +84,9 @@ def main() -> int:
     if not isinstance(transcript, str) or not isinstance(session_id, str):
         return 0
 
-    message = warning(latest_snapshot(Path(transcript)) or (0, []), time.time())
+    now = time.time()
+    snapshot = latest_snapshot(Path(transcript)) or (0, [], 0.0)
+    message = warning(snapshot, now)
     state = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
     marker = state / "codex-compact-warning" / f"{session_id}.active"
     if message is None:
@@ -87,7 +96,8 @@ def main() -> int:
         return 0
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.touch()
-    print(json.dumps({"systemMessage": message}))
+    if now - snapshot[2] < IDLE_GAP or os.environ.get("IDLE_COMPACT") == "off":
+        print(json.dumps({"systemMessage": message}))
     return 0
 
 

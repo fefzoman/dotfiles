@@ -1,0 +1,28 @@
+[general]
+import = ["~/.config/alacritty/themes/themes/gruvbox_dark.toml"]
+
+[window]
+decorations = "@WINDOW_DECORATIONS@"
+padding = { x = 10, y = 10 }
+
+[font]
+size = 15
+
+[colors.primary]
+foreground = "#BAB7AD"
+
+[font.normal]
+family = "JetBrainsMono Nerd Font"
+style = "Thin"
+
+[font.bold]
+family = "JetBrainsMono Nerd Font"
+style = "Medium"
+
+[cursor]
+style = { shape = "Beam", blinking = "Off" }
+thickness = 0.10
+unfocused_hollow = false
+
+[terminal]
+shell = { program = "@TMUX_BIN@", args = ["new-session", "-A", "-s", "main"] }
