@@ -1,10 +1,15 @@
 {
-  "description": "Serena lifecycle reminders, Context7 version guard, and Codex context warnings.",
+  "description": "RTK command rewriting, Serena lifecycle reminders, Context7 version guard, and Codex context warnings and idle checkpoints.",
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/codex_rtk_hook.py\"",
+            "timeout": 5
+          },
           {
             "type": "command",
             "command": "serena-hooks remind --client=codex"
@@ -55,6 +60,18 @@
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" guard --client codex",
             "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" arm --client codex",
+            "async": true,
+            "timeout": 11000
           }
         ]
       }

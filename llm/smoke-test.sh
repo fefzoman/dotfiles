@@ -99,11 +99,14 @@ for profile in codex codex-work claude claude-work; do
     token-profiler "$profile" --help
 done
 
-for file in ai-install.sh codex_compact_warning.py idle_compact.py context7_version_guard.py \
-  claude_compact_statusline.py; do
+for file in ai-install.sh codex/codex_compact_warning.py idle_compact.py context7_version_guard.py \
+  claude/claude_compact_statusline.py; do
   check "Installed $file matches the repository" "Installed $file is missing or stale" \
-    cmp -s "$SCRIPT_DIR/$file" "$HOME/.config/dotfiles/$file"
+    cmp -s "$SCRIPT_DIR/$file" "$HOME/.config/dotfiles/${file##*/}"
 done
+
+check "Codex pitstop skill matches the repository" "Codex pitstop skill is missing or stale" \
+  cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
 
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
@@ -112,10 +115,12 @@ check "Sourcing AI configuration loads functions without running the installer" 
   _ "$HOME/.config/dotfiles/ai-install.sh"
 
 rtk_dir="$(dirname "$(command -v rtk)")"
+check "RTK produces valid Codex rewrites and respects bypasses" "RTK Codex hook contract is invalid" \
+  python -m unittest discover -s "$SCRIPT_DIR/codex" -p test_codex_rtk_hook.py
 for profile in "$HOME/.codex" "$HOME/.codex-work"; do
-  check "Codex Serena, Context7 guard and compact-warning hooks are configured in $profile" \
-    "Codex Serena, Context7 guard or compact-warning hooks are invalid in $profile" \
-    agent_config codex-hooks-valid "$SCRIPT_DIR/codex-hooks.json" "$profile/hooks.json"
+  check "Codex RTK, Serena, Context7 guard and compact-warning hooks are configured in $profile" \
+    "Codex RTK, Serena, Context7 guard or compact-warning hooks are invalid in $profile" \
+    agent_config codex-hooks-valid "$SCRIPT_DIR/codex/codex-hooks.json" "$profile/hooks.json"
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
     agent_config policy-matches "$SCRIPT_DIR/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
@@ -150,7 +155,7 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
       "python3 \"\$HOME/.config/dotfiles/idle_compact.py\" $sub"
   done
   check "/pitstop command matches the repository in $profile" "/pitstop command is missing or stale in $profile" \
-    cmp -s "$SCRIPT_DIR/pitstop.md" "$profile/commands/pitstop.md"
+    cmp -s "$SCRIPT_DIR/claude/pitstop.md" "$profile/commands/pitstop.md"
   check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \

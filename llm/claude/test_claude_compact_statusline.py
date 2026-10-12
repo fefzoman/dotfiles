@@ -1,7 +1,7 @@
 import re
 import unittest
 
-from llm import claude_compact_statusline as statusline
+from llm.claude import claude_compact_statusline as statusline
 
 
 class ClaudeCompactStatuslineTest(unittest.TestCase):

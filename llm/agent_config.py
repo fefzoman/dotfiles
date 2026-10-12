@@ -9,6 +9,7 @@ import tomllib
 from pathlib import Path
 
 STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
+CODEX_STATUSLINE = ["context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
@@ -75,6 +76,31 @@ def codex_hooks(target: str, required: str) -> None:
                 installed_groups.append(installed)
             installed["hooks"] += [h for h in required_group["hooks"] if h not in installed["hooks"]]
     save(target, data)
+
+
+def codex_statusline(config: str) -> None:
+    path = Path(config)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    data = tomllib.loads(text)
+    if "status_line" in data.get("tui", {}):
+        if data["tui"]["status_line"] != [item for item in CODEX_STATUSLINE if item != "used-tokens"]:
+            return
+        text = re.sub(r'(?m)^([ \t]*status_line[ \t]*=[ \t]*)\[[^\]]*\]',
+                      lambda match: match[1] + json.dumps(CODEX_STATUSLINE), text, count=1)
+        if tomllib.loads(text)["tui"]["status_line"] != CODEX_STATUSLINE:
+            raise SystemExit(f"{config}: add used-tokens to the existing tui status_line")
+        path.write_text(text, encoding="utf-8")
+        return
+    setting = "status_line = " + json.dumps(CODEX_STATUSLINE) + "\n"
+    table = re.search(r"(?m)^\s*\[tui\][ \t]*(?:#.*)?$", text)
+    if table:
+        text = text[:table.end()] + "\n" + setting + text[table.end():]
+    elif "tui" not in data:
+        text = text.rstrip() + "\n\n[tui]\n" + setting
+    else:
+        raise SystemExit(f"{config}: add {setting.strip()} to the existing tui configuration")
+    tomllib.loads(text)
+    path.write_text(text, encoding="utf-8")
 
 
 def statusline(settings: str) -> None:
@@ -224,7 +250,7 @@ def codex_hooks_valid(required: str, installed: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, statusline, context7_guard, idle_compact, attribution,
+        codex_shell_path, codex_hooks, codex_statusline, statusline, context7_guard, idle_compact, attribution,
         connectors, headroom_work, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         claude_headroom, codex_headroom, codex_rtk_path, codex_hooks_valid,

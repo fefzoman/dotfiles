@@ -73,13 +73,18 @@ with_claude_profile() {
 install_ai_tools() {
   if [[ "$OS" == Darwin ]]; then
     command -v brew >/dev/null 2>&1 || { echo "Homebrew is required." >&2; exit 1; }
-    brew list --cask codex >/dev/null 2>&1 || brew install --cask codex
+    brew update || return
+    if brew list --cask codex >/dev/null 2>&1; then
+      brew upgrade --cask codex || return
+    else
+      brew install --cask codex || return
+    fi
     brew list --formula node >/dev/null 2>&1 || brew install node
     brew list --formula rtk >/dev/null 2>&1 || brew install rtk
     type -P uv >/dev/null 2>&1 || brew install uv
   elif [[ "$OS" == Linux ]]; then
     command -v npm >/dev/null 2>&1 || { echo "npm is required." >&2; exit 1; }
-    npm install --global --prefix "$HOME/.local" @openai/codex
+    npm install --global --prefix "$HOME/.local" @openai/codex@latest
     curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh |
       env RTK_INSTALL_DIR="$HOME/.local/bin" sh
   else
@@ -199,14 +204,14 @@ install_headroom() {
   local uv_bin
 
   uv_bin="$(command -v uv)"
+  if command -v headroom >/dev/null 2>&1 && [[ -f "$HOME/.headroom/deploy/default/manifest.json" ]]; then
+    headroom install stop --profile default || return
+  fi
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$uv_bin" tool install \
     --python "$PYTHON_VERSION" --upgrade 'headroom-ai[proxy,code]'
-  # A supervised proxy plus config-level routing reaches every launcher,
-  # including IDE extensions that never run a shell wrapper.
-  # Dedup edits are replayed from a 10-minute tracker, so idle gaps under the 1h prompt cache still miss.
+  # Dedup's 10-minute tracker expires before the 1-hour prompt cache.
   headroom install apply --preset persistent-service --scope provider \
     --providers manual --target claude --target codex --env HEADROOM_DEDUPE=0
-  # install apply covers only ~/.claude and ~/.codex; this routes the work profiles.
   "$("$uv_bin" tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" \
     headroom-work "$HOME/.claude-work" "$HOME/.codex-work"
 }
@@ -228,11 +233,12 @@ install_codex_hooks() {
   local config_dir="$HOME/.config/dotfiles" profile
 
   mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/codex_compact_warning.py" "$SCRIPT_DIR/context7_version_guard.py" \
+  install -m 0755 "$SCRIPT_DIR/codex/codex_compact_warning.py" "$SCRIPT_DIR/context7_version_guard.py" "$SCRIPT_DIR/codex/codex_rtk_hook.py" \
     "$config_dir/"
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
-    agent_config codex-hooks "$profile/hooks.json" "$SCRIPT_DIR/codex-hooks.json"
+    agent_config codex-hooks "$profile/hooks.json" "$SCRIPT_DIR/codex/codex-hooks.json"
+    agent_config codex-statusline "$profile/config.toml"
   done
 }
 
@@ -240,7 +246,7 @@ install_claude_compact_statusline() {
   local config_dir="$HOME/.config/dotfiles" profile
 
   mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/claude_compact_statusline.py" \
+  install -m 0755 "$SCRIPT_DIR/claude/claude_compact_statusline.py" \
     "$config_dir/claude_compact_statusline.py"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
@@ -265,9 +271,11 @@ install_idle_compact() {
 
   mkdir -p "$config_dir"
   install -m 0755 "$SCRIPT_DIR/idle_compact.py" "$config_dir/idle_compact.py"
+  mkdir -p "$HOME/.agents/skills/pitstop"
+  install -m 0644 "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
-    install -m 0644 "$SCRIPT_DIR/pitstop.md" "$profile/commands/pitstop.md"
+    install -m 0644 "$SCRIPT_DIR/claude/pitstop.md" "$profile/commands/pitstop.md"
     agent_config idle-compact "$profile/settings.json"
   done
 }
@@ -333,6 +341,6 @@ bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."
 install_shell_config
 echo "==> Run 'fabric --setup' once to select Fabric's AI provider."
-echo "==> Review and trust Ponytail hooks with /hooks in each Codex profile."
+echo "==> Review and trust RTK, Serena, Context7 and Ponytail hooks with /hooks in each Codex profile."
 echo "==> Running LLM toolchain smoke test..."
 bash "$SCRIPT_DIR/smoke-test.sh"

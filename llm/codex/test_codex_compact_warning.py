@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
-from llm import codex_compact_warning as compact_warning
+from llm.codex import codex_compact_warning as compact_warning
 
 
 class CompactWarningTest(unittest.TestCase):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checkpoint idle Claude Code sessions while the prompt cache is warm; guard cold resumes."""
+"""Checkpoint idle Claude Code and Codex sessions; guard cold resumes."""
 
 from __future__ import annotations
 
@@ -122,9 +122,6 @@ def redact(text: str) -> str:
     return SECRET.sub("[REDACTED]", text)
 
 
-# Claude transcripts
-
-
 def records(path: Path, tail: int | None = None) -> list[dict[str, Any]]:
     try:
         with path.open("rb") as stream:
@@ -143,6 +140,50 @@ def records(path: Path, tail: int | None = None) -> list[dict[str, Any]]:
             continue
         if isinstance(record, dict) and not record.get("isSidechain"):
             out.append(record)
+    return out
+
+
+def codex_records(path: Path, tail: int | None = None) -> list[dict[str, Any]]:
+    out = []
+    for record in records(path, tail):
+        payload = record.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        kind, timestamp = payload.get("type"), record.get("timestamp")
+        content = []
+        normalized = {"timestamp": timestamp, "type": "assistant", "message": {"content": content}}
+        if record.get("type") == "response_item":
+            if kind == "message" and payload.get("role") in ("user", "assistant"):
+                normalized["type"] = payload["role"]
+                content += [{"type": "text", "text": b["text"]} for b in payload.get("content") or []
+                            if isinstance(b, dict) and isinstance(b.get("text"), str)]
+                if normalized["type"] == "user" and any(b["text"].startswith("# AGENTS.md instructions") for b in content):
+                    normalized["isMeta"] = True
+            elif kind in ("function_call", "custom_tool_call"):
+                arguments = payload.get("arguments") or payload.get("input") or ""
+                try:
+                    arguments = json.loads(arguments)
+                except (ValueError, TypeError):
+                    arguments = {"input": arguments}
+                if not isinstance(arguments, dict):
+                    arguments = {"input": arguments}
+                content.append({"type": "tool_use", "name": payload.get("name"), "input": arguments})
+            elif kind in ("function_call_output", "custom_tool_call_output"):
+                content.append({"type": "tool_result", "content": str(payload.get("output", ""))})
+            else:
+                continue
+        elif record.get("type") == "event_msg" and kind == "token_count":
+            info = payload.get("info")
+            usage = info.get("last_token_usage") if isinstance(info, dict) else None
+            tokens = usage.get("input_tokens") if isinstance(usage, dict) else None
+            if not isinstance(tokens, int):
+                continue
+            normalized["message"]["usage"] = {"input_tokens": tokens}
+        elif record.get("type") == "event_msg" and kind == "task_started":
+            normalized.update(type="user", isMeta=True)
+        else:
+            continue
+        out.append(normalized)
     return out
 
 
@@ -250,6 +291,9 @@ def edited_files(recs: list[dict[str, Any]]) -> Counter[str]:
                     files[path] += 1
                 elif ("replace" in name or "insert" in name) and args.get("relative_path"):
                     files[args["relative_path"]] += 1
+                elif "apply_patch" in name:
+                    for path in re.findall(r"(?m)^\*\*\* (?:Add|Update|Delete) File: (.+)$", str(args.get("input", ""))):
+                        files[path] += 1
     return files
 
 
@@ -334,7 +378,7 @@ def folder_for(session: str, cwd: str | None = None) -> Path | None:
     return state_dir() / "checkpoints" / project_of(cwd) / f"{datetime.now():%Y-%m-%d}-{session}"
 
 
-def store_checkpoint(folder: Path, session: str, reply: str, cwd: str, transcript: Path) -> None:
+def store_checkpoint(folder: Path, session: str, reply: str, cwd: str, transcript: Path, client: str = "claude") -> None:
     current = folder / "checkpoint.md"
     previous = ""
     if current.exists():
@@ -344,7 +388,7 @@ def store_checkpoint(folder: Path, session: str, reply: str, cwd: str, transcrip
     repo = repo_state(cwd, time.time()) or {}
     header = [
         f"session: {session}",
-        "client: claude",
+        f"client: {client}",
         f"project: {folder.parent.name}",
         f"cwd: {cwd}",
         f"transcript: {transcript}",
@@ -402,11 +446,12 @@ def native_idle_compact() -> bool:
     return isinstance(flag, dict) and flag.get("mode") == "compact"
 
 
-def arm(hook: dict[str, Any]) -> int:
+def arm(hook: dict[str, Any], client: str = "claude") -> int:
     session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
-    recs = records(transcript, TAIL_BYTES)
+    load_records = codex_records if client == "codex" else records
+    recs = load_records(transcript, TAIL_BYTES)
     fired = float(read(marker(session, "fired")) or 0)
-    if fired and fired > last_prompt(recs):
+    if client == "claude" and fired and fired > last_prompt(recs):
         reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= fired - 1)
         folder = folder_for(session)
         if reply and folder and read(marker(session, "stored")) != str(fired):
@@ -414,23 +459,43 @@ def arm(hook: dict[str, Any]) -> int:
             write(marker(session, "stored"), str(fired))
         return 0
     call = last_call(recs)
-    if not call or call[1] < min_tokens() or not one_hour_cache(recs) or native_idle_compact():
+    if not call or call[1] < min_tokens():
+        return 0
+    if client == "claude" and (not one_hour_cache(recs) or native_idle_compact()):
         return 0
     prune()
     token = uuid.uuid4().hex
     write(marker(session, "arm"), token)
     seen = last_message(recs)
-    fire_at = call[0] + lifetime() * FIRE_FRACTION
+    gap = CODEX_GAP if client == "codex" and not os.environ.get("IDLE_COMPACT_TEST_SECONDS") else lifetime()
+    fire_at = call[0] + gap * FIRE_FRACTION
     while (wait := fire_at - time.time()) > 0:
         time.sleep(min(60.0, wait))
-        if read(marker(session, "arm")) != token or last_message(records(transcript, TAIL_BYTES)) > seen:
+        if read(marker(session, "arm")) != token or last_message(load_records(transcript, TAIL_BYTES)) > seen:
             return 0
-    full = records(transcript)
+    full = load_records(transcript)
+    if read(marker(session, "arm")) != token or last_message(full) > seen:
+        return 0
     items = turns(full)
     folder = folder_for(session, cwd)
     digest = build_digest(full, cwd, items)
+    if client == "codex":
+        digest["last_prompt"] = last_prompt(full)
+        if read(marker(session, "arm")) != token or last_message(load_records(transcript, TAIL_BYTES)) > seen:
+            return 0
     write(folder / "digest.json", json.dumps(digest, indent=2, ensure_ascii=False) + "\n")
     write(folder / "transcript.md", render_transcript(items))
+    if client == "codex":
+        # shortcut: Codex cannot wake idle turns; use model summaries when idle rewake is supported.
+        requests = [t for t in items if t["kind"] == "user"]
+        replies = [t for t in items if t["kind"] == "assistant"]
+        selected = [("Goal", requests[:1]), ("Current state", replies[-1:]), ("Pointers: latest request", requests[-1:])]
+        sections = [HEADER, "Local transcript excerpts; use the turn pointers to retrieve complete details."]
+        for title, entries in selected:
+            sections.append(f"### {title}\n" + "\n".join(f"T{t['n']}: {t['text'][:4000]}" for t in entries))
+        store_checkpoint(folder, session, "\n\n".join(sections), cwd, transcript, client)
+        print(json.dumps({"systemMessage": "Idle checkpoint saved. Open a fresh thread and run $pitstop to continue."}))
+        return 0
     now = time.time()
     write(marker(session, "fired"), str(now))
     left = minutes(call[0] + lifetime() - now)
@@ -439,12 +504,7 @@ def arm(hook: dict[str, Any]) -> int:
 
 
 def codex_last_call(path: Path) -> tuple[float, int] | None:
-    for line in reversed(records(path, TAIL_BYTES)):
-        payload = line.get("payload") or {}
-        tokens = ((payload.get("info") or {}).get("last_token_usage") or {}).get("input_tokens")
-        if line.get("type") == "event_msg" and payload.get("type") == "token_count" and isinstance(tokens, int):
-            return stamp(line), tokens
-    return None
+    return last_call(codex_records(path, TAIL_BYTES))
 
 
 def unguarded(session: str, call: tuple[float, int] | None, gap: float) -> bool:
@@ -464,18 +524,29 @@ def codex_guard(hook: dict[str, Any]) -> int:
     return 0
 
 
-def guard(hook: dict[str, Any]) -> int:
-    session, recs = hook["session_id"], records(Path(hook["transcript_path"]), TAIL_BYTES)
+def guard(hook: dict[str, Any], client: str = "claude") -> int:
+    load_records = codex_records if client == "codex" else records
+    session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     call = last_call(recs)
-    if not unguarded(session, call, lifetime()):
+    if not unguarded(session, call, CODEX_GAP if client == "codex" else lifetime()):
         return 0
     folder = folder_for(session)
     checkpoint = folder / "checkpoint.md" if folder else None
-    if not checkpoint or not checkpoint.exists() or checkpoint.stat().st_mtime < last_prompt(recs):
-        return 0
+    stale = not checkpoint or not checkpoint.exists()
+    if not stale:
+        written = checkpoint.stat().st_mtime
+        if client == "codex":
+            written = json.loads(read(folder / "digest.json") or "{}").get("last_prompt", written)
+        stale = last_prompt(recs) > written
+    if stale:
+        return codex_guard(hook) if client == "codex" else 0
     write(marker(session, "guard"), str(call[0]))
     prompt = str(hook.get("prompt", ""))
     reason = (
+        f"This thread has about {call[1] // 1000}K tokens after a long pause. An idle checkpoint is ready. "
+        "Open a fresh thread and run $pitstop, then paste your prompt; or send this prompt again to keep "
+        f"the full session.\n\nYour prompt:\n{prompt[:1500]}"
+    ) if client == "codex" else (
         f"Idle checkpoint: the prompt cache expired {minutes(time.time() - call[0])} ago, so continuing "
         f"this session re-sends about {call[1] // 1000}K tokens at the cache-write price. A checkpoint was written "
         f"at {clock(checkpoint.stat().st_mtime)}. To continue from it, open a new chat (or /clear) and run /pitstop, then paste your prompt; or "
@@ -507,11 +578,15 @@ def resume(cwd: str) -> str:
             continue
         written = checkpoint.stat().st_mtime
         old = re.search(r"(?m)^transcript: (.+)$", header)
-        # A chat that kept going after its checkpoint has moved past it.
-        if old and last_prompt(records(Path(old[1]), TAIL_BYTES)) > written:
+        digest = json.loads(read(folder / "digest.json") or "{}")
+        codex = "\nclient: codex\n" in header + "\n"
+        load_records = codex_records if codex else records
+        if old and last_prompt(load_records(Path(old[1]), TAIL_BYTES)) > (digest.get("last_prompt", written) if codex else written):
             continue
         session = folder.name[11:]
-        digest = json.loads(read(folder / "digest.json") or "{}")
+        protocol = PROTOCOL.format(session=session)
+        if codex:
+            protocol = protocol.replace(" and ask the user to confirm", "")
         return "\n\n".join(
             [
                 f"Continuing from the idle checkpoint of session {session}, written "
@@ -519,7 +594,7 @@ def resume(cwd: str) -> str:
                 ordered_sections(body),
                 render_digest(digest) if digest else "",
                 "Changes since the checkpoint:\n" + drift(digest),
-                PROTOCOL.format(session=session),
+                protocol,
             ]
         )
     return "No idle checkpoint for this project."
@@ -574,7 +649,7 @@ def turn(session: str, number: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("arm")
+    commands.add_parser("arm").add_argument("--client", choices=("claude", "codex"), default="claude")
     commands.add_parser("resume")
     commands.add_parser("guard").add_argument("--client", choices=("claude", "codex"), default="claude")
     find = commands.add_parser("search")
@@ -599,9 +674,11 @@ def main() -> int:
         return 0
     try:
         hook = json.load(sys.stdin)
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", hook["session_id"]):
+            return 0
         if args.command == "arm":
-            return arm(hook)
-        return codex_guard(hook) if args.client == "codex" else guard(hook)
+            return arm(hook, args.client)
+        return guard(hook, args.client)
     except (OSError, ValueError, KeyError, TypeError):
         return 0
 

@@ -1,7 +1,5 @@
 # Coding Agent Efficiency Stack: Ponytail + Serena + Context7 + RTK + Headroom
 
-> Verified against upstream docs and the installed transport paths on 2026-09-22. These projects move fast; re-check install commands before automating bootstrap.
-
 ## 1. Purpose
 
 | Tool | Layer | Question | Effect |
@@ -14,7 +12,7 @@
 
 The tools act at different stages; their savings overlap, so percentages are **never added**.
 
-This repo installs the stack for personal and work profiles of Codex and Claude Code: Serena and Context7 as user-level MCP servers, Ponytail as a native plugin, RTK via Codex instructions or Claude hooks, Headroom as a shared local proxy that every profile reaches through its config (§7). `token-profiler` reads local Codex and Claude sessions per profile.
+This repo installs the stack for personal and work profiles of Codex and Claude Code: Serena and Context7 as user-level MCP servers, Ponytail as a native plugin, RTK via Codex and Claude hooks, Headroom as a shared local proxy that every profile reaches through its config (§7). `token-profiler` reads local Codex and Claude sessions per profile.
 
 Two local safeguards complement them, neither runs `/compact` automatically:
 
@@ -87,9 +85,11 @@ Install via `npx ctx7 setup --codex`, or `codex plugin marketplace add upstash/c
 
 ## 6. RTK
 
-CLI proxy/filter that shrinks shell output **before it becomes model context** (Headroom compresses after). Example: Codex wants `cargo test` → `PreToolUse` hook runs `rtk rewrite "cargo test"` → executes `rtk cargo test` → compact, task-relevant output.
+CLI proxy/filter that shrinks shell output **before it becomes model context** (Headroom compresses after). Example: Codex wants `cargo test` → `PreToolUse` hook runs the RTK processor → executes `rtk cargo test` → compact, task-relevant output.
 
-Codex native hook: `rtk init --codex` (project: creates/updates `.codex/hooks.json` and `AGENTS.md`) or `rtk init --global --codex`. Restart Codex and trust project hooks. Per RTK docs the hook transparently rewrites supported `Bash` commands, so Codex shouldn't manually prefix `rtk` when the hook is healthy. Force raw output: `RTK_DISABLED=1 <command>` (e.g. `RTK_DISABLED=1 git diff`).
+Verified with **Codex CLI 0.162.1 and RTK 0.49.0**: Codex supports `PreToolUse` rewrites for shell and unified-exec calls, matched as `Bash` with `tool_input.command`. RTK's `init --codex` installs `AGENTS.md`/`RTK.md` instructions only; it does not install a Codex hook. This repo's installer separately merges a Bash hook into both Codex profiles and installs `codex_rtk_hook.py`. The adapter uses `rtk hook claude` and adds the `permissionDecision: "allow"` field required by [Codex's hook contract](https://learn.chatgpt.com/docs/hooks#pretooluse). It changes the command, while Codex's normal permission and sandbox checks still apply.
+
+After installation, restart Codex and review the new hook in `/hooks` in each profile; changed hook definitions are skipped until trusted. Confirm a plain `git status` tool call executes as `rtk git status` before relying on automatic rewriting. Until then, manually prefix supported commands. `smoke-test.sh` checks configuration and the installed RTK processor's output contract, but cannot establish runtime trust. Force raw output with `RTK_DISABLED=1 <command>` (e.g. `RTK_DISABLED=1 git diff`); already-prefixed and unsupported commands pass through unchanged.
 
 **Impact:** advertised up to ~90% fewer Bash-output bytes for supported workflows — tool output, not total session tokens. Best on tests, builds, git, package managers, repetitive output. **Risk:** filtering can hide details for unusual debugging; rerun that command raw or narrow it.
 
@@ -130,7 +130,7 @@ Goal: cut the first fresh-token spike after a long quota-reset pause without swi
 | Codex | Rollout `token_count`: input context, active primary/secondary quota windows | `UserPromptSubmit` hook; warns once while the condition holds | Recommend `/compact`, resume same thread |
 | Claude Code | Status-line JSON: context tokens/%, 5-hour and 7-day usage, cache warmth | Token-free persistent status line | Recommend `/compact`, continue same conversation |
 
-Threshold: context ≥ 120,000 input tokens **and** either active quota window ≥ 85% used. Code: `llm/codex_compact_warning.py`, `llm/codex-hooks.json`, `llm/claude_compact_statusline.py`.
+Threshold: context ≥ 120,000 input tokens **and** either active quota window ≥ 85% used. Code: `llm/codex/codex_compact_warning.py`, `llm/codex/codex-hooks.json`, `llm/claude/claude_compact_statusline.py`.
 
 Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is not set, since a lower fixed threshold isn't quota-aware and could rewrite a still-warm prefix early. No automatic external `/compact` for either agent: a visible recommendation beats injecting commands into an interactive session without a supported quota-aware trigger.
 
@@ -140,7 +140,15 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 Fix: write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
-It shares the 120K floor with the quota safeguard and splits the work: idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 3-hour gap, where the idle hint already suggests `/compact`.
+It shares the 120K floor with the quota safeguard and splits the work: idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 3-hour gap, where the idle guard handles the resume.
+
+#### One idle period (Codex, context ≥ 120K)
+
+The `Stop` hook runs `arm --client codex` in the background (`async: true`, `timeout: 11000`). After 2h42m without new activity, it saves a local checkpoint with the original request, latest reply and request, a redacted transcript with turn pointers, and the repository digest. A new turn or newer arm token cancels the worker. The 3-hour window is the existing idle policy, not a guarantee of Codex cache retention.
+
+After a 3-hour gap, the prompt guard offers the checkpoint once. Open a fresh thread and run `$pitstop`, then paste the prompt, or resend the prompt to keep the full session. The installer adds `llm/codex/pitstop/SKILL.md` to `~/.agents/skills/pitstop/`, shared by personal and work Codex profiles. Later accepted prompts invalidate the checkpoint.
+
+[Codex background hooks](https://developers.openai.com/codex/hooks#how-background-hooks-run) cannot wake an idle session and are cancelled when the session ends. Codex therefore saves transcript excerpts locally rather than asking the model to write a summary; it makes no extra model request and does not run `/compact` automatically.
 
 #### One idle period (Claude, context ≥ 120K)
 
@@ -148,7 +156,7 @@ It shares the 120K floor with the quota safeguard and splits the work: idle comp
 2. **At 54 min** `arm` exits 2, waking the session with a checkpoint request plus a script-built digest. The model writes the checkpoint without tools; the turn reads from cache and renews it for an hour, keeping the full session cheap until ~1h54m after last activity.
 3. **Next `Stop`** stores the reply's text blocks (never thinking) as the checkpoint, plus a cleaned transcript.
 4. **Return after expiry.** The `UserPromptSubmit` guard blocks the first prompt once, shows rebuild size and checkpoint time, and repeats the prompt. The user either opens a new chat (or `/clear`) and runs `/pitstop`, or resends to keep the full session.
-5. **`/pitstop`** (`llm/pitstop.md`, installed to each profile's `commands/`) runs `idle_compact.py resume`: the newest checkpoint for the current project whose chat had no prompt since, in fixed section order, then the digest, repo drift since the checkpoint (HEAD moves, uncommitted files), and a resume protocol: state goal and first next step, ask to confirm, treat Decisions and Dead ends as settled, fetch missing detail with `turn` or `search`, never read `transcript.md` whole. Nothing loads unless asked; `/clear` keeps stock behavior.
+5. **`/pitstop`** (`llm/claude/pitstop.md`, installed to each profile's `commands/`) runs `idle_compact.py resume`: the newest checkpoint for the current project whose chat had no prompt since, in fixed section order, then the digest, repo drift since the checkpoint (HEAD moves, uncommitted files), and a resume protocol: state goal and first next step, ask to confirm, treat Decisions and Dead ends as settled, fetch missing detail with `turn` or `search`, never read `transcript.md` whole. Nothing loads unless asked; `/clear` keeps stock behavior.
 
 Codex only gets a non-blocking `systemMessage` suggesting `/compact` when context ≥ 120K after a gap ≥ 3 hours: its hooks can't run in the background, and its cache mostly survives long gaps (82% of input still cached after gaps over 3 hours).
 
@@ -238,7 +246,7 @@ Two Serena servers on one project mean duplicate tools, duplicate indexing/LSP p
 
 ## 10. Hook coexistence
 
-All three can use Codex lifecycle hooks with distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → activation/reminders/cleanup; Ponytail → session activation, mode tracking, subagent rules. `rtk init --codex` may manage `.codex/hooks.json` and an RTK section in `AGENTS.md`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are trusted and active.
+All three can use Codex lifecycle hooks with distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → activation/reminders/cleanup; Ponytail → session activation, mode tracking, subagent rules. RTK 0.49.0 `init --codex` manages instructions; this repo separately merges the RTK adapter into user-level `hooks.json`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are trusted and active.
 
 ## 11. `AGENTS.md`
 

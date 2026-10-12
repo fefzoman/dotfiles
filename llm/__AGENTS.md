@@ -23,7 +23,7 @@ Understand the real code path before editing, make the smallest correct change, 
 - Use RTK for supported noisy commands whenever compacted output is sufficient.
 - Never assume RTK command rewriting is active merely because `RTK.md` or `rtk init` is present.
 - Claude Code: use the automatic rewrite hook when it is installed and active.
-- Codex: unless a working Codex `PreToolUse` RTK hook has been explicitly verified for this host/session, manually prefix supported noisy commands with `rtk`, including git, tests, builds, rg/grep, ls/find. RTK 0.49.x requires explicit prefixing.
+- Codex: use automatic rewriting when the RTK `PreToolUse` hook is trusted and verified for this host/session; otherwise manually prefix supported noisy commands with `rtk`, including git, tests, builds, rg/grep, ls/find. RTK 0.49.x `init --codex` installs instructions only; this repo installs the hook separately.
 - Do not wrap unsupported commands or commands where exact output is required. In particular, do not invent pass-through forms such as `rtk sed`; run the native command instead.
 - Keep commands narrow: `pgrep` over `ps`, `git diff --stat` before targeted diffs, bounded failure tails instead of full build logs.
 - RTK skips `find`/`rg`/`grep`/`ls` whose output feeds `sort`, `wc`, `xargs`, `awk`, another `rg`/`grep`, or `$( )`. Use the tool's own flags instead: `rg --files --sort path` to list, `rg -c` to count matches, `--glob '!path'` to exclude files, `wc -l <paths or glob>` for line counts.
@@ -32,7 +32,7 @@ Understand the real code path before editing, make the smallest correct change, 
 - Never start or configure another Serena instance unless asked.
 
 ## Git
-
+- Commit regulary.
 - Commit messages are one line with short body description, following the repo's prefix convention if it has one.
 - Never add `Co-Authored-By` trailers, "Generated with" lines or any other AI attribution to commits, PRs or code.
 
