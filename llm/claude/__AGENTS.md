@@ -18,6 +18,16 @@ Understand the real code path before editing, make the smallest correct change, 
 - Context7: query only the dependency in question, at the version the project's environment pins (`.venv`, `uv.lock`, `poetry.lock`, `requirements*.txt`, `node_modules`), named in `libraryId` or the query; apply the answer to the existing pattern.
 - Don't re-read the same content or re-discover tools already known.
 
+## Structured delivery (Spec Kit + Superpowers)
+
+- For a feature managed by Spec Kit, its active specification, plan, and tasks are the persistent source of truth for scope and implementation state.
+- Do not create a parallel Superpowers design or implementation plan for the same Spec Kit feature. Skip equivalent `brainstorming` / `writing-plans` stages unless explicitly requested or no Spec Kit artifacts exist.
+- During implementation, use applicable Superpowers disciplines within the existing Ponytail, retrieval, validation, and review rules; do not duplicate Spec Kit artifacts or start another Serena server.
+- If implementation discoveries change requirements, design, or remaining work, reconcile the relevant Spec Kit artifact instead of creating a second planning document.
+- Load only the active feature artifacts and the skills needed for the current step; do not read the whole specs tree or skill library.
+- Small, local changes do not require the Spec Kit lifecycle unless explicitly requested or the repository requires it.
+- Resolve conflicts in this order: explicit user requirements, applicable agent policy, project constitution, active specification, plan, tasks, then Superpowers defaults.
+
 ## Shell output (RTK) and transport (Headroom)
 
 - Use RTK for supported noisy commands whenever compacted output is sufficient.

@@ -282,7 +282,7 @@ Do not replace the existing global policy.
 
 Add the Codex routing section to `llm/codex/__AGENTS.md`, preferably between **Retrieval** and **Shell output**, and install it into both `~/.codex/AGENTS.md` and `~/.codex-work/AGENTS.md`. Editing only an installed copy is not durable: the installer replaces policy text from its repository source. Preserve each profile's RTK reference.
 
-Keep Claude policy in `llm/claude/__AGENTS.md`; adopt the same routing there only if Claude integration is intentionally added and its commands are verified.
+Keep Claude policy in `llm/claude/__AGENTS.md` with the same structured delivery routing. Verify command and skill availability in each agent's host before using them.
 
 ### Recommended block
 
@@ -938,6 +938,7 @@ llm/codex/__AGENTS.md
 
 llm/claude/__AGENTS.md
     → ~/.claude/CLAUDE.md and ~/.claude-work/CLAUDE.md
+    └── Structured delivery: Spec Kit + Superpowers
 
 ~/.codex/ and ~/.codex-work/
     ├── config.toml                                   ← MCPs, plugins, Headroom
@@ -959,7 +960,7 @@ project/
     └── code
 ```
 
-The policy arrows match the installer and smoke-test source paths in §1. Claude receives no Codex-only delivery policy unless explicitly adopted for Claude.
+The policy arrows match the installer and smoke-test source paths in §1. Both agent policies include structured delivery routing for Spec Kit and Superpowers.
 
 Operationally:
 

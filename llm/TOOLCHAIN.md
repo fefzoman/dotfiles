@@ -257,7 +257,7 @@ All three can use Codex lifecycle hooks with distinct jobs: RTK → `PreToolUse`
 
 Describe behavior, not install manuals: prefer Serena for semantic exploration; Context7 conditionally for third-party APIs; let RTK's hook handle supported commands; apply Ponytail's minimum-correct discipline; treat Headroom as transparent and never rely on compression for correctness; minimize context upstream instead of producing noise "because it will be compressed". `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
 
-Only the Codex template includes structured delivery routing. Spec Kit owns feature scope and progress; Superpowers supplies implementation disciplines within the existing Ponytail and retrieval rules. Resolve conflicts in this order: explicit user requirements, applicable agent policy, project constitution, active specification, plan, tasks, then Superpowers defaults. Claude keeps its own policy without Codex-only delivery instructions.
+Both agent templates include structured delivery routing. Spec Kit owns feature scope and progress; Superpowers supplies implementation disciplines within the existing Ponytail and retrieval rules. Resolve conflicts in this order: explicit user requirements, applicable agent policy, project constitution, active specification, plan, tasks, then Superpowers defaults.
 
 ## 12. Task workflow
 
