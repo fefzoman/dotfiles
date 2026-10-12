@@ -26,9 +26,9 @@ def render(data: dict[str, Any]) -> str:
     input_tokens = context.get("total_input_tokens")
     used = context.get("used_percentage")
     parts = [
-        f"context {percent(used)} ({input_tokens / 1000:.0f}k)"
+        f"Context {input_tokens / 1000:.0f}k/{percent(used)} used"
         if isinstance(used, int | float) and isinstance(input_tokens, int | float)
-        else "context --"
+        else "Context --"
     ]
 
     quota_used = []

@@ -18,7 +18,7 @@ class ClaudeCompactStatuslineTest(unittest.TestCase):
         )
 
         plain = re.sub(r"\033\[[0-9;]*m", "", output)
-        self.assertIn("context 65% (130k) | 5h 90% | 7d 40% | cache cold | WARNING", plain)
+        self.assertIn("Context 130k/65% used | 5h 90% | 7d 40% | cache cold | WARNING", plain)
         self.assertIn(statusline.color("65%", "F0ED24"), output)
         self.assertIn(statusline.color("90%", "E53B12"), output)
         self.assertIn(statusline.color("cache cold", "4CBFD4"), output)
