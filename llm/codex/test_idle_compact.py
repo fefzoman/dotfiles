@@ -26,7 +26,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.addCleanup(self.env.stop)
         self.transcript = self.home / "session.jsonl"
         self.hook = {"session_id": "codex-session", "transcript_path": str(self.transcript), "cwd": str(self.home)}
-        self.started = time.time() - ic.CODEX_GAP - 10
+        self.started = int(time.time()) - ic.CODEX_CACHE_TTL - 10
         self.rows = [
             self.row("response_item", {"type": "message", "role": "user", "content": [
                 {"type": "input_text", "text": "# AGENTS.md instructions\nProject policy"},
@@ -92,6 +92,49 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertEqual(ic.resume(str(self.home)), "No idle checkpoint for this project.")
         self.assertNotIn("decision", json.loads(self.run_hook(ic.guard, self.hook, "codex")))
 
+    def test_65k_session_checkpoints_before_the_30_minute_cache_boundary(self):
+        os.environ.pop("IDLE_COMPACT_TEST_SECONDS")
+        self.rows[-1]["payload"]["info"]["last_token_usage"]["input_tokens"] = 65_000
+        self.save()
+        now = [self.started + 1619]
+
+        def wait(seconds):
+            self.assertIsNone(ic.folder_for("codex-session"))
+            now[0] += seconds
+
+        with mock.patch.object(ic.time, "time", side_effect=lambda: now[0]), \
+                mock.patch.object(ic.time, "sleep", side_effect=wait):
+            self.run_hook(ic.arm, self.hook, "codex")
+        self.assertIsNotNone(ic.folder_for("codex-session"))
+        self.assertEqual(now[0] - self.started, 1620)
+
+    def test_65k_checkpoint_is_offered_once_at_the_cache_boundary(self):
+        self.run_hook(ic.arm, self.hook, "codex")
+        os.environ.pop("IDLE_COMPACT_TEST_SECONDS")
+        self.rows[-1]["payload"]["info"]["last_token_usage"]["input_tokens"] = 65_000
+        self.save()
+        with mock.patch.object(ic.time, "time", return_value=self.started + 1799):
+            self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
+        with mock.patch.object(ic.time, "time", return_value=self.started + 1800):
+            output = self.run_hook(ic.guard, self.hook, "codex")
+            self.assertTrue(output)
+            offered = json.loads(output)
+            self.assertEqual(offered["decision"], "block")
+            self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
+
+    def test_65k_session_without_checkpoint_gets_a_hint_at_the_cache_boundary(self):
+        os.environ.pop("IDLE_COMPACT_TEST_SECONDS")
+        self.rows[-1]["payload"]["info"]["last_token_usage"]["input_tokens"] = 65_000
+        self.save()
+        with mock.patch.object(ic.time, "time", return_value=self.started + 1799):
+            self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
+        with mock.patch.object(ic.time, "time", return_value=self.started + 1800):
+            output = self.run_hook(ic.guard, self.hook, "codex")
+            self.assertTrue(output)
+            hint = json.loads(output)
+            self.assertIn("/compact", hint["systemMessage"])
+            self.assertNotIn("decision", hint)
+
     def test_new_turn_cancels_the_idle_worker(self):
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "60"
         self.rows[-1]["timestamp"] = datetime.now(timezone.utc).isoformat()
@@ -125,8 +168,8 @@ class CodexIdleCompactTest(unittest.TestCase):
         warning = json.loads(self.run_hook(ic.guard, self.hook, "codex"))
         self.assertNotIn("decision", warning)
 
-    def test_small_context_and_malformed_usage_do_not_arm(self):
-        for info in [{"last_token_usage": {"input_tokens": 100}}, "malformed", {"last_token_usage": None}]:
+    def test_empty_context_and_malformed_usage_do_not_arm(self):
+        for info in [{"last_token_usage": {"input_tokens": 0}}, "malformed", {"last_token_usage": None}]:
             with self.subTest(info=info):
                 self.rows[-1]["payload"]["info"] = info
                 self.save()
@@ -154,7 +197,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertEqual(target.read_text(), original)
         stop = json.loads(original)["hooks"]["Stop"][0]["hooks"][0]
         self.assertTrue(stop["async"])
-        self.assertGreater(stop["timeout"], ic.CODEX_GAP)
+        self.assertGreater(stop["timeout"], ic.CODEX_CACHE_TTL)
 
     def test_cli_client_selection_opt_out_and_session_validation(self):
         command = ["python3", ic.__file__, "arm", "--client", "codex"]

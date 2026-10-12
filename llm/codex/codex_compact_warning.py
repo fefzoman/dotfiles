@@ -14,8 +14,7 @@ from typing import Any
 
 CONTEXT_THRESHOLD = 120_000
 REMAINING_THRESHOLD = 15.0
-# Matches idle_compact.CODEX_GAP: after such a gap its idle hint already suggests /compact.
-IDLE_GAP = 3 * 3600
+IDLE_GAP = 30 * 60
 
 
 def latest_snapshot(path: Path) -> tuple[int, list[tuple[float, int | None]], float] | None:

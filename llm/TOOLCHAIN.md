@@ -142,13 +142,13 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 Fix: write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
-It shares the 120K floor with the quota safeguard and splits the work: idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 3-hour gap, where the idle guard handles the resume.
+Claude idle compaction shares the 120K floor with the quota safeguard. Codex checkpoints any session with positive input usage, including a 65K session. Idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 30-minute gap, where the idle guard handles the resume.
 
-#### One idle period (Codex, context ≥ 120K)
+#### One idle period (Codex)
 
-The `Stop` hook runs `arm --client codex` in the background (`async: true`, `timeout: 11000`). After 2h42m without new activity, it saves a local checkpoint with the original request, latest reply and request, a redacted transcript with turn pointers, and the repository digest. A new turn or newer arm token cancels the worker. The 3-hour window is the existing idle policy, not a guarantee of Codex cache retention.
+The `Stop` hook runs `arm --client codex` in the background (`async: true`, `timeout: 11000`). After 27 minutes without new activity, it saves a local checkpoint with the original request, latest reply and request, a redacted transcript with turn pointers, and the repository digest. A new turn or newer arm token cancels the worker. Timing is 90% of the [documented default minimum cache lifetime](https://developers.openai.com/api/docs/guides/prompt-caching#cache-lifetime) of 30 minutes for GPT-5.6 and later, measured from the last token-usage event. The hook has no per-session expiry signal; cache entries may survive longer. Earlier models and other providers may have different retention policies.
 
-After a 3-hour gap, the prompt guard offers the checkpoint once. Open a fresh thread and run `$pitstop`, then paste the prompt, or resend the prompt to keep the full session. The installer adds `llm/codex/pitstop/SKILL.md` to `~/.agents/skills/pitstop/`, shared by personal and work Codex profiles. Later accepted prompts invalidate the checkpoint.
+After a 30-minute gap, the prompt guard offers the checkpoint once. Open a fresh thread and run `$pitstop`, then paste the prompt, or resend the prompt to keep the full session. If no valid checkpoint exists, it suggests `/compact` without blocking. The installer adds `llm/codex/pitstop/SKILL.md` to `~/.agents/skills/pitstop/`, shared by personal and work Codex profiles. Later accepted prompts invalidate the checkpoint.
 
 [Codex background hooks](https://developers.openai.com/codex/hooks#how-background-hooks-run) cannot wake an idle session and are cancelled when the session ends. Codex therefore saves transcript excerpts locally rather than asking the model to write a summary; it makes no extra model request and does not run `/compact` automatically.
 
@@ -159,8 +159,6 @@ After a 3-hour gap, the prompt guard offers the checkpoint once. Open a fresh th
 3. **Next `Stop`** stores the reply's text blocks (never thinking) as the checkpoint, plus a cleaned transcript.
 4. **Return after expiry.** The `UserPromptSubmit` guard blocks the first prompt once, shows rebuild size and checkpoint time, and repeats the prompt. The user either opens a new chat (or `/clear`) and runs `/pitstop`, or resends to keep the full session.
 5. **`/pitstop`** (`llm/claude/pitstop.md`, installed to each profile's `commands/`) runs `idle_compact.py resume`: the newest checkpoint for the current project whose chat had no prompt since, in fixed section order, then the digest, repo drift since the checkpoint (HEAD moves, uncommitted files), and a resume protocol: state goal and first next step, ask to confirm, treat Decisions and Dead ends as settled, fetch missing detail with `turn` or `search`, never read `transcript.md` whole. Nothing loads unless asked; `/clear` keeps stock behavior.
-
-Codex only gets a non-blocking `systemMessage` suggesting `/compact` when context ≥ 120K after a gap ≥ 3 hours: its hooks can't run in the background, and its cache mostly survives long gaps (82% of input still cached after gaps over 3 hours).
 
 #### Checkpoint content
 
@@ -200,7 +198,7 @@ Plain files, one folder per session: no shared writer, no locks, atomic rename o
 
 #### Settings and safety
 
-- `IDLE_COMPACT=off` disables the hooks. `IDLE_COMPACT_TEST_SECONDS` replaces the 54-min wait and `IDLE_COMPACT_TEST_MIN_TOKENS` the 120K floor, for live tests only.
+- `IDLE_COMPACT=off` disables the hooks. `IDLE_COMPACT_TEST_SECONDS` replaces either client's idle wait; `IDLE_COMPACT_TEST_MIN_TOKENS` replaces Claude's 120K floor, for live tests only.
 - Any parse failure exits 0; a killed sleeper changes nothing since state is written only at fire time.
 - Common secrets (API keys, bearer tokens, private keys, password assignments) are redacted before writing.
 - The old session stays resumable, so a checkpoint that misses a detail loses nothing.
@@ -210,7 +208,7 @@ Plain files, one folder per session: no shared writer, no locks, atomic rename o
 - Does Codex show a non-blocking `systemMessage` from `UserPromptSubmit`?
 - What do Claude Code's `precomputeCompactionEnabled` and `awaySummaryEnabled` do? They may cover part of this natively.
 - What does the checkpoint turn cost at `xhigh` effort?
-- Is 3 hours the right Codex threshold?
+- Do Codex hooks expose cache TTL or expiry metadata for policies other than the GPT-5.6+ default?
 - Does the new chat follow the resume protocol's confirm step?
 - Does Headroom keep the cache warm across 10–60 min gaps? On 0.39.1 the checkpoint turn read 25K and rewrote 480K; re-measure on 0.40.0 (#3934).
 

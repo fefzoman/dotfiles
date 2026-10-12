@@ -57,6 +57,7 @@ class CompactWarningTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"XDG_STATE_HOME": directory}):
             self.assertIn("run /compact now", run(0.1, "fresh"))
+            self.assertEqual(run(0.75, "cache_boundary"), "")
             self.assertEqual(run(4, "idle"), "")
 
 

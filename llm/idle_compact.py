@@ -19,7 +19,8 @@ from typing import Any
 
 MIN_TOKENS = 120_000
 FIRE_FRACTION = 0.9
-CODEX_GAP = 3 * 3600
+# GPT-5.6+ defaults to a 30m minimum cache TTL: https://developers.openai.com/api/docs/guides/prompt-caching
+CODEX_CACHE_TTL = 30 * 60
 SESSION_DAYS = 7
 CHECKPOINT_DAYS = 30
 OUTPUT_CAP = 2000
@@ -70,13 +71,15 @@ def marker(session: str, kind: str) -> Path:
     return state_dir() / "sessions" / f"{session}.{kind}"
 
 
-def lifetime() -> float:
+def lifetime(client: str = "claude") -> float:
     test = os.environ.get("IDLE_COMPACT_TEST_SECONDS")
-    return float(test) / FIRE_FRACTION if test else 3600.0
+    if test:
+        return float(test) / FIRE_FRACTION
+    return CODEX_CACHE_TTL if client == "codex" else 3600.0
 
 
-def min_tokens() -> int:
-    return int(os.environ.get("IDLE_COMPACT_TEST_MIN_TOKENS") or MIN_TOKENS)
+def min_tokens(client: str = "claude") -> int:
+    return 1 if client == "codex" else int(os.environ.get("IDLE_COMPACT_TEST_MIN_TOKENS") or MIN_TOKENS)
 
 
 def write(path: Path, text: str) -> None:
@@ -459,7 +462,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
             write(marker(session, "stored"), str(fired))
         return 0
     call = last_call(recs)
-    if not call or call[1] < min_tokens():
+    if not call or call[1] < min_tokens(client):
         return 0
     if client == "claude" and (not one_hour_cache(recs) or native_idle_compact()):
         return 0
@@ -467,7 +470,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     token = uuid.uuid4().hex
     write(marker(session, "arm"), token)
     seen = last_message(recs)
-    gap = CODEX_GAP if client == "codex" and not os.environ.get("IDLE_COMPACT_TEST_SECONDS") else lifetime()
+    gap = lifetime(client)
     fire_at = call[0] + gap * FIRE_FRACTION
     while (wait := fire_at - time.time()) > 0:
         time.sleep(min(60.0, wait))
@@ -507,17 +510,17 @@ def codex_last_call(path: Path) -> tuple[float, int] | None:
     return last_call(codex_records(path, TAIL_BYTES))
 
 
-def unguarded(session: str, call: tuple[float, int] | None, gap: float) -> bool:
-    return bool(call) and call[1] >= min_tokens() and time.time() - call[0] >= gap and read(marker(session, "guard")) != str(call[0])
+def unguarded(session: str, call: tuple[float, int] | None, gap: float, client: str = "claude") -> bool:
+    return bool(call) and call[1] >= min_tokens(client) and time.time() - call[0] >= gap and read(marker(session, "guard")) != str(call[0])
 
 
 def codex_guard(hook: dict[str, Any]) -> int:
     session, call = hook["session_id"], codex_last_call(Path(hook["transcript_path"]))
-    if not unguarded(session, call, CODEX_GAP):
+    if not unguarded(session, call, lifetime("codex"), "codex"):
         return 0
     write(marker(session, "guard"), str(call[0]))
     message = (
-        f"This thread has {call[1] // 1000}K tokens of context after a {(time.time() - call[0]) / 3600:.0f}-hour "
+        f"This thread has {call[1] // 1000}K tokens of context after a {minutes(time.time() - call[0])} "
         "pause. Run /compact now to keep the following turns small."
     )
     print(json.dumps({"systemMessage": message}))
@@ -528,7 +531,7 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     load_records = codex_records if client == "codex" else records
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     call = last_call(recs)
-    if not unguarded(session, call, CODEX_GAP if client == "codex" else lifetime()):
+    if not unguarded(session, call, lifetime(client), client):
         return 0
     folder = folder_for(session)
     checkpoint = folder / "checkpoint.md" if folder else None
