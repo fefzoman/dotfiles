@@ -43,10 +43,11 @@ non-strict test automatically after installation.
 `base-macos.sh` / `base-linux.sh` (sharing `base-common.sh`) own general machine tooling, while `llm/ai-install.sh` owns
 Codex, Claude Code, Fabric, RTK, Headroom, Ponytail, Serena, Context7, the token
 profiler, and AI profile shell commands. It configures every applicable tool
-for personal and work Codex/Claude profiles and installs `llm/__AGENTS.md`
-globally for all four. When executed it installs the tools; when sourced it
-only loads the AI environment, functions, and aliases. `activate.sh` runs all
-three stages in dependency order.
+for personal and work Codex/Claude profiles and installs `llm/codex/__AGENTS.md`
+in both Codex profiles and `llm/claude/__AGENTS.md` in both Claude profiles.
+When executed it installs the tools; when sourced it only loads the AI
+environment, functions, and aliases. `activate.sh` runs all three stages in
+dependency order.
 
 Restart Alacritty after installation. Existing tmux shells may also need to be
 restarted before they load the new Bash configuration.
@@ -328,9 +329,9 @@ changing `PY_VERSION` carries packages over. Global npm packages live in
 |---|---|
 | `~/.bashrc` | Oh My Bash, aliases, completions, terminal variables, word navigation |
 | `~/.config/dotfiles/ai-install.sh` | Sourced Codex/Claude profiles, Codex `??` helper, and AI telemetry settings |
-| `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/__AGENTS.md` |
+| `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/codex/__AGENTS.md` |
 | `~/.codex/hooks.json`, `~/.codex-work/hooks.json` | Serena activation/reminder/cleanup and context-warning hooks |
-| `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/__AGENTS.md` |
+| `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/claude/__AGENTS.md` |
 | `~/.bash_profile` | Loads `~/.bashrc` for login shells |
 | `~/.oh-my-bash/custom/themes/font/font.theme.sh` | Two-line prompt with clock, host, path, Git branch, and status arrow |
 | `~/.config/alacritty/alacritty.toml` | Gruvbox theme, Thin output, Medium command input, narrow beam cursor, automatic tmux session |

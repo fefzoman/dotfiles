@@ -29,7 +29,7 @@
 | Checkpoint resume | Codex skill `llm/codex/pitstop/SKILL.md`; Claude command `llm/claude/pitstop.md` |
 | Measurement / installation checks | `llm/token-profiler/`, `llm/smoke-test.sh` |
 
-**Policy migration prerequisite:** in this worktree, `llm/__AGENTS.md` has been deleted and the two agent-specific policy sources above exist. However, `install_global_agents` in `llm/ai-install.sh` and policy checks in `llm/smoke-test.sh` still use `llm/__AGENTS.md`. The split is not wired into installation yet. Resolve those source references before reinstalling policies; the installer currently fails when it reaches the missing source. `README.md` and `llm/TOOLCHAIN.md` also still describe the shared source.
+**Policy installation:** `install_global_agents` in `llm/ai-install.sh` installs each agent-specific policy source above into its personal and work profiles. Policy checks in `llm/smoke-test.sh` compare installed policies against the corresponding source and validate each profile's RTK import.
 
 The policy installation targets remain `AGENTS.md` in both Codex homes and `CLAUDE.md` in both Claude homes. Repository `__AGENTS.md` files are source templates, not automatically discovered project instructions.
 
@@ -280,7 +280,7 @@ You already have Git/release conventions. Adding Spec Kit Git management and Sup
 
 Do not replace the existing global policy.
 
-Add the Codex routing section to `llm/codex/__AGENTS.md`, preferably between **Retrieval** and **Shell output**. Once the policy migration is wired into the installer and smoke test, install it into both `~/.codex/AGENTS.md` and `~/.codex-work/AGENTS.md`. Editing only an installed copy is not durable: the installer replaces policy text from its repository source. Preserve each profile's RTK reference.
+Add the Codex routing section to `llm/codex/__AGENTS.md`, preferably between **Retrieval** and **Shell output**, and install it into both `~/.codex/AGENTS.md` and `~/.codex-work/AGENTS.md`. Editing only an installed copy is not durable: the installer replaces policy text from its repository source. Preserve each profile's RTK reference.
 
 Keep Claude policy in `llm/claude/__AGENTS.md`; adopt the same routing there only if Claude integration is intentionally added and its commands are verified.
 
@@ -959,7 +959,7 @@ project/
     └── code
 ```
 
-The policy arrows describe the target after resolving the source migration in §1. The current installer still references the deleted shared template. Claude receives no Codex-only delivery policy unless explicitly adopted for Claude.
+The policy arrows match the installer and smoke-test source paths in §1. Claude receives no Codex-only delivery policy unless explicitly adopted for Claude.
 
 Operationally:
 
