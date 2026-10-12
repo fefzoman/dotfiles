@@ -111,7 +111,7 @@ check "Codex pitstop skill matches the repository" "Codex pitstop skill is missi
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
   bash --noprofile --norc -c \
-  'source "$1"; declare -F code >/dev/null; declare -F __codex_answer >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
+  'source "$1"; declare -F code >/dev/null; declare -F codex >/dev/null; declare -F __codex_answer >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
   _ "$HOME/.config/dotfiles/ai-install.sh"
 
 rtk_dir="$(dirname "$(command -v rtk)")"

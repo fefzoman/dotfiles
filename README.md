@@ -252,8 +252,9 @@ in all personal and work Codex/Claude profiles. Its lifecycle hooks and skills
 load in every CLI while model traffic still routes through Headroom. Node.js is
 installed because Ponytail's hooks require it.
 
-After installation, start each profile, review Ponytail's hooks, then start a
-new thread. Hook trust is intentionally not granted by `auto-approve`.
+Codex shell commands bypass hook trust in both profiles. Claude user and enabled
+plugin hooks run by default; project hooks require trusting the folder. Codex
+sessions launched outside the shell still require hook review.
 Ponytail defaults to `full`; Codex uses `@ponytail` commands and Claude uses
 `/ponytail` commands.
 

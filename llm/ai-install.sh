@@ -33,6 +33,10 @@ __codex_answer() {
 
 alias '??'='__codex_answer'
 
+codex() {
+  command codex --dangerously-bypass-hook-trust "$@"
+}
+
 # Headroom routing lives in each profile's config (see install_headroom), so
 # codex, claude and the VS Code extensions all reach the persistent proxy.
 code() {
@@ -341,6 +345,6 @@ bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."
 install_shell_config
 echo "==> Run 'fabric --setup' once to select Fabric's AI provider."
-echo "==> Review and trust RTK, Serena, Context7 and Ponytail hooks with /hooks in each Codex profile."
+echo "==> Codex shell commands bypass hook trust; Claude user and plugin hooks run by default."
 echo "==> Running LLM toolchain smoke test..."
 bash "$SCRIPT_DIR/smoke-test.sh"
