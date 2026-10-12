@@ -1,4 +1,4 @@
-# Coding Agent Efficiency Stack: Ponytail + Serena + Context7 + RTK + Headroom
+# Coding Agent Toolchain: Delivery and Efficiency
 
 ## 1. Purpose
 
@@ -9,6 +9,8 @@
 | **Context7** | External dependency knowledge | How does this library/API work in this version? | Current library/API docs and examples |
 | **RTK** | Shell execution | How much terminal output does the model need? | Rewrites supported commands to compact equivalents |
 | **Headroom** | LLM transport/context | How much accumulated context must reach the model? | Local compression, cache-aware context management, reversible retrieval |
+| **Spec Kit** | Feature delivery | What should this feature do, and what remains? | Project-local specification, plan, and task ledger |
+| **Superpowers** | Implementation discipline | How do we implement and verify the change? | Conditional TDD, debugging, verification, and review skills |
 
 The tools act at different stages; their savings overlap, so percentages are **never added**.
 
@@ -239,6 +241,9 @@ Each piece has exactly one owner:
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Headroom routing + service | `headroom install apply` + `agent_config.py headroom-work` | Config entries pointing at the shared proxy (§7) |
+| Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
+| Spec Kit CLI | `llm/ai-install.sh` `install_ai_tools` | `uv tool install --upgrade specify-cli`; project initialization stays explicit |
+| Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream Codex plugin in both Codex homes |
 
 `headroom wrap` is not used: it would register its own Serena code-memory MCP (unless `--code-memory none`) and rewrite Codex's `config.toml`. If a profile still shows a `headroom` MCP server (`headroom mcp serve`) from an earlier `wrap`, remove it with `claude mcp remove --scope user headroom`.
 
@@ -250,7 +255,9 @@ All three can use Codex lifecycle hooks with distinct jobs: RTK → `PreToolUse`
 
 ## 11. `AGENTS.md`
 
-Describe behavior, not install manuals: prefer Serena for semantic exploration; Context7 conditionally for third-party APIs; let RTK's hook handle supported commands; apply Ponytail's minimum-correct discipline; treat Headroom as transparent and never rely on compression for correctness; minimize context upstream instead of producing noise "because it will be compressed". `llm/__AGENTS.md` stays short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
+Describe behavior, not install manuals: prefer Serena for semantic exploration; Context7 conditionally for third-party APIs; let RTK's hook handle supported commands; apply Ponytail's minimum-correct discipline; treat Headroom as transparent and never rely on compression for correctness; minimize context upstream instead of producing noise "because it will be compressed". `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
+
+Only the Codex template includes structured delivery routing. Spec Kit owns feature scope and progress; Superpowers supplies implementation disciplines within the existing Ponytail and retrieval rules. Resolve conflicts in this order: explicit user requirements, applicable agent policy, project constitution, active specification, plan, tasks, then Superpowers defaults. Claude keeps its own policy without Codex-only delivery instructions.
 
 ## 12. Task workflow
 
@@ -261,6 +268,39 @@ Describe behavior, not install manuals: prefer Serena for semantic exploration; 
 5. Run the narrowest useful validation (RTK compacts output).
 6. Inspect the final diff; `@ponytail-review` for non-trivial changes when available.
 7. Headroom optimizes transport automatically — never an excuse for broad reads or huge commands.
+
+### Structured feature delivery in Codex
+
+`llm/ai-install.sh` installs `specify-cli` and Superpowers without initializing the current repository. Superpowers uses the upstream `obra/superpowers` Codex marketplace, whose current name is `superpowers-dev`. An already enabled `superpowers@openai-curated` or `superpowers@superpowers-dev` is reused, avoiding a second installation. The curated marketplace could not be registered in the work profile on this host, so the upstream plugin path was verified in both profiles. Do not also expose a manual Superpowers skill symlink.
+
+For an existing project, commit or stash its current work, then initialize and review the generated files:
+
+```bash
+specify init --here --force --integration codex --integration-options="--skills"
+rtk git status --short
+rtk git diff --stat
+rtk git diff -- .specify .agents
+```
+
+Codex skills live under the project's `.agents/skills/`; `.specify/` holds project tooling and `specs/<feature>/` holds persistent feature artifacts. Create the project constitution once with `$speckit-constitution`, then use this bounded feature workflow:
+
+```text
+$speckit-specify
+$speckit-clarify
+$speckit-plan
+$speckit-tasks
+$speckit-analyze
+$speckit-implement
+$speckit-converge
+```
+
+Clarify only when ambiguity matters; analyze meaningful features before implementation. During implementation, load applicable Superpowers TDD, systematic debugging, and verification skills. Keep `@ponytail-review` before commits changing more than about 30 lines of code. Update the active spec, plan, or tasks when implementation changes them; do not create a parallel Superpowers design, plan, or task ledger. Small local changes can use the normal workflow without Spec Kit.
+
+Keep the optional Spec Kit Git extension, Superpowers worktree/subagent orchestration, and bridge extensions out of the initial setup. Existing idle checkpoints and pitstop supply session context; the active Spec Kit artifacts remain the feature ledger. The `code` shell function selects the personal Codex home; other IDE launchers need their profile checked separately.
+
+Validated on October 12, 2026: Spec Kit 1.1.3 generated all ten Codex skills, including converge, in a temporary project; Superpowers 7.0.0 was installed and enabled in both Codex profiles; all 63 unit tests passed; `bash llm/smoke-test.sh --strict` reported 71 passes with no warnings or failures. The smoke test checks CLI startup, plugin enablement, and installed policy consistency. Fresh VS Code skill discovery and model-driven workflow behavior remain unverified: restart Codex and explicitly request `systematic-debugging` in each host/profile you use.
+
+See [the integration specification](../codex-superpowers-speckit-integration.md) for routing and rollout details, [Superpowers upstream](https://github.com/obra/superpowers), and [Spec Kit](https://github.com/github/spec-kit).
 
 ## 13. When to bypass a layer
 

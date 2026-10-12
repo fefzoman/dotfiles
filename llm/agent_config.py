@@ -198,9 +198,9 @@ def policy_matches(source: str, target: str, rtk_file: str = "", rtk_reference: 
     return actual.strip() == Path(source).read_text(encoding="utf-8").strip()
 
 
-def codex_plugin_enabled() -> bool:
+def codex_plugin_enabled(plugin_id: str = "ponytail@ponytail", *alternatives: str) -> bool:
     return any(
-        p.get("pluginId") == "ponytail@ponytail" and p.get("installed") and p.get("enabled")
+        p.get("pluginId") in (plugin_id, *alternatives) and p.get("installed") and p.get("enabled")
         for p in json.load(sys.stdin).get("installed", [])
     )
 

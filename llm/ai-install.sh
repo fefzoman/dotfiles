@@ -102,6 +102,8 @@ install_ai_tools() {
     env INSTALL_DIR="$HOME/.local/bin" bash
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade serena-agent
+  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
+    --python "$PYTHON_VERSION" --upgrade specify-cli
 }
 
 install_vscode_commands() {
@@ -172,6 +174,23 @@ install_ponytail() {
   done
 }
 
+install_superpowers() {
+  local profile codex_bin
+
+  codex_bin="$(type -P codex)"
+  for profile in "$HOME/.codex" "$HOME/.codex-work"; do
+    if CODEX_HOME="$profile" "$codex_bin" plugin list --json |
+      agent_config codex-plugin-enabled superpowers@openai-curated superpowers@superpowers-dev; then
+      echo "==> Superpowers already enabled for $profile"
+      continue
+    fi
+    CODEX_HOME="$profile" "$codex_bin" plugin marketplace add obra/superpowers --json >/dev/null || return
+    CODEX_HOME="$profile" "$codex_bin" plugin marketplace upgrade superpowers-dev --json >/dev/null || return
+    CODEX_HOME="$profile" "$codex_bin" plugin add superpowers@superpowers-dev --json >/dev/null || return
+    echo "==> Superpowers installed for $profile"
+  done
+}
+
 configure_agent_mcps() {
   local claude_bin codex_bin context7_bin profile serena_bin server
 
@@ -225,11 +244,11 @@ install_global_agents() {
 
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
-    install -m 0644 "$SCRIPT_DIR/__AGENTS.md" "$profile/AGENTS.md"
+    install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
-    install -m 0644 "$SCRIPT_DIR/__AGENTS.md" "$profile/CLAUDE.md"
+    install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
   done
 }
 
@@ -336,6 +355,8 @@ echo "==> Disabling unused claude.ai connectors in Claude profiles..."
 disable_claude_connectors
 echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
+echo "==> Installing Superpowers for Codex profiles..."
+install_superpowers
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
 configure_agent_mcps
 echo "==> Installing Headroom for Codex and Claude..."

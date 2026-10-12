@@ -63,7 +63,7 @@ with_claude_profile() {
 }
 
 codex_plugin_enabled() {
-  CODEX_HOME="$1" command codex plugin list --json | agent_config codex-plugin-enabled
+  CODEX_HOME="$1" command codex plugin list --json | agent_config codex-plugin-enabled "${@:2}"
 }
 
 codex_mcp_enabled() {
@@ -81,13 +81,14 @@ claude_mcp_enabled() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk headroom token-profiler node uv serena context7-mcp code code-work; do
+for command_name in python codex claude fabric rtk headroom token-profiler node uv serena specify context7-mcp code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
 
 check "Codex starts" "Codex failed to start" codex --version
 check "Claude Code starts" "Claude Code failed to start" claude --version
+check "Spec Kit starts" "Spec Kit failed to start" specify version
 check "Headroom persistent proxy is installed and healthy" \
   "Headroom persistent proxy is not installed or not healthy" \
   headroom install status
@@ -123,9 +124,11 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     agent_config codex-hooks-valid "$SCRIPT_DIR/codex/codex-hooks.json" "$profile/hooks.json"
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
-    agent_config policy-matches "$SCRIPT_DIR/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
+    agent_config policy-matches "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
   check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \
     codex_plugin_enabled "$profile"
+  check "Superpowers is installed and enabled in $profile" "Superpowers is missing or disabled in $profile" \
+    codex_plugin_enabled "$profile" superpowers@openai-curated superpowers@superpowers-dev
   check "Codex routes through Headroom in $profile" "Codex bypasses Headroom in $profile" \
     agent_config codex-headroom "$profile/config.toml"
   check "Codex command PATH includes RTK in $profile" "Codex command PATH cannot resolve RTK in $profile" \
@@ -141,7 +144,7 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
 
   check "Claude policy and RTK import are valid in $profile" \
     "Claude policy or RTK import is invalid in $profile" \
-    agent_config policy-matches "$SCRIPT_DIR/__AGENTS.md" "$profile/CLAUDE.md" "$profile/RTK.md" '@RTK.md'
+    agent_config policy-matches "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md" "$profile/RTK.md" '@RTK.md'
   check "Claude commit and PR attribution is disabled in $profile" \
     "Claude adds commit or PR attribution in $profile" \
     agent_config attribution-disabled "$profile/settings.json"
