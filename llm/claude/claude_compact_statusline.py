@@ -30,6 +30,11 @@ def render(data: dict[str, Any]) -> str:
         if isinstance(used, int | float) and isinstance(input_tokens, int | float)
         else "Context --"
     ]
+    model = data.get("model", {})
+    model_name = model.get("display_name") or model.get("id")
+    effort = data.get("effort", {}).get("level")
+    if model_name:
+        parts.insert(0, f"{model_name}/{effort}" if effort is not None else model_name)
 
     quota_used = []
     for label, key in (("5h", "five_hour"), ("7d", "seven_day")):

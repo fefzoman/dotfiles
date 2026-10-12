@@ -5,6 +5,18 @@ from llm.claude import claude_compact_statusline as statusline
 
 
 class ClaudeCompactStatuslineTest(unittest.TestCase):
+    def test_shows_current_model_and_effort(self):
+        for model, effort, expected in (
+            ({"display_name": "Opus", "id": "claude-opus-5-5"}, "high", "Opus/high"),
+            ({"id": "claude-sonnet-5"}, "medium", "claude-sonnet-5/medium"),
+            ({"display_name": "Opus"}, None, "Opus"),
+            ({"display_name": "Opus"}, 0, "Opus/0"),
+        ):
+            with self.subTest(model=model, effort=effort):
+                output = statusline.render({"model": model, "effort": {"level": effort}})
+                plain = re.sub(r"\033\[[0-9;]*m", "", output)
+                self.assertEqual(plain, expected + " | Context --")
+
     def test_warns_for_large_context_and_nearly_exhausted_quota(self) -> None:
         output = statusline.render(
             {

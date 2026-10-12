@@ -9,7 +9,7 @@ import tomllib
 from pathlib import Path
 
 STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
-CODEX_STATUSLINE = ["context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
+CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
@@ -83,12 +83,13 @@ def codex_statusline(config: str) -> None:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     data = tomllib.loads(text)
     if "status_line" in data.get("tui", {}):
-        if data["tui"]["status_line"] != [item for item in CODEX_STATUSLINE if item != "used-tokens"]:
+        previous = CODEX_STATUSLINE[1:]
+        if data["tui"]["status_line"] not in (previous, [item for item in previous if item != "used-tokens"]):
             return
         text = re.sub(r'(?m)^([ \t]*status_line[ \t]*=[ \t]*)\[[^\]]*\]',
                       lambda match: match[1] + json.dumps(CODEX_STATUSLINE), text, count=1)
         if tomllib.loads(text)["tui"]["status_line"] != CODEX_STATUSLINE:
-            raise SystemExit(f"{config}: add used-tokens to the existing tui status_line")
+            raise SystemExit(f"{config}: update the existing tui status_line to {CODEX_STATUSLINE}")
         path.write_text(text, encoding="utf-8")
         return
     setting = "status_line = " + json.dumps(CODEX_STATUSLINE) + "\n"

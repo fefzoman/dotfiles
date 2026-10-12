@@ -7,6 +7,13 @@ from llm.agent_config import CODEX_STATUSLINE, codex_statusline
 
 
 class CodexStatuslineTest(unittest.TestCase):
+    def test_upgrades_default_with_used_tokens(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            path.write_text('[tui]\nstatus_line = ["context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]\n')
+            codex_statusline(str(path))
+            self.assertEqual(tomllib.loads(path.read_text())["tui"]["status_line"][0], "model-with-reasoning")
+
     def test_upgrades_previous_default(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.toml"
@@ -27,6 +34,7 @@ class CodexStatuslineTest(unittest.TestCase):
                 installed = path.read_text()
                 data = tomllib.loads(installed)
                 self.assertEqual(data["tui"]["status_line"], CODEX_STATUSLINE)
+                self.assertEqual(data["tui"]["status_line"][0], "model-with-reasoning")
                 for key, value in tomllib.loads(original).items():
                     if key == "tui":
                         self.assertTrue(value.items() <= data[key].items())
