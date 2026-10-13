@@ -208,12 +208,16 @@ class CodexIdleCompactTest(unittest.TestCase):
             self.assertFalse(ic.state_dir().exists())
         result = subprocess.run(command, input=json.dumps(self.hook), text=True, capture_output=True, check=True)
         self.assertIn("$pitstop and then /clear", json.loads(result.stdout)["systemMessage"])
-        subprocess.run(["python3", ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
-                       text=True, capture_output=True, check=True)
-        result = subprocess.run(["python3", ic.__file__, "clear"], input=json.dumps(self.hook), text=True,
-                                capture_output=True, check=True)
+        result = subprocess.run(["python3", ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
+                                text=True, capture_output=True, check=True)
+        self.assertEqual(json.loads(result.stdout)["reason"],
+                         "Idle checkpoint codex-session handed off. Run /clear to continue from it in this window.")
+        result = subprocess.run(["python3", ic.__file__, "clear"], input=json.dumps(self.hook | {"session_id": "codex-new"}),
+                                text=True, capture_output=True, check=True)
+        loaded = json.loads(result.stdout)
+        self.assertEqual(loaded["systemMessage"], "Loaded idle checkpoint codex-session into session codex-new.")
         self.assertIn("client: codex", ic.read(ic.folder_for("codex-session") / "checkpoint.md"))
-        self.assertIn("Continuing from the idle checkpoint", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("Continuing from idle checkpoint codex-session", loaded["hookSpecificOutput"]["additionalContext"])
 
 
 if __name__ == "__main__":

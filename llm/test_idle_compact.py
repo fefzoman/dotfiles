@@ -100,7 +100,9 @@ class IdleCompactTest(unittest.TestCase):
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
         self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
         self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
-        context = json.loads(self.run_hook(ic.clear, hook)[1])["hookSpecificOutput"]["additionalContext"]
+        loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2"})[1])
+        self.assertEqual(loaded["systemMessage"], "Loaded idle checkpoint s1 into session s2.")
+        context = loaded["hookSpecificOutput"]["additionalContext"]
         self.assertIn("### Goal\nFix race", context)
         self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
 

@@ -536,11 +536,11 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     load_records = codex_records if client == "codex" else records
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     folder, cwd = folder_for(session), hook.get("cwd") or os.getcwd()
-    if folder and re.fullmatch(r"\s*[/$]pitstop\s*", str(hook.get("prompt", ""))):
-        if resume(cwd, folder.name).startswith("Continuing"):
-            write(handoff(cwd), folder.name)
-            print(json.dumps({"decision": "block", "reason": "Idle checkpoint handed off. Run /clear to continue from it in this window."}))
-            return 0
+    if re.fullmatch(r"\s*[/$]pitstop\s*", str(hook.get("prompt", ""))):
+        if folder and resume(cwd, session).startswith("Continuing"):
+            write(handoff(cwd), session)
+            print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off. Run /clear to continue from it in this window."}))
+        return 0
     call = last_call(recs)
     if not unguarded(session, call, lifetime(client), client):
         return 0
@@ -586,7 +586,7 @@ def resume(cwd: str, only: str | None = None) -> str:
     handoff(cwd).unlink(missing_ok=True)
     folders = sorted(state_dir().glob(f"checkpoints/{project_of(cwd)}/*"), key=lambda f: f.stat().st_mtime, reverse=True)
     for folder in folders:
-        if only and folder.name != only:
+        if only and folder.name[11:] != only:
             continue
         checkpoint = folder / "checkpoint.md"
         header, found, body = read(checkpoint).partition("\n---\n")
@@ -605,7 +605,7 @@ def resume(cwd: str, only: str | None = None) -> str:
             protocol = protocol.replace(" and ask the user to confirm", "")
         return "\n\n".join(
             [
-                f"Continuing from the idle checkpoint of session {session}, written "
+                f"Continuing from idle checkpoint {session} (the ID of the session that wrote it), written "
                 f"{datetime.fromtimestamp(written):%Y-%m-%d %H:%M} (folder {folder}).",
                 ordered_sections(body),
                 render_digest(digest) if digest else "",
@@ -623,7 +623,7 @@ def clear(hook: dict[str, Any]) -> int:
     name = read(path)
     text = resume(cwd, name) if fresh and name else ""
     if text.startswith("Continuing"):
-        print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name}.",
+        print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name} into session {hook['session_id']}.",
                           "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}))
     return 0
 
