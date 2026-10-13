@@ -175,7 +175,7 @@ install_ponytail() {
 }
 
 install_superpowers() {
-  local profile codex_bin
+  local claude_bin codex_bin profile
 
   codex_bin="$(type -P codex)"
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
@@ -187,6 +187,22 @@ install_superpowers() {
     CODEX_HOME="$profile" "$codex_bin" plugin marketplace add obra/superpowers --json >/dev/null || return
     CODEX_HOME="$profile" "$codex_bin" plugin marketplace upgrade superpowers-dev --json >/dev/null || return
     CODEX_HOME="$profile" "$codex_bin" plugin add superpowers@superpowers-dev --json >/dev/null || return
+    echo "==> Superpowers installed for $profile"
+  done
+
+  claude_bin="$(type -P claude)"
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    if with_claude_profile "$profile" "$claude_bin" plugin list --json |
+      agent_config claude-plugin-enabled superpowers@claude-plugins-official superpowers@superpowers-dev; then
+      echo "==> Superpowers already enabled for $profile"
+      continue
+    fi
+    with_claude_profile "$profile" "$claude_bin" plugin marketplace add \
+      anthropics/claude-plugins-official >/dev/null 2>&1 ||
+      with_claude_profile "$profile" "$claude_bin" plugin marketplace update \
+        claude-plugins-official >/dev/null || return
+    with_claude_profile "$profile" "$claude_bin" plugin install \
+      --scope user --yes superpowers@claude-plugins-official --json >/dev/null || return
     echo "==> Superpowers installed for $profile"
   done
 }
@@ -356,7 +372,7 @@ echo "==> Disabling unused claude.ai connectors in Claude profiles..."
 disable_claude_connectors
 echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
-echo "==> Installing Superpowers for Codex profiles..."
+echo "==> Installing Superpowers for Codex and Claude profiles..."
 install_superpowers
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
 configure_agent_mcps

@@ -71,7 +71,7 @@ codex_mcp_enabled() {
 }
 
 claude_plugin_enabled() {
-  with_claude_profile "$1" claude plugin list --json | agent_config claude-plugin-enabled
+  with_claude_profile "$1" claude plugin list --json | agent_config claude-plugin-enabled "${@:2}"
 }
 
 claude_mcp_enabled() {
@@ -163,6 +163,8 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \
     claude_plugin_enabled "$profile"
+  check "Superpowers is installed and enabled in $profile" "Superpowers is missing or disabled in $profile" \
+    claude_plugin_enabled "$profile" superpowers@claude-plugins-official superpowers@superpowers-dev
 done
 
 for server in serena context7; do

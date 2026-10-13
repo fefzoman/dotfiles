@@ -216,8 +216,8 @@ def codex_mcp_enabled(name: str) -> bool:
     return any(s.get("name") == name and s.get("enabled") for s in json.load(sys.stdin))
 
 
-def claude_plugin_enabled() -> bool:
-    return any(p.get("id") == "ponytail@ponytail" and p.get("enabled", True) for p in json.load(sys.stdin))
+def claude_plugin_enabled(plugin_id: str = "ponytail@ponytail", *alternatives: str) -> bool:
+    return any(p.get("id") in (plugin_id, *alternatives) and p.get("enabled", True) for p in json.load(sys.stdin))
 
 
 def claude_hook_enabled(settings: str, command: str) -> bool:

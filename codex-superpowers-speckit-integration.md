@@ -282,7 +282,7 @@ Do not replace the existing global policy.
 
 Add the Codex routing section to `llm/codex/__AGENTS.md`, preferably between **Retrieval** and **Shell output**, and install it into both `~/.codex/AGENTS.md` and `~/.codex-work/AGENTS.md`. Editing only an installed copy is not durable: the installer replaces policy text from its repository source. Preserve each profile's RTK reference.
 
-Keep Claude policy in `llm/claude/__AGENTS.md` with the same structured delivery routing. Verify command and skill availability in each agent's host before using them.
+Keep Claude policy in `llm/claude/__AGENTS.md` with the same structured delivery routing. Verify command and skill availability in each agent's host before using them. Claude installation and project initialization are in `llm/TOOLCHAIN.md` §12.
 
 ### Recommended block
 

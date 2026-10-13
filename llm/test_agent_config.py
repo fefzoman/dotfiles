@@ -19,7 +19,7 @@ class AgentInstallationTests(unittest.TestCase):
         source = (SCRIPT_DIR / "ai-install.sh").read_text()
         functions = "\n".join(
             re.search(rf"^{function}\(\) \{{.*?^\}}", source, re.M | re.S)[0]
-            for function in ("agent_config", name)
+            for function in ("agent_config", "with_claude_profile", name)
         )
         return subprocess.run(
             ["bash", "-euo", "pipefail", "-c", functions + "\n" + extra + "\n" + name],
@@ -55,6 +55,14 @@ else
 fi
 ''')
                 mock.chmod(0o755)
+                claude = home / "claude"
+                claude.write_text('''#!/usr/bin/env bash
+echo "${CLAUDE_CONFIG_DIR:-default} $*" >> "$HOME/calls"
+if [[ "$2" == list ]]; then
+  [[ "$mode" == installed ]] && echo '[{"id":"superpowers@claude-plugins-official","enabled":true}]' || echo '[]'
+fi
+''')
+                claude.chmod(0o755)
                 result = self.run_installer_function(
                     "install_superpowers", home,
                     f'export PATH="$HOME:$PATH" mode={mode}',
@@ -64,8 +72,14 @@ fi
                 self.assertIn(str(home / ".codex"), calls)
                 if mode != "failure":
                     self.assertIn(str(home / ".codex-work"), calls)
+                    self.assertIn("default plugin list", calls)
+                    self.assertIn(f"{home / '.claude-work'} plugin list", calls)
                 self.assertNotIn("plugin add superpowers@openai-curated", calls)
                 self.assertEqual("plugin add superpowers@superpowers-dev" in calls, mode == "upstream")
+                self.assertEqual(
+                    calls.count("plugin install --scope user --yes superpowers@claude-plugins-official"),
+                    2 if mode == "upstream" else 0,
+                )
 
     def test_headroom_stop_race_and_persistent_failure(self):
         for mode in ("success", "race", "failure", "fresh"):
@@ -122,6 +136,23 @@ uv() {{
                 )
             with patch("sys.stdin", io.StringIO(json.dumps(data))):
                 self.assertEqual(bool(agent_config.codex_plugin_enabled()), plugin_id == "ponytail@ponytail")
+
+    def test_claude_plugin_identity_and_state(self):
+        claude_ids = ("superpowers@claude-plugins-official", "superpowers@superpowers-dev")
+        for plugin_id, enabled in (
+            ("superpowers@claude-plugins-official", True),
+            ("superpowers@superpowers-dev", True),
+            ("superpowers@untrusted", True),
+            ("superpowers@claude-plugins-official", False),
+            ("ponytail@ponytail", True),
+        ):
+            data = [{"id": plugin_id, "enabled": enabled}]
+            with self.subTest(data=data), patch("sys.stdin", io.StringIO(json.dumps(data))):
+                self.assertEqual(
+                    bool(agent_config.claude_plugin_enabled(*claude_ids)), plugin_id in claude_ids and enabled,
+                )
+            with patch("sys.stdin", io.StringIO(json.dumps(data))):
+                self.assertEqual(bool(agent_config.claude_plugin_enabled()), plugin_id == "ponytail@ponytail")
 
 
 if __name__ == "__main__":

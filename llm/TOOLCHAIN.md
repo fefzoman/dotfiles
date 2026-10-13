@@ -241,7 +241,7 @@ Each piece has exactly one owner:
 | Headroom routing + service | `headroom install apply` + `agent_config.py headroom-work` | Config entries pointing at the shared proxy (§7) |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | Spec Kit CLI | `llm/ai-install.sh` `install_ai_tools` | `uv tool install --upgrade specify-cli`; project initialization stays explicit |
-| Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream Codex plugin in both Codex homes |
+| Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
 
 `headroom wrap` is not used: it would register its own Serena code-memory MCP (unless `--code-memory none`) and rewrite Codex's `config.toml`. If a profile still shows a `headroom` MCP server (`headroom mcp serve`) from an earlier `wrap`, remove it with `claude mcp remove --scope user headroom`.
 
@@ -267,20 +267,21 @@ Both agent templates include structured delivery routing. Spec Kit owns feature 
 6. Inspect the final diff; `@ponytail-review` for non-trivial changes when available.
 7. Headroom optimizes transport automatically — never an excuse for broad reads or huge commands.
 
-### Structured feature delivery in Codex
+### Structured feature delivery in Codex and Claude
 
-`llm/ai-install.sh` installs `specify-cli` and Superpowers without initializing the current repository. Superpowers uses the upstream `obra/superpowers` Codex marketplace, whose current name is `superpowers-dev`. An already enabled `superpowers@openai-curated` or `superpowers@superpowers-dev` is reused, avoiding a second installation. The curated marketplace could not be registered in the work profile on this host, so the upstream plugin path was verified in both profiles. Do not also expose a manual Superpowers skill symlink.
+`llm/ai-install.sh` installs `specify-cli` and Superpowers without initializing the current repository. Superpowers uses the upstream `obra/superpowers` Codex marketplace, whose current name is `superpowers-dev`. An already enabled `superpowers@openai-curated` or `superpowers@superpowers-dev` is reused, avoiding a second installation. The curated marketplace could not be registered in the work profile on this host, so the upstream plugin path was verified in both profiles. Claude installs `superpowers@claude-plugins-official` from the official marketplace and reuses an enabled `superpowers@superpowers-dev`. Do not also expose a manual Superpowers skill symlink.
 
 For an existing project, commit or stash its current work, then initialize and review the generated files:
 
 ```bash
 specify init --here --force --integration codex --integration-options="--skills"
+specify integration install claude
 rtk git status --short
 rtk git diff --stat
-rtk git diff -- .specify .agents
+rtk git diff -- .specify .agents .claude
 ```
 
-Codex skills live under the project's `.agents/skills/`; `.specify/` holds project tooling and `specs/<feature>/` holds persistent feature artifacts. Create the project constitution once with `$speckit-constitution`, then use this bounded feature workflow:
+`specify integration install claude` also adds Claude to a project already initialized for Codex without overwriting the constitution; `specify integration status` lists both. Codex skills live under the project's `.agents/skills/` and Claude skills under `.claude/skills/`; `.specify/` holds shared project tooling and `specs/<feature>/` holds persistent feature artifacts. Create the project constitution once with `$speckit-constitution` (`/speckit-constitution` in Claude), then use this bounded feature workflow (Claude uses the same names with `/`):
 
 ```text
 $speckit-specify
@@ -297,6 +298,8 @@ Clarify only when ambiguity matters; analyze meaningful features before implemen
 Keep the optional Spec Kit Git extension, Superpowers worktree/subagent orchestration, and bridge extensions out of the initial setup. Existing idle checkpoints and pitstop supply session context; the active Spec Kit artifacts remain the feature ledger. The `code` shell function selects the personal Codex home; other IDE launchers need their profile checked separately.
 
 Validated on October 12, 2026: Spec Kit 1.1.3 generated all ten Codex skills, including converge, in a temporary project; Superpowers 7.0.0 was installed and enabled in both Codex profiles; all 63 unit tests passed; `bash llm/smoke-test.sh --strict` reported 71 passes with no warnings or failures. The smoke test checks CLI startup, plugin enablement, and installed policy consistency. Fresh VS Code skill discovery and model-driven workflow behavior remain unverified: restart Codex and explicitly request `systematic-debugging` in each host/profile you use.
+
+Validated on October 13, 2026: Spec Kit 1.1.3 added all ten Claude skills to a Codex-initialized project with `specify integration install claude`, preserving the constitution; Superpowers 6.4.1 was installed and enabled in both Claude profiles, and a second installer run reused it; `bash llm/smoke-test.sh --strict` reported 75 passes with no warnings or failures. Restart Claude Code to load the plugin.
 
 See [the integration specification](../codex-superpowers-speckit-integration.md) for routing and rollout details, [Superpowers upstream](https://github.com/obra/superpowers), and [Spec Kit](https://github.com/github/spec-kit).
 
