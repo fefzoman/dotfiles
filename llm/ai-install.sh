@@ -228,7 +228,8 @@ install_headroom() {
 
   uv_bin="$(command -v uv)"
   if command -v headroom >/dev/null 2>&1 && [[ -f "$HOME/.headroom/deploy/default/manifest.json" ]]; then
-    headroom install stop --profile default || return
+    # Headroom can report an identity change while the proxy exits.
+    headroom install stop --profile default || headroom install stop --profile default || return
   fi
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$uv_bin" tool install \
     --python "$PYTHON_VERSION" --upgrade 'headroom-ai[proxy,code]'

@@ -67,6 +67,44 @@ fi
                 self.assertNotIn("plugin add superpowers@openai-curated", calls)
                 self.assertEqual("plugin add superpowers@superpowers-dev" in calls, mode == "upstream")
 
+    def test_headroom_stop_race_and_persistent_failure(self):
+        for mode in ("success", "race", "failure", "fresh"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                if mode != "fresh":
+                    manifest = home / ".headroom/deploy/default/manifest.json"
+                    manifest.parent.mkdir(parents=True)
+                    manifest.write_text("{}")
+                (home / "headroom-ai/bin").mkdir(parents=True)
+                python = home / "headroom-ai/bin/python"
+                python.write_text('#!/usr/bin/env bash\ntouch "$HOME/work-configured"\n')
+                python.chmod(0o755)
+                result = self.run_installer_function("install_headroom", home, f'''
+mode={mode}
+PYTHON_VERSION=3.13
+stop_attempts=0
+headroom() {{
+  if [[ "$*" == "install stop --profile default" ]]; then
+    ((stop_attempts+=1))
+    [[ "$mode" == success || ( "$mode" == race && "$stop_attempts" -gt 1 ) ]]
+  elif [[ "$1 $2" == "install apply" ]]; then
+    touch "$HOME/applied"
+  else
+    return 2
+  fi
+}}
+uv() {{
+  if [[ "$1 $2" == "tool dir" ]]; then
+    printf '%s\\n' "$HOME"
+  else
+    touch "$HOME/upgraded"
+  fi
+}}
+''')
+                self.assertEqual(result.returncode == 0, mode != "failure", result.stderr)
+                for marker in ("upgraded", "applied", "work-configured"):
+                    self.assertEqual((home / marker).exists(), mode != "failure", marker)
+
     def test_plugin_identity_and_state(self):
         for plugin_id, installed, enabled in (
             ("superpowers@openai-curated", True, True),
