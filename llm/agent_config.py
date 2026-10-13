@@ -133,19 +133,20 @@ def context7_guard(settings: str) -> None:
 def idle_compact(settings: str) -> None:
     data = load(settings)
     wanted = {
-        "Stop": {"command": f"{IDLE_COMPACT} arm", "asyncRewake": True, "timeout": 4000},
-        "UserPromptSubmit": {"command": f"{IDLE_COMPACT} guard", "timeout": 10},
+        "Stop": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} arm", "asyncRewake": True, "timeout": 4000}]},
+        "UserPromptSubmit": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} guard", "timeout": 10}]},
+        "SessionStart": {"matcher": "clear", "hooks": [{"type": "command", "command": f"{IDLE_COMPACT} clear", "timeout": 10}]},
     }
     hooks = data.setdefault("hooks", {})
-    # Sweeping every event also drops hooks this installer no longer wants, such as the old SessionStart load.
+    # Sweeping every event also drops hooks this installer no longer wants.
     for event in list(hooks):
         hooks[event] = [
             entry
             for entry in hooks[event]
             if all(not str(h.get("command", "")).startswith(IDLE_COMPACT) for h in entry.get("hooks", []))
         ]
-    for event, hook in wanted.items():
-        hooks.setdefault(event, []).append({"hooks": [{"type": "command", **hook}]})
+    for event, entry in wanted.items():
+        hooks.setdefault(event, []).append(entry)
     save(settings, data)
 
 

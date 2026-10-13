@@ -207,7 +207,13 @@ class CodexIdleCompactTest(unittest.TestCase):
             self.assertEqual(result.stdout, "")
             self.assertFalse(ic.state_dir().exists())
         result = subprocess.run(command, input=json.dumps(self.hook), text=True, capture_output=True, check=True)
-        self.assertIn("$pitstop", json.loads(result.stdout)["systemMessage"])
+        self.assertIn("$pitstop and then /clear", json.loads(result.stdout)["systemMessage"])
+        subprocess.run(["python3", ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
+                       text=True, capture_output=True, check=True)
+        result = subprocess.run(["python3", ic.__file__, "clear"], input=json.dumps(self.hook), text=True,
+                                capture_output=True, check=True)
+        self.assertIn("client: codex", ic.read(ic.folder_for("codex-session") / "checkpoint.md"))
+        self.assertIn("Continuing from the idle checkpoint", json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"])
 
 
 if __name__ == "__main__":

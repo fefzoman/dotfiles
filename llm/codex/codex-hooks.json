@@ -36,6 +36,16 @@
             "command": "serena-hooks activate --client=codex"
           }
         ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" clear",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [

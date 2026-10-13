@@ -24,6 +24,7 @@ CODEX_CACHE_TTL = 30 * 60
 SESSION_DAYS = 7
 CHECKPOINT_DAYS = 30
 OUTPUT_CAP = 2000
+HANDOFF_SECONDS = 600
 DIGEST_CAP = 12_000
 TAIL_BYTES = 2_000_000
 HEADER = "## Idle checkpoint"
@@ -52,7 +53,7 @@ REQUEST = (
     "commands and errors. If an earlier Idle checkpoint is in this conversation, update it instead of "
     f"starting over. Under `{HEADER}`, use exactly these headings: Goal, Done, Decisions, Dead ends, Current "
     "state, Constraints, Next steps, Pointers (turn numbers from the digest). Write 300-1,200 words, scaled "
-    'to the work. End with: "After {until}, open a new chat and run /pitstop to continue from this checkpoint."'
+    'to the work. End with: "After {until}, run /pitstop and then /clear to continue from this checkpoint in this window."'
 )
 PROTOCOL = (
     "Resume protocol: before any tool call, state the goal and the first next step in two lines and ask the "
@@ -69,6 +70,10 @@ def state_dir() -> Path:
 
 def marker(session: str, kind: str) -> Path:
     return state_dir() / "sessions" / f"{session}.{kind}"
+
+
+def handoff(cwd: str) -> Path:
+    return state_dir() / "handoff" / project_of(cwd)
 
 
 def lifetime(client: str = "claude") -> float:
@@ -497,7 +502,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         for title, entries in selected:
             sections.append(f"### {title}\n" + "\n".join(f"T{t['n']}: {t['text'][:4000]}" for t in entries))
         store_checkpoint(folder, session, "\n\n".join(sections), cwd, transcript, client)
-        print(json.dumps({"systemMessage": "Idle checkpoint saved. Open a fresh thread and run $pitstop to continue."}))
+        print(json.dumps({"systemMessage": "Idle checkpoint saved. Run $pitstop and then /clear to continue from it in this window."}))
         return 0
     now = time.time()
     write(marker(session, "fired"), str(now))
@@ -530,10 +535,15 @@ def codex_guard(hook: dict[str, Any]) -> int:
 def guard(hook: dict[str, Any], client: str = "claude") -> int:
     load_records = codex_records if client == "codex" else records
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
+    folder, cwd = folder_for(session), hook.get("cwd") or os.getcwd()
+    if folder and re.fullmatch(r"\s*[/$]pitstop\s*", str(hook.get("prompt", ""))):
+        if resume(cwd, folder.name).startswith("Continuing"):
+            write(handoff(cwd), folder.name)
+            print(json.dumps({"decision": "block", "reason": "Idle checkpoint handed off. Run /clear to continue from it in this window."}))
+            return 0
     call = last_call(recs)
     if not unguarded(session, call, lifetime(client), client):
         return 0
-    folder = folder_for(session)
     checkpoint = folder / "checkpoint.md" if folder else None
     stale = not checkpoint or not checkpoint.exists()
     if not stale:
@@ -547,12 +557,12 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     prompt = str(hook.get("prompt", ""))
     reason = (
         f"This thread has about {call[1] // 1000}K tokens after a long pause. An idle checkpoint is ready. "
-        "Open a fresh thread and run $pitstop, then paste your prompt; or send this prompt again to keep "
+        "Run $pitstop and then /clear, then paste your prompt; or send this prompt again to keep "
         f"the full session.\n\nYour prompt:\n{prompt[:1500]}"
     ) if client == "codex" else (
         f"Idle checkpoint: the prompt cache expired {minutes(time.time() - call[0])} ago, so continuing "
         f"this session re-sends about {call[1] // 1000}K tokens at the cache-write price. A checkpoint was written "
-        f"at {clock(checkpoint.stat().st_mtime)}. To continue from it, open a new chat (or /clear) and run /pitstop, then paste your prompt; or "
+        f"at {clock(checkpoint.stat().st_mtime)}. To continue from it in this window, run /pitstop and then /clear, then paste your prompt; or "
         f"send the prompt again to continue the full session.\n\nYour prompt:\n{prompt[:1500]}"
     )
     print(json.dumps({"decision": "block", "reason": reason}))
@@ -572,9 +582,12 @@ def drift(digest: dict[str, Any]) -> str:
     return "\n".join(lines) or "No repo changes since the checkpoint."
 
 
-def resume(cwd: str) -> str:
+def resume(cwd: str, only: str | None = None) -> str:
+    handoff(cwd).unlink(missing_ok=True)
     folders = sorted(state_dir().glob(f"checkpoints/{project_of(cwd)}/*"), key=lambda f: f.stat().st_mtime, reverse=True)
     for folder in folders:
+        if only and folder.name != only:
+            continue
         checkpoint = folder / "checkpoint.md"
         header, found, body = read(checkpoint).partition("\n---\n")
         if not found:
@@ -601,6 +614,18 @@ def resume(cwd: str) -> str:
             ]
         )
     return "No idle checkpoint for this project."
+
+
+def clear(hook: dict[str, Any]) -> int:
+    cwd = hook.get("cwd") or os.getcwd()
+    path = handoff(cwd)
+    fresh = path.exists() and time.time() - path.stat().st_mtime < HANDOFF_SECONDS
+    name = read(path)
+    text = resume(cwd, name) if fresh and name else ""
+    if text.startswith("Continuing"):
+        print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name}.",
+                          "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}))
+    return 0
 
 
 # Commands for the model
@@ -654,6 +679,7 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("arm").add_argument("--client", choices=("claude", "codex"), default="claude")
     commands.add_parser("resume")
+    commands.add_parser("clear")
     commands.add_parser("guard").add_argument("--client", choices=("claude", "codex"), default="claude")
     find = commands.add_parser("search")
     find.add_argument("query")
@@ -681,6 +707,8 @@ def main() -> int:
             return 0
         if args.command == "arm":
             return arm(hook, args.client)
+        if args.command == "clear":
+            return clear(hook)
         return guard(hook, args.client)
     except (OSError, ValueError, KeyError, TypeError):
         return 0

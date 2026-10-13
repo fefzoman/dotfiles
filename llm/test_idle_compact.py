@@ -98,6 +98,11 @@ class IdleCompactTest(unittest.TestCase):
         folder = ic.folder_for("s1")
         self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
+        self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
+        self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
+        context = json.loads(self.run_hook(ic.clear, hook)[1])["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("### Goal\nFix race", context)
+        self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
 
     def test_newer_activity_or_token_cancels_the_sleeper(self) -> None:
         old = time.time() - 30
@@ -120,7 +125,7 @@ class IdleCompactTest(unittest.TestCase):
         decision = json.loads(out)
         self.assertEqual(decision["decision"], "block")
         self.assertIn("continue the fix", decision["reason"])
-        self.assertIn("/pitstop", decision["reason"])
+        self.assertIn("/pitstop and then /clear", decision["reason"])
         self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
 
         text = ic.resume(self.cwd)
