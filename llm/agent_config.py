@@ -96,11 +96,16 @@ def codex_statusline(config: str) -> None:
     table = re.search(r"(?m)^\s*\[tui\][ \t]*(?:#.*)?$", text)
     if table:
         text = text[:table.end()] + "\n" + setting + text[table.end():]
+    elif subtable := re.search(r"(?m)^[ \t]*\[tui\.", text):
+        text = text[:subtable.start()] + "[tui]\n" + setting + "\n" + text[subtable.start():]
     elif "tui" not in data:
         text = text.rstrip() + "\n\n[tui]\n" + setting
-    else:
+    try:
+        installed = tomllib.loads(text)["tui"].get("status_line")
+    except tomllib.TOMLDecodeError:
+        installed = None
+    if installed != CODEX_STATUSLINE:
         raise SystemExit(f"{config}: add {setting.strip()} to the existing tui configuration")
-    tomllib.loads(text)
     path.write_text(text, encoding="utf-8")
 
 

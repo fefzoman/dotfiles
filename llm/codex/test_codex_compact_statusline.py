@@ -26,7 +26,8 @@ class CodexStatuslineTest(unittest.TestCase):
             self.assertEqual(path.read_text(), installed)
 
     def test_install_preserves_settings_and_is_idempotent(self):
-        for original in ('model = "gpt-6.1-sol"\n', '[tui] # existing\nscreen_reader_detection_done = true\n'):
+        for original in ('model = "gpt-6.1-sol"\n', '[tui] # existing\nscreen_reader_detection_done = true\n',
+                         'model = "gpt-6.1-sol"\n\n[tui.model_availability_nux]\ngpt-6-astra = 1\n'):
             with self.subTest(original=original), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "config.toml"
                 path.write_text(original)
