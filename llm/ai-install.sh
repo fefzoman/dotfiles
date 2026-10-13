@@ -263,9 +263,12 @@ install_global_agents() {
     mkdir -p "$profile"
     install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
   done
+  mkdir -p "$HOME/.agents/skills/speckit-init"
+  install -m 0644 "$SCRIPT_DIR/codex/speckit-init/SKILL.md" "$HOME/.agents/skills/speckit-init/SKILL.md"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    mkdir -p "$profile"
+    mkdir -p "$profile/commands"
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
+    install -m 0644 "$SCRIPT_DIR/claude/speckit-init.md" "$profile/commands/speckit-init.md"
   done
 }
 

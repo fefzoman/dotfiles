@@ -240,7 +240,7 @@ Each piece has exactly one owner:
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Headroom routing + service | `headroom install apply` + `agent_config.py headroom-work` | Config entries pointing at the shared proxy (§7) |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
-| Spec Kit CLI | `llm/ai-install.sh` `install_ai_tools` | `uv tool install --upgrade specify-cli`; project initialization stays explicit |
+| Spec Kit CLI | `llm/ai-install.sh` `install_ai_tools`, `install_global_agents` | `uv tool install --upgrade specify-cli`; project initialization stays explicit through `/speckit-init` (Claude) or `$speckit-init` (Codex) |
 | Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
 
 `headroom wrap` is not used: it would register its own Serena code-memory MCP (unless `--code-memory none`) and rewrite Codex's `config.toml`. If a profile still shows a `headroom` MCP server (`headroom mcp serve`) from an earlier `wrap`, remove it with `claude mcp remove --scope user headroom`.
@@ -271,7 +271,7 @@ Both agent templates include structured delivery routing. Spec Kit owns feature 
 
 `llm/ai-install.sh` installs `specify-cli` and Superpowers without initializing the current repository. Superpowers uses the upstream `obra/superpowers` Codex marketplace, whose current name is `superpowers-dev`. An already enabled `superpowers@openai-curated` or `superpowers@superpowers-dev` is reused, avoiding a second installation. The curated marketplace could not be registered in the work profile on this host, so the upstream plugin path was verified in both profiles. Claude installs `superpowers@claude-plugins-official` from the official marketplace and reuses an enabled `superpowers@superpowers-dev`. Do not also expose a manual Superpowers skill symlink.
 
-For an existing project, commit or stash its current work, then initialize and review the generated files:
+Spec Kit is project-local: its skills call scripts under each project's `.specify/`, so it cannot run globally. The global `/speckit-init` command (`llm/claude/speckit-init.md`) and `$speckit-init` skill (`llm/codex/speckit-init/SKILL.md`) initialize the current project on request, refusing a dirty tree. The manual equivalent for an existing project, after committing or stashing its current work:
 
 ```bash
 specify init --here --force --integration codex --integration-options="--skills"
@@ -293,7 +293,7 @@ $speckit-implement
 $speckit-converge
 ```
 
-Clarify only when ambiguity matters; analyze meaningful features before implementation. During implementation, load applicable Superpowers TDD, systematic debugging, and verification skills. Keep `@ponytail-review` before commits changing more than about 30 lines of code. Update the active spec, plan, or tasks when implementation changes them; do not create a parallel Superpowers design, plan, or task ledger. Small local changes can use the normal workflow without Spec Kit.
+Clarify only when ambiguity matters; analyze meaningful features before implementation. During implementation, load applicable Superpowers TDD, systematic debugging, and verification skills. Keep `@ponytail-review` before commits changing more than about 30 lines of code. Update the active spec, plan, or tasks when implementation changes them; do not create a parallel Superpowers design, plan, or task ledger. Without Spec Kit, the normal workflow applies; Superpowers brainstorming, writing-plans, worktrees, and subagent orchestration run only on request and produce a short inline outline rather than a document.
 
 Keep the optional Spec Kit Git extension, Superpowers worktree/subagent orchestration, and bridge extensions out of the initial setup. Existing idle checkpoints and pitstop supply session context; the active Spec Kit artifacts remain the feature ledger. The `code` shell function selects the personal Codex home; other IDE launchers need their profile checked separately.
 

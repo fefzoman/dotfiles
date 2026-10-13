@@ -108,6 +108,8 @@ done
 
 check "Codex pitstop skill matches the repository" "Codex pitstop skill is missing or stale" \
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
+check "Codex speckit-init skill matches the repository" "Codex speckit-init skill is missing or stale" \
+  cmp -s "$SCRIPT_DIR/codex/speckit-init/SKILL.md" "$HOME/.agents/skills/speckit-init/SKILL.md"
 
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
@@ -159,6 +161,8 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
   done
   check "/pitstop command matches the repository in $profile" "/pitstop command is missing or stale in $profile" \
     cmp -s "$SCRIPT_DIR/claude/pitstop.md" "$profile/commands/pitstop.md"
+  check "/speckit-init command matches the repository in $profile" "/speckit-init command is missing or stale in $profile" \
+    cmp -s "$SCRIPT_DIR/claude/speckit-init.md" "$profile/commands/speckit-init.md"
   check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \
