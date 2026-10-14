@@ -19,7 +19,8 @@ This repo installs the stack for personal and work profiles of Codex and Claude 
 Two local safeguards complement them, neither runs `/compact` automatically:
 
 - Codex: a hook warning when a large same-thread context nears a quota stop;
-- Claude Code: the same warning in its native, token-free status line, which also shows prompt-cache state.
+- Claude Code: the same warning in its native, token-free status line, which also shows prompt-cache warmth, hit ratio, misses and prefix size.
+  Codex 0.162.1 has no equivalent: its status line accepts only built-in items, none for cache stats.
 
 ## 2. Mental model
 
@@ -130,7 +131,7 @@ Goal: cut the first fresh-token spike after a long quota-reset pause without swi
 | Agent | Signals | Mechanism | Result |
 |---|---|---|---|
 | Codex | Rollout `token_count`: input context, active primary/secondary quota windows | `UserPromptSubmit` hook; warns once while the condition holds | Recommend `/compact`, resume same thread |
-| Claude Code | Status-line JSON: context tokens/%, 5-hour and 7-day usage, cache warmth | Token-free persistent status line | Recommend `/compact`, continue same conversation |
+| Claude Code | Status-line JSON: context tokens/%, 5-hour and 7-day usage, cache warmth, hit ratio, misses, prefix size | Token-free persistent status line | Recommend `/compact`, continue same conversation |
 
 Threshold: context ≥ 120,000 input tokens **and** either active quota window ≥ 85% used. Code: `llm/codex/codex_compact_warning.py`, `llm/codex/codex-hooks.json`, `llm/claude/claude_compact_statusline.py`.
 

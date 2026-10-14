@@ -37,6 +37,14 @@ class ClaudeCompactStatuslineTest(unittest.TestCase):
         self.assertTrue(output.startswith(statusline.BOLD))
         self.assertIn(statusline.RESET + " | " + statusline.color("WARNING", "D4CB24")[:-5], output)
 
+    def test_shows_cache_stats(self) -> None:
+        cache = {"caching_observed": True, "warm": True, "hit_ratio": 0.912, "misses": 2, "recache_tokens_if_cold": 45_000}
+        plain = re.sub(r"\033\[[0-9;]*m", "", statusline.render({"prompt_cache": cache}))
+        self.assertEqual(plain, "Context -- | cache warm 91% 2 miss 45k")
+        cache.update(hit_ratio=None, recache_tokens_if_cold=None)
+        plain = re.sub(r"\033\[[0-9;]*m", "", statusline.render({"prompt_cache": cache}))
+        self.assertEqual(plain, "Context -- | cache warm 2 miss")
+
     def test_percent_colors(self) -> None:
         self.assertEqual(statusline.percent(39), statusline.color("39%", "21C23E"))
         self.assertEqual(statusline.percent(40), statusline.color("40%", "F0ED24"))

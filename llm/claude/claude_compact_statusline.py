@@ -45,7 +45,14 @@ def render(data: dict[str, Any]) -> str:
 
     cache = data.get("prompt_cache", {})
     if cache.get("caching_observed"):
-        parts.append(color("cache warm", "E35812") if cache.get("warm") else color("cache cold", "4CBFD4"))
+        stats = [color("cache warm", "E35812") if cache.get("warm") else color("cache cold", "4CBFD4")]
+        if isinstance(hit := cache.get("hit_ratio"), int | float):
+            stats.append(f"{hit * 100:.0f}%")
+        if isinstance(misses := cache.get("misses"), int):
+            stats.append(f"{misses} miss")
+        if isinstance(size := cache.get("recache_tokens_if_cold"), int | float):
+            stats.append(f"{size / 1000:.0f}k")
+        parts.append(" ".join(stats))
 
     line = BOLD + " | ".join(parts) + RESET
     if (
