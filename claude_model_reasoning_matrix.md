@@ -1,72 +1,33 @@
-# Claude Model × Reasoning Effort Matrix
+# Claude model switching guide
 
-> Practical guidance for Claude Code. Model availability and consumption vary by Claude Code version, plan, and account. Ratings are recommendations, not official benchmarks or fixed usage multipliers.
+Use **Opus 5.5 / Medium** as the default, if available. Switch only when the current setting is a poor fit or the work stalls.
 
-## 1. Usage matrix
-
-**Legend:** ⭐ Ideal · ✓ Good · △ Situational · — Usually inefficient
-
-| Model | Low | Medium | High | XHigh | Max |
-|---|---|---|---|---|---|
-| **Haiku 5.5** | ⭐ Small edits, lookups | ✓ Routine coding | △ Bounded debugging | — Complex work | — Complex architecture |
-| **Sonnet 5.5** | ⭐ Straightforward implementation | ⭐ Daily development | ⭐ Complex coding | ✓ Difficult investigations | △ Rarely beats Opus / High |
-| **Opus 5.5** | ✓ Fast routine work | ⭐ Implementation (model default) | ⭐ Architecture / hard debugging | ⭐ Long agentic, multi-stage work | ✓ Critical work, correctness over cost |
-
-## 2. Task-based selection matrix
-
-| Engineering task | Recommended model | Effort |
+| Signal | Switch to | Why |
 |---|---|---|
-| Rename variables, formatting | Haiku | Low |
-| Small, well-defined code change | Haiku / Sonnet | Low / Medium |
-| Generate boilerplate or YAML | Haiku | Low |
-| Codebase search / Explore subagents | Haiku / Sonnet | Low |
-| Write unit tests | Sonnet | Medium |
-| Implement a defined feature | Sonnet / Opus | Medium |
-| Refactor across multiple files | Opus | Medium / High |
-| Investigate failing tests | Opus | High |
-| Debug concurrency or race conditions | Opus | High / XHigh |
-| Understand an unfamiliar large codebase | Opus | High |
-| Design a new system architecture | Opus | High / XHigh |
-| Diagnose complex production failures | Opus | XHigh |
-| Large-scale migration | Opus | XHigh |
-| Review security-sensitive changes | Opus | XHigh / Max |
-| Autonomous multi-stage implementation | Opus | XHigh |
-| Exhaustive investigation with uncertain root cause | Opus | Max |
+| Rename, formatting, boilerplate, or another small bounded edit | Haiku 5.5 / Low | Save the stronger setting for work that needs it. |
+| Routine implementation, tests, or debugging | Opus 5.5 / Medium | Default balance for everyday development. |
+| The task spans several files, needs careful investigation, or Medium misses the cause | Opus 5.5 / High | Give the same model more reasoning for harder work. |
+| High still cannot resolve an architectural choice, uncertain root cause, security-sensitive change, or long multi-stage problem | Opus 5.5 / XHigh | Deeper reasoning for the hardest problems. |
+| XHigh still stalls on critical work where correctness outweighs cost | Opus 5.5 / Max | Highest setting. |
+| The difficult part is resolved and remaining work is routine | Opus 5.5 / Medium | Step back down for follow-up work. |
+| Remaining work is only a tiny edit | Haiku 5.5 / Low | Use the lighter setting for trivial follow-up. |
 
-**Suggested default:** Opus + Medium (or High) for routine Python, AWS, infrastructure, and data-engineering work; escalate selectively. Lower effort on Opus 5.5 often matches older models at higher effort, so try that before switching models.
+## Switching loop
 
-## 3. Usage consumption matrix
+1. Start with the default or the row that matches the task.
+2. If progress stalls, increase effort on Opus first; lower effort on Opus 5.5 often matches older models at higher effort.
+3. If XHigh still stalls, move to Max. This is the cap; reassess the problem or gather more evidence if it still stalls.
+4. Once the hard part is done, switch back to Opus / Medium for routine follow-up. Use Haiku / Low only when the remaining work is a tiny edit. Keep the current setting if progress is steady.
 
-Qualitative estimates only, **not** measured benchmarks. API list price per 1M tokens (input / output): Haiku 5.5 $0.10 / $0.50, Sonnet 5.5 $2 / $10, Opus 5.5 $4 / $20.
+Examples: a clear feature request → **Opus / Medium**; repeated unsuccessful debugging → **Opus / High**, then **Opus / XHigh** if needed; simple cleanup → **Haiku / Low**; search-heavy subagents → **Haiku or Sonnet / Low**.
 
-| Model | Low | Medium | High | XHigh | Max |
-|---|---|---|---|---|---|
-| Haiku 5.5 | Very low | Very low | Low | Low | Variable |
-| Sonnet 5.5 | Low | Low–medium | Medium | Medium–high | High |
-| Opus 5.5 | Medium | Medium | Medium–high | High | Very high |
-
-Higher effort increases thinking tokens and tool calls, but total usage also depends on context size, retries, and task duration. A capable model solving a task in one pass may be cheaper overall than repeated attempts with a lighter model. Judge cost per completed task, not per request.
-
-## 4. Recommended Claude Code configuration by workload
-
-| Workload | Default | Escalate to |
-|---|---|---|
-| Quick fixes | Sonnet / Low | Opus / Medium |
-| Everyday development | Opus / Medium | Opus / High |
-| New feature development | Opus / High | Opus / XHigh |
-| Architecture and planning | Opus / XHigh | Opus / Max |
-| Debugging difficult failures | Opus / XHigh | Opus / Max |
-| Long autonomous execution | Opus / High | Opus / XHigh |
-
-Example `~/.claude/settings.json` (only if the model is available on your plan):
+Choose only models and effort levels available in your Claude Code version and plan. Set a starting default in `~/.claude/settings.json`:
 
 ```json
 {
   "model": "opus",
-  "effortLevel": "high"
+  "effortLevel": "medium"
 }
 ```
 
-Switch per session with `/model` and `/effort`; subagents can set their own `model` and `effort`. Use `/usage` to inspect plan usage.
-
-**Heuristic workload distribution:** Opus / Medium–High for 70–80% of tasks, Opus / XHigh for difficult implementation and debugging, Haiku or Sonnet / Low for search-heavy subagents, and Opus / Max for work that warrants the additional usage. This is a suggested workflow, not a measured optimum.
+Switch per session with `/model` and `/effort`; subagents can set their own `model` and `effort`. Use `/usage` to inspect plan usage. Judge cost per completed task, not per request: a stronger setting solving a task in one pass may be cheaper than repeated attempts with a lighter one. These recommendations are practical heuristics, not official benchmarks or fixed usage multipliers.
