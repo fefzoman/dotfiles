@@ -138,9 +138,10 @@ def context7_guard(settings: str) -> None:
 def idle_compact(settings: str) -> None:
     data = load(settings)
     wanted = {
-        "Stop": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} arm", "async": True, "timeout": 4000}]},
+        "Stop": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} arm", "asyncRewake": True, "timeout": 4000}]},
         "UserPromptSubmit": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} guard", "timeout": 10}]},
         "SessionStart": {"matcher": "clear", "hooks": [{"type": "command", "command": f"{IDLE_COMPACT} clear", "timeout": 10}]},
+        "SessionEnd": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} end", "timeout": 30}]},
     }
     hooks = data.setdefault("hooks", {})
     # Sweeping every event also drops hooks this installer no longer wants.

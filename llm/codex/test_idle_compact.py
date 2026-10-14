@@ -3,6 +3,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -24,6 +25,9 @@ class CodexIdleCompactTest(unittest.TestCase):
         })
         self.env.start()
         self.addCleanup(self.env.stop)
+        which = mock.patch.object(ic.shutil, "which", return_value=None)
+        which.start()
+        self.addCleanup(which.stop)
         self.transcript = self.home / "session.jsonl"
         self.hook = {"session_id": "codex-session", "transcript_path": str(self.transcript), "cwd": str(self.home)}
         self.started = int(time.time()) - ic.CODEX_CACHE_TTL - 10
@@ -61,8 +65,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         return output.getvalue()
 
     def test_checkpoint_resume_and_one_time_cold_guard(self):
-        output = self.run_hook(ic.arm, self.hook, "codex")
-        self.assertIn("$pitstop", json.loads(output)["systemMessage"])
+        self.assertEqual(self.run_hook(ic.arm, self.hook, "codex"), "")
         folder = ic.folder_for("codex-session")
         checkpoint = (folder / "checkpoint.md").read_text()
         self.assertIn("client: codex", checkpoint)
@@ -151,8 +154,8 @@ class CodexIdleCompactTest(unittest.TestCase):
     def test_malformed_latest_usage_keeps_the_previous_valid_call(self):
         self.rows.append(self.row("event_msg", {"type": "token_count", "info": "malformed"}))
         self.save()
-        self.assertEqual(ic.codex_last_call(self.transcript)[1], 150_000)
-        self.assertIn("systemMessage", json.loads(self.run_hook(ic.codex_guard, self.hook)))
+        self.assertEqual(ic.last_call(ic.codex_records(self.transcript))[1], 150_000)
+        self.assertIn("systemMessage", json.loads(self.run_hook(ic.guard, self.hook, "codex")))
 
     def test_activity_during_snapshot_invalidates_the_checkpoint(self):
         build_digest = ic.build_digest
@@ -175,6 +178,45 @@ class CodexIdleCompactTest(unittest.TestCase):
                 self.save()
                 self.assertEqual(self.run_hook(ic.arm, self.hook, "codex"), "")
         self.assertIsNone(ic.folder_for("codex-session"))
+
+    def test_fork_writes_a_model_summary_from_the_thread(self):
+        run, calls = subprocess.run, []
+
+        def fake(command, **kwargs):
+            if command[0] != "/bin/codex":
+                return run(command, **kwargs)
+            calls.append((command, kwargs))
+            Path(command[command.index("-o") + 1]).write_text(
+                "## Idle checkpoint\n### Goal\nFix the parser\n### Decisions\nKeep callers\n### Dead ends\nRegex")
+
+        self.rows.insert(0, self.row("turn_context", {"model": "gpt-test"}))
+        self.save()
+        with mock.patch.object(ic.shutil, "which", return_value="/bin/codex"), \
+                mock.patch.object(ic.subprocess, "run", side_effect=fake):
+            self.run_hook(ic.arm, self.hook, "codex")
+        command, kwargs = calls[0]
+        self.assertEqual(command[1:6], ["exec", "fork", "codex-session", "--ephemeral", "--skip-git-repo-check"])
+        self.assertEqual(command[command.index("-m") + 1], "gpt-test")
+        self.assertEqual(kwargs["env"]["IDLE_COMPACT"], "off")
+        self.assertIn("run $pitstop and then /clear", kwargs["input"])
+        self.assertIn("### Dead ends\nRegex", ic.resume(str(self.home)))
+
+    def test_learned_warm_cache_turns_the_block_into_a_hint(self):
+        self.rows[-1]["payload"]["info"]["last_token_usage"]["cached_input_tokens"] = 140_000
+        self.rows[-1:-1] = [self.row("turn_context", {"model": "gpt-test"}),
+                            self.row("event_msg", {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 100_000}}},
+                                     self.started - ic.CODEX_CACHE_TTL)]
+        self.save()
+        ic.write(ic.cache_log(), json.dumps({f"old:{n}": ["gpt-test", True] for n in range(ic.WARM_SAMPLES - 1)}))
+        self.run_hook(ic.arm, self.hook, "codex")
+        self.assertEqual(len(json.loads(ic.read(ic.cache_log()))), ic.WARM_SAMPLES)
+        hint = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "next"}, "codex"))
+        self.assertIn("$pitstop and then /clear", hint["systemMessage"])
+        self.assertNotIn("decision", hint)
+
+    def test_session_end_saves_excerpts(self):
+        self.run_hook(ic.end, self.hook, "codex")
+        self.assertIn("Fix the parser", ic.resume(str(self.home)))
 
     def test_installer_sets_up_both_clients_and_codex_hooks_are_idempotent(self):
         root = Path(__file__).resolve().parents[1]
@@ -200,19 +242,20 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertGreater(stop["timeout"], ic.CODEX_CACHE_TTL)
 
     def test_cli_client_selection_opt_out_and_session_validation(self):
-        command = ["python3", ic.__file__, "arm", "--client", "codex"]
+        os.environ["PATH"] = "/usr/bin:/bin"
+        command = [sys.executable, ic.__file__, "arm", "--client", "codex"]
         for hook, enabled in [({**self.hook, "session_id": "../escape"}, "on"), (self.hook, "off")]:
             result = subprocess.run(command, input=json.dumps(hook), text=True, capture_output=True,
                                     env={**os.environ, "IDLE_COMPACT": enabled}, check=True)
             self.assertEqual(result.stdout, "")
             self.assertFalse(ic.state_dir().exists())
         result = subprocess.run(command, input=json.dumps(self.hook), text=True, capture_output=True, check=True)
-        self.assertIn("$pitstop and then /clear", json.loads(result.stdout)["systemMessage"])
-        result = subprocess.run(["python3", ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
+        self.assertEqual(result.stdout, "")
+        result = subprocess.run([sys.executable, ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
                                 text=True, capture_output=True, check=True)
         self.assertEqual(json.loads(result.stdout)["reason"],
                          "Idle checkpoint codex-session handed off. Run /clear to continue from it in this window.")
-        result = subprocess.run(["python3", ic.__file__, "clear"], input=json.dumps(self.hook | {"session_id": "codex-new"}),
+        result = subprocess.run([sys.executable, ic.__file__, "clear"], input=json.dumps(self.hook | {"session_id": "codex-new"}),
                                 text=True, capture_output=True, check=True)
         loaded = json.loads(result.stdout)
         self.assertEqual(loaded["systemMessage"], "Loaded idle checkpoint codex-session into session codex-new.")

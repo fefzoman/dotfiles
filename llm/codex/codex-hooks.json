@@ -54,6 +54,11 @@
           {
             "type": "command",
             "command": "serena-hooks cleanup --client=codex"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" end --client codex",
+            "timeout": 30
           }
         ]
       }

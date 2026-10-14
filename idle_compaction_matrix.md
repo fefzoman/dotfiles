@@ -1,6 +1,6 @@
 # Idle Compaction Matrix: Claude Code × Codex
 
-> Behavior of `llm/idle_compact.py` as of `ff7f51e`. Design notes and history: `llm/TOOLCHAIN.md` → Idle compaction.
+> Behavior of `llm/idle_compact.py` after the drawback fixes. Design notes: `llm/TOOLCHAIN.md` → Idle compaction.
 
 ## 1. Characteristics
 
@@ -8,27 +8,24 @@
 
 | Aspect | Claude Code | Codex |
 |---|---|---|
-| **Goal** | Avoid a full cache rewrite (2× input price) when returning after the prompt cache expired | Same |
-| **Token floor** | Any context > 0 | Any context > 0 |
-| **Cache TTL source** | Latest call's `cache_creation`: 1h or 5m, default 1h | Fixed 30 min (GPT-5.6+ documented minimum) |
-| **Checkpoint fires at** | 0.9 × TTL after last call: 54 min (1h) / 4.5 min (5m) | 27 min after last token-usage event |
-| **Arm hook** | `Stop`, `async: true`, timeout 4000 s | `Stop`, `async: true`, timeout 11000 |
-| **Cancelled by** | New message or newer arm token | Same |
-| **Steps aside for native feature** | Yes, when `tengu_sunny_locket.mode == "compact"` | — No equivalent |
-| **Wakes the session / model call** | — No | — No |
-| **Renews the cache while idle** | — No | — No |
-| **Checkpoint content** | First request, latest reply, latest request (≤4K chars each), digest, redacted transcript | Same |
-| **Notice when saved** | — None (async output would reach the model, not the user) | △ `systemMessage` "Idle checkpoint saved…" |
-| **Guard hook** | `UserPromptSubmit` `guard` | `UserPromptSubmit` `guard --client codex` |
-| **Guard fires after** | Gap ≥ TTL (1h or 5m) | Gap ≥ 30 min |
-| **Guard, checkpoint ready** | Blocks first prompt once; shows expiry age, rebuild size, checkpoint time; repeats prompt | Blocks first prompt once; shows size; repeats prompt |
-| **Guard, no or stale checkpoint** | — Silent | ✓ Non-blocking `/compact` suggestion |
-| **Staleness check** | Newer prompt than digest's `last_prompt` | Same |
-| **Resume entry point** | `/pitstop` command (`claude/pitstop.md`) | `$pitstop` skill (`codex/pitstop/SKILL.md`) |
-| **Same-window handoff** | `/pitstop` → `/clear`; `SessionStart` `clear` loads it within 10 min | `$pitstop` → `/clear`; same |
-| **Resume protocol** | State goal + next step, ask to confirm | State goal + next step, no confirm |
-| **Detail lookup** | `idle_compact.py turn <session> T<n>`, `search "<words>"` | Same |
-| **Storage** | `~/.local/state/idle-compact/`, sessions 7 d, checkpoints 30 d | Same |
+| **Goal** | Avoid the 2× cache rewrite on a cold resume | Avoid a full uncached resend on a cold resume |
+| **Token floor** | 85K (2× a fresh chat's median 42K) | 45K (2× the median 22K) |
+| **Cache TTL source** | Latest call's `cache_creation`: 1h or 5m | 30 min documented minimum, plus learned per-model hit rate |
+| **Checkpoint fires at** | 0.9 × TTL: 54 min / 4.5 min (0.93 when the native compactor flag is on) | 27 min |
+| **Who writes it** | ✓ Same model, in place: `asyncRewake` wakes the session | ✓ Same model, headless: `codex exec fork --ephemeral` |
+| **Context it sees** | Full session, from cache | Full thread; the original prefix is read from cache (measured 12.7K of 12.9K) |
+| **Sections** | Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps, Pointers | Same |
+| **Renews the session cache** | ✓ One more TTL | △ The fork reads the shared prefix; renewal not measured |
+| **Visible to the user** | ✓ Checkpoint turn in the session | — Silent; the guard reports it |
+| **Native compactor** | Coexists: fires after it, cancels if it ran | No equivalent |
+| **Session closed before firing** | `SessionEnd` saves excerpts (not on `/clear`) | Same |
+| **Fallback content** | Excerpts: first request, latest reply, latest request | Same, also when the fork fails |
+| **Guard, checkpoint ready** | 1h cache: blocks once, repeats prompt. 5m cache: hint | Blocks once; hint when the model's cache is usually warm |
+| **Guard, no or stale checkpoint** | ✓ `/compact` hint | ✓ `/compact` hint, silent when the cache is usually warm |
+| **Staleness** | `last_prompt` stored in the checkpoint header | Same |
+| **Resume** | `/pitstop`; lists other valid checkpoints with goals | `$pitstop`; same |
+| **Handoff to `/clear`** | Until used or the old chat moves on | Same |
+| **Redaction** | Common key/token formats, JWTs, URL credentials, password assignments | Same |
 | **Kill switch** | `IDLE_COMPACT=off` | Same |
 
 ## 2. One idle period
@@ -36,24 +33,35 @@
 | Time after last call | Claude (1h cache) | Claude (5m cache) | Codex |
 |---|---|---|---|
 | 0 | `arm` sleeps | `arm` sleeps | `arm` sleeps |
-| 0.9 × TTL | Checkpoint at 54 min | Checkpoint at 4.5 min | Checkpoint at 27 min |
-| ≥ TTL, next prompt | Guard blocks once (60 min+) | Guard blocks once (5 min+) | Guard blocks once (30 min+) |
-| User choice | `/pitstop` + `/clear`, or resend to keep full session | Same | Same |
+| 0.9 × TTL | Wake: model writes checkpoint, cache renewed | Same at 4.5 min | Fork writes checkpoint at 27 min |
+| ≥ TTL, next prompt | Guard blocks once | Non-blocking hint | Block, or hint if the model's cache is usually warm |
+| User choice | `/pitstop` + `/clear`, or resend to keep the full session | Same | Same |
 
-## 3. Drawbacks
+## 3. Drawbacks: resolution
 
-| # | Drawback | Affects | Impact |
-|---|---|---|---|
-| 1 | **Disabled on this machine.** `arm` skips Claude when the native idle flag is `compact`, which it is; the native compactor did not run on the observed sessions either | Claude | No checkpoint, no guard, full rebuild on every cold resume |
-| 2 | **Silent guard without a checkpoint.** Codex falls back to a `/compact` hint; Claude says nothing. Breaks the `llm/` feature-parity rule | Claude | Cold resume with no warning at all |
-| 3 | **Excerpts, not a summary.** First request, latest reply and latest request only; no decisions, dead ends or constraints. Long sessions drift far from the first request | Both | Fresh chat may redo dead ends or miss constraints; relies on `turn`/`search` |
-| 4 | **Stale resume wording.** `PROTOCOL` still says "Treat Decisions and Dead ends as settled", but no checkpoint has those sections now | Both | Instruction refers to content that does not exist |
-| 5 | **No cache renewal.** The old wake turn kept the session warm until ~1.9 × TTL; now the cache expires at 1 × TTL | Claude | Resending after any gap ≥ TTL pays the full rebuild |
-| 6 | **No floor.** Tiny sessions get a blocking guard although rebuilding them is cheap | Both | Extra round trip to save little |
-| 7 | **5-minute cache is noisy.** Checkpoint every 4.5 min idle and a blocked prompt after every 5-min pause (API key or usage overage) | Claude | Frequent interruptions; frequent full-transcript rewrites on disk |
-| 8 | **Assumed TTL.** Fixed 30 min with no per-session expiry signal; the real cache may live longer, or shorter on older models | Codex | Guard may block while the cache is still warm |
-| 9 | **Wrong session on fresh-chat `/pitstop`.** Without a handoff, `resume` takes the newest valid checkpoint in the project | Both | Parallel sessions in one repo can load each other's checkpoint |
-| 10 | **Background worker dies with the session.** Codex documents cancellation on exit; Claude async hooks behave the same way, unverified | Codex (Claude likely) | Closing the window before 0.9 × TTL leaves no checkpoint |
-| 11 | **10-minute handoff window.** `/clear` must follow `/pitstop` within 10 min | Both | Late `/clear` starts an empty session |
-| 12 | **Regex-only redaction.** Covers common key, token and password formats | Both | Unusual secrets can land in `transcript.md` (mode 0700 directory) |
-| 13 | **No save notice on Claude.** The user learns a checkpoint exists only from the guard | Claude | Cannot choose a fresh chat proactively before returning |
+| # | Drawback | Fix |
+|---|---|---|
+| 1 | Disabled when the native flag is on | Never skips; fires at 0.93 so a native compaction that runs wins |
+| 2 | Claude guard silent without a checkpoint | Shared `/compact` hint for both clients |
+| 3 | Excerpts, not a summary | Model-written sections for both clients |
+| 4 | Resume wording named missing sections | Sections are back; wording says "any" for excerpt fallbacks |
+| 5 | No cache renewal | Claude wake renews it; Codex fork reads the shared prefix |
+| 6 | No floor | 2× fresh-chat floor per client |
+| 7 | 5-minute cache noisy | Non-blocking hint instead of a block |
+| 8 | Codex TTL assumed | Learned per-model hit rate turns the block into a hint |
+| 9 | Fresh-chat `/pitstop` could take another session | Lists other checkpoints and the command to load one |
+| 10 | Worker dies with the session | `SessionEnd` saves excerpts for both clients |
+| 11 | 10-minute handoff window | Removed; staleness invalidates instead |
+| 12 | Narrow redaction | More formats covered |
+| 13 | No save notice on Claude | The checkpoint turn is visible in the session |
+
+## 4. Remaining limits
+
+| Limit | Affects | Why it stays |
+|---|---|---|
+| Checkpoint turn appears in the session | Claude | Only an in-session turn reads the warm cache; a headless fork breaks the prefix |
+| Close-time checkpoint is excerpts only | Both | No model is running once the session ends |
+| Warm-cache learning needs 5 post-gap samples per model | Codex | Starts from blocking until data accumulates |
+| Fork cache renewal unmeasured | Codex | Needs a long-gap measurement |
+| Codex `SessionEnd` payload unverified | Codex | Without `transcript_path` the close-time excerpts are skipped |
+| Pattern redaction | Both | Unknown secret formats still pass; directory is 0700 |

@@ -71,10 +71,11 @@ class IdleCompactTest(unittest.TestCase):
         self.assertTrue(ic.is_prompt(prompt("fix it", now)))
         self.assertFalse(any(ic.is_prompt(r) for r in (meta, note, result("ok", now))))
 
-    def test_arm_skips_empty_sessions(self) -> None:
+    def test_arm_skips_sessions_below_the_floor(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
-        self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", old), reply("y", old, tokens=0)]))[0], 0)
+        self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", old), reply("y", old, tokens=80_000)]))[0], 0)
+        self.assertFalse(ic.marker("s1", "arm").exists())
 
     def test_lifetime_follows_latest_cache_ttl(self) -> None:
         now = time.time()
@@ -82,29 +83,34 @@ class IdleCompactTest(unittest.TestCase):
         self.assertEqual(ic.lifetime("claude", [reply("a", now, ttl="5m"), reply("b", now)]), 3600.0)
         self.assertEqual(ic.lifetime("claude", [reply("a", now), reply("b", now, ttl="5m")]), 300.0)
 
-    def test_arm_saves_excerpts_without_waking(self) -> None:
+    def test_arm_wakes_with_digest_then_stores_the_reply(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
         recs = [prompt("<ide_opened_file>a.py opened</ide_opened_file>Fix the token refresh race", old), tool("Edit", {"file_path": f"{self.cwd}/a.py"}, old),
                 result("Traceback: boom", old, error=True), prompt("yes", old), reply("done", old)]
-        hook = self.save(recs)
-        self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
+        code, _, err = self.run_hook(ic.arm, self.save(recs))
+        self.assertEqual(code, 2)
+        self.assertIn("Idle checkpoint:", err)
+        self.assertIn("Goal, Done, Decisions, Dead ends", err)
+        self.assertIn("run /pitstop and then /clear", err)
+        self.assertIn("Fix the token refresh race", err)
+        self.assertNotIn("a.py opened", err)
+        self.assertNotIn("- T4", err)
+        self.assertIn(f"{self.cwd}/a.py (1)", err)
+        self.assertIn("Last error, T3: Traceback: boom", err)
+
+        later = time.time() + 1
+        hook = self.save(recs + [reply("## Idle checkpoint\n### Goal\nFix race\n### Decisions\nlock\n### Dead ends\nretry", later)])
+        self.assertEqual(self.run_hook(ic.arm, hook)[0], 0)
         folder = ic.folder_for("s1")
-        checkpoint = (folder / "checkpoint.md").read_text()
-        self.assertIn("### Goal\nT1: Fix the token refresh race", checkpoint)
-        self.assertNotIn("a.py opened", checkpoint)
-        self.assertIn("### Current state\nT5: done", checkpoint)
+        self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
-        digest = ic.render_digest(json.loads((folder / "digest.json").read_text()))
-        self.assertNotIn("- T4", digest)
-        self.assertIn(f"{self.cwd}/a.py (1)", digest)
-        self.assertIn("Last error, T3: Traceback: boom", digest)
         self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
         self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
         loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2"})[1])
         self.assertEqual(loaded["systemMessage"], "Loaded idle checkpoint s1 into session s2.")
         context = loaded["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("### Goal\nT1: Fix the token refresh race", context)
+        self.assertIn("### Dead ends\nretry", context)
         self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
 
     def test_newer_activity_or_token_cancels_the_sleeper(self) -> None:
@@ -146,19 +152,50 @@ class IdleCompactTest(unittest.TestCase):
         self.save([prompt("x", old), reply("y", old)])
         self.assertIn("### Goal\nship", ic.resume(self.cwd))
 
-    def test_guard_waits_for_a_checkpoint_and_an_expired_cache(self) -> None:
-        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
+    def test_guard_without_checkpoint_hints_once_after_the_cache_expires(self) -> None:
         old = time.time() - 30
-        self.assertEqual(self.run_hook(ic.guard, self.save([prompt("x", old), reply("y", old)]))[1], "")
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "3600"
         self.assertEqual(self.run_hook(ic.guard, self.save([prompt("x", old), reply("y", old)]))[1], "")
+        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
+        hint = json.loads(self.run_hook(ic.guard, self.save([prompt("x", old), reply("y", old)]))[1])
+        self.assertIn("/compact", hint["systemMessage"])
+        self.assertNotIn("decision", hint)
+        self.assertEqual(self.run_hook(ic.guard, self.save([prompt("x", old), reply("y", old)]))[1], "")
 
-    def test_codex_guard_hints_after_long_gap(self) -> None:
-        event = {"type": "event_msg", "timestamp": iso(time.time() - 4 * 3600),
-                 "payload": {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 230_000}}}}
-        hook = self.save([event])
-        self.assertIn("/compact", json.loads(self.run_hook(ic.codex_guard, hook)[1])["systemMessage"])
-        self.assertEqual(self.run_hook(ic.codex_guard, hook)[1], "")
+    def test_five_minute_cache_gets_a_hint_instead_of_a_block(self) -> None:
+        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
+        old = time.time() - 30
+        hook = self.save([prompt("x", old - 60), reply("cp", old, ttl="5m")]) | {"prompt": "go on"}
+        ic.store_checkpoint(ic.folder_for("s1", self.cwd), "s1", "## Idle checkpoint\n### Goal\nship", self.cwd,
+                            self.transcript, prompted=old - 60)
+        hint = json.loads(self.run_hook(ic.guard, hook)[1])
+        self.assertIn("run /pitstop and then /clear", hint["systemMessage"])
+        self.assertNotIn("decision", hint)
+
+    def test_session_end_saves_excerpts_unless_cleared_or_fresh(self) -> None:
+        old = time.time() - 30
+        hook = self.save([prompt("Fix the token refresh race", old), reply("Patched refresh.py", old)])
+        self.assertEqual(self.run_hook(ic.end, hook | {"reason": "clear"}), (0, "", ""))
+        self.assertIsNone(ic.folder_for("s1"))
+        self.assertEqual(self.run_hook(ic.end, hook | {"reason": "prompt_input_exit"})[0], 0)
+        checkpoint = ic.folder_for("s1") / "checkpoint.md"
+        self.assertIn("### Goal\nT1: Fix the token refresh race", checkpoint.read_text())
+        first = checkpoint.read_text()
+        self.run_hook(ic.end, hook)
+        self.assertEqual(checkpoint.read_text(), first)
+
+    def test_resume_lists_other_checkpoints_in_the_project(self) -> None:
+        old = time.time() - 30
+        self.save([prompt("x", old - 60), reply("y", old)])
+        for session, goal in (("s1", "ship parser"), ("s2", "fix login")):
+            ic.store_checkpoint(ic.folder_for(session, self.cwd), session, f"## Idle checkpoint\n### Goal\n{goal}",
+                                self.cwd, self.transcript)
+        text = ic.resume(self.cwd)
+        self.assertIn("Other idle checkpoints", text)
+        self.assertIn("idle_compact.py resume <session>", text)
+        self.assertEqual(sum(goal in text for goal in ("ship parser", "fix login")), 2)
+        self.assertIn("Continuing from idle checkpoint s2", ic.resume(self.cwd, "s2"))
+        self.assertNotIn("Other idle checkpoints", ic.resume(self.cwd, "s2"))
 
     def test_sections_accept_headings_or_bold_labels(self) -> None:
         bold = "## Idle checkpoint\n\n**Next steps:**\n1. run\n\n**Goal:** ship it\n\n**Decisions:**\n- lock"
@@ -167,9 +204,13 @@ class IdleCompactTest(unittest.TestCase):
         self.assertLess(ordered.index("### Decisions"), ordered.index("### Next steps"))
 
     def test_redaction_and_output_caps(self) -> None:
-        text = ic.redact("key sk-ant-abcdefghijklmnopqrstuv and password=hunter2hunter2 ok")
+        text = ic.redact("key sk-ant-abcdefghijklmnopqrstuv and password=hunter2hunter2 ok "
+                         "https://bob:pa55word@db.example.com eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0.SflKxwRJSMeKKF2QT4f")
         self.assertNotIn("abcdefghij", text)
         self.assertNotIn("hunter2", text)
+        self.assertNotIn("pa55word", text)
+        self.assertNotIn("SflKxwRJ", text)
+        self.assertIn("db.example.com", text)
         folder = ic.folder_for("s1", self.cwd)
         items = [{"n": i, "kind": "result", "time": time.time(), "text": "needle " + "x " * 3000} for i in range(1, 9)]
         ic.write(folder / "transcript.md", ic.render_transcript(items))
@@ -180,12 +221,16 @@ class IdleCompactTest(unittest.TestCase):
         self.assertLessEqual(len(shown), ic.OUTPUT_CAP)
         self.assertIn("T2 · result", shown)
 
-    def test_native_compactor_makes_arm_step_aside(self) -> None:
+    def test_native_compactor_flag_delays_but_does_not_skip_the_checkpoint(self) -> None:
         (self.home / ".claude.json").write_text(json.dumps(
             {"cachedGrowthBookFeatures": {"tengu_sunny_locket": {"mode": "compact"}}}))
-        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
-        old = time.time() - 30
-        self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", old), reply("y", old)]))[0], 0)
+        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "90"
+        now = time.time()
+        waits = []
+        with mock.patch.object(ic.time, "sleep", side_effect=waits.append), \
+                mock.patch.object(ic.time, "time", side_effect=lambda: now + sum(waits)):
+            self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", now), reply("y", now)]))[0], 2)
+        self.assertAlmostEqual(sum(waits), 100 * ic.NATIVE_FIRE_FRACTION, delta=0.01)
 
 
 if __name__ == "__main__":

@@ -140,45 +140,37 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 `llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour (5 minutes on an API key or in usage overage); the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK, Serena and Headroom shrink tool output and can't touch this; Claude's auto-compaction starts only near 1M tokens.
 
-Fix: write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
+Fix: have the model write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
-Both clients checkpoint any session with positive input usage, including a 65K session; the quota safeguard keeps its 120K floor. Idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota. In Codex the quota warning stays silent on a prompt after a 30-minute gap, where the idle guard handles the resume.
-
-#### One idle period (Codex)
-
-The `Stop` hook runs `arm --client codex` in the background (`async: true`, `timeout: 11000`). After 27 minutes without new activity, it saves a local checkpoint with the original request, latest reply and request, a redacted transcript with turn pointers, and the repository digest. A new turn or newer arm token cancels the worker. Timing is 90% of the [documented default minimum cache lifetime](https://developers.openai.com/api/docs/guides/prompt-caching#cache-lifetime) of 30 minutes for GPT-5.6 and later, measured from the last token-usage event. The hook has no per-session expiry signal; cache entries may survive longer. Earlier models and other providers may have different retention policies.
-
-After a 30-minute gap, the prompt guard offers the checkpoint once. Run `$pitstop` in that thread (the guard blocks it and hands its checkpoint off) and then `/clear` (the `SessionStart` `clear` hook loads it), or `$pitstop` in a fresh thread, then paste the prompt, or resend the prompt to keep the full session. If no valid checkpoint exists, it suggests `/compact` without blocking. The installer adds `llm/codex/pitstop/SKILL.md` to `~/.agents/skills/pitstop/`, shared by personal and work Codex profiles. Later accepted prompts invalidate the checkpoint.
-
-[Codex background hooks](https://developers.openai.com/codex/hooks#how-background-hooks-run) cannot wake an idle session and are cancelled when the session ends. Neither client wakes the session: both save transcript excerpts locally rather than asking the model to write a summary, make no extra model request and do not run `/compact` automatically.
+Both clients have the model write the checkpoint from the session's full context while the cache is still warm, so it costs a cache read rather than a rewrite. Claude wakes the session in place; Codex, whose background hooks cannot wake an idle session, forks the thread headlessly. Floors are 2× a fresh chat's first call: 85K for Claude (median fresh start 42K) and 45K for Codex (22K); below that a restart saves little. The quota safeguard keeps its own 120K floor. Idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota.
 
 #### One idle period (Claude)
 
-1. **Reply arrives.** The `Stop` hook starts `arm` in the background (`async: true`, `timeout: 4000`). It sleeps until 0.9 of the cache TTL after the last call (the native compactor's fraction): 54 min for the 1-hour cache, 4.5 min for the 5-minute one, read from the latest call's `cache_creation`; a new message or newer arm token cancels it.
-2. **At 0.9 TTL** `arm` saves the same local checkpoint as Codex (original request, latest reply and request, digest, cleaned transcript) without waking the session or calling the model. It prints nothing, since Claude delivers async hook output to the model on the next turn.
-3. **Return after expiry.** The `UserPromptSubmit` guard blocks the first prompt once, shows rebuild size and checkpoint time, and repeats the prompt. The user either runs `/pitstop` in that session (the guard blocks it and hands that session's checkpoint off) and then `/clear` (the `SessionStart` `clear` hook loads it into the fresh session within 10 minutes, so the old session ID keeps its checkpoint), runs `/pitstop` in a new chat, or resends to keep the full session.
-4. **`/pitstop`** (`llm/claude/pitstop.md`, installed to each profile's `commands/`) runs `idle_compact.py resume`: the newest checkpoint for the current project whose chat had no prompt since, in fixed section order, then the digest, repo drift since the checkpoint (HEAD moves, uncommitted files), and a resume protocol: state goal and first next step, ask to confirm, treat Decisions and Dead ends as settled, fetch missing detail with `turn` or `search`, never read `transcript.md` whole. `/clear` without a preceding `/pitstop` keeps stock behavior.
+1. **Reply arrives.** The `Stop` hook starts `arm` in the background (`asyncRewake: true`, `timeout: 4000`). It sleeps until 0.9 of the cache TTL after the last call: 54 min for the 1-hour cache, 4.5 min for the 5-minute one, read from the latest call's `cache_creation`. When the native idle compactor flag (`tengu_sunny_locket`) is `compact`, it waits until 0.93 instead, so a native compaction that does run lands first and cancels the checkpoint. A new message or newer arm token cancels the sleeper.
+2. **At the fire time** `arm` writes the digest and cleaned transcript, then exits 2. That wakes the session with the checkpoint request plus the digest. The model writes the checkpoint without tools. The turn reads from cache and renews it, keeping the full session cheap for about one more TTL, and the user sees the checkpoint turn.
+3. **Next `Stop`** stores the reply's text blocks (never thinking) as `checkpoint.md`, recording the last prompt it covers.
+4. **Session closes first.** The `SessionEnd` hook (`end`, not for `/clear`) stores transcript excerpts when no fresh checkpoint exists, because the sleeper may die with the session.
+5. **Return after expiry.** On the 1-hour cache the `UserPromptSubmit` guard blocks the first prompt once, shows rebuild size and checkpoint time, and repeats the prompt. On the 5-minute cache (API key or usage overage) it only shows a non-blocking hint, since short pauses are frequent there. With no fresh checkpoint it suggests `/compact` without blocking.
+6. **`/pitstop`** in that session hands its checkpoint off (the guard blocks the prompt), and the next `/clear` loads it through the `SessionStart` `clear` hook; the handoff lasts until used or until the old chat gets a new prompt. `/pitstop` in a new chat runs `idle_compact.py resume`: the newest checkpoint for the project whose chat had no prompt since, in fixed section order, then the digest, repo drift since the checkpoint, the resume protocol, and up to four other valid checkpoints with their goals and the `resume <session>` command to load one instead.
+
+#### One idle period (Codex)
+
+The `Stop` hook runs `arm --client codex` in the background (`async: true`, `timeout: 11000`). After 27 minutes without new activity (0.9 of the [documented 30-minute minimum cache lifetime](https://developers.openai.com/api/docs/guides/prompt-caching#cache-lifetime) for GPT-5.6 and later) it runs `codex exec fork <session> --ephemeral -m <session model>` with the same checkpoint request. The fork shares the thread's cached prefix (measured: 12,672 of 12,887 prompt tokens read from cache), sees full context, persists nothing, and leaves the open thread untouched. If the fork fails or `codex` is missing, it falls back to transcript excerpts. The `SessionEnd` hook stores excerpts when the session closes before that.
+
+The guard acts after a 30-minute gap, but the cache often outlives that: across this machine's rollouts, gpt-5.4 and gpt-5.3-codex mostly hit after hours, while gpt-5.5 missed about half the gaps over 75 minutes. `arm` therefore logs each post-gap call's cache hit per model in `codex-cache.json`. Once a model has at least 5 samples with ≥ 80% hits, the guard shows a non-blocking hint instead of blocking. Otherwise it blocks once like Claude's. `$pitstop` and `/clear` work as above; the installer adds `llm/codex/pitstop/SKILL.md` to `~/.agents/skills/pitstop/`.
 
 #### Checkpoint content
 
-The script writes every part; there is no model call.
-
-| Part | Holds |
-|---|---|
-| Goal | First request, verbatim (IDE notes stripped, secrets redacted) |
-| Current state | Latest assistant reply |
-| Pointers: latest request | Latest request, with its turn number |
-| Digest | Non-routine requests with turn numbers, edited files with counts, repo branch/HEAD/uncommitted/commits, last error, open todos; capped ~3K tokens |
-
-Excerpts are capped at 4,000 chars each; resume fetches anything else by turn pointer. A later checkpoint in the same session replaces the earlier one (kept as `checkpoint-<n>.md`).
+The model writes Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps and Pointers (turn numbers from the digest), 300–1,200 words, updating an earlier checkpoint in the same conversation instead of starting over. The script supplies the digest: non-routine requests with turn numbers, edited files with counts, repo branch/HEAD/uncommitted/commits, last error, open todos, capped ~3K tokens. Fallback excerpts (session closed, fork failed) hold the first request, latest reply and latest request, 4,000 chars each. A later checkpoint replaces the earlier one (kept as `checkpoint-<n>.md`).
 
 #### Storage and lookup
 
 ```text
 ~/.local/state/idle-compact/        mode 0700
-  sessions/<id>.{arm,guard}                    one writer each; 7 days
+  sessions/<id>.{arm,fired,stored,guard}       one writer each; 7 days
+  codex-cache.json                              last 500 post-gap cache samples
   checkpoints/<project>/<date>-<id>/            one folder per session; 30 days
-    checkpoint.md    metadata header + transcript excerpts
+    checkpoint.md    metadata header (incl. last_prompt) + model sections
     digest.json      script-extracted facts
     transcript.md    one `## T<n> · kind · time` heading per turn; tool output
                      cut to 2K chars, thinking dropped, secrets redacted
@@ -190,24 +182,24 @@ Plain files, one folder per session: no shared writer, no locks, atomic rename o
 
 | Option | Why not |
 |---|---|
-| Native idle compactor (`tengu_sunny_locket`) | Server flag only; `arm` steps aside when its mode is `compact` |
+| Headless summary over `transcript.md` | Uncached input (~3× the wake's cost), trimmed tool output, no cache renewal |
+| Claude `claude -p --resume <id> --fork-session` | Different tools, system prompt and git snapshot break the cached prefix, so it rewrites the whole context |
 | Keep-warm pings | Context never shrinks; each hour away still costs ~0.1× context |
 | Inject `/compact` into the open session | No interface in the VS Code extension |
-| Headless `claude -p --resume <id> /compact` | The open panel keeps appending its in-memory history |
 | Compact inside Headroom | The model would see a summary the client never shows |
 
 #### Settings and safety
 
-- `IDLE_COMPACT=off` disables the hooks. `IDLE_COMPACT_TEST_SECONDS` replaces either client's idle wait, for live tests only.
+- `IDLE_COMPACT=off` disables the hooks; the Codex fork runs with it off, so its own hooks don't recurse. `IDLE_COMPACT_TEST_SECONDS` and `IDLE_COMPACT_TEST_MIN_TOKENS` replace the idle wait and floor, for live tests only.
 - Any parse failure exits 0; a killed sleeper changes nothing since state is written only at fire time.
-- Common secrets (API keys, bearer tokens, private keys, password assignments) are redacted before writing.
+- Secrets are redacted by pattern before writing: API keys (Anthropic, OpenAI, Stripe, GitHub, GitLab, Slack, AWS, Google, npm, Hugging Face), JWTs, bearer tokens, URL credentials, private keys and password-style assignments. Unrecognized formats can still land in the 0700 state directory.
 - The old session stays resumable, so a checkpoint that misses a detail loses nothing.
 
 #### Open questions
 
 - Does Codex show a non-blocking `systemMessage` from `UserPromptSubmit`?
+- Does Codex's `SessionEnd` payload include `transcript_path`? Without it the close-time excerpts are skipped.
 - What do Claude Code's `precomputeCompactionEnabled` and `awaySummaryEnabled` do? They may cover part of this natively.
-- Do Codex hooks expose cache TTL or expiry metadata for policies other than the GPT-5.6+ default?
 - Does the new chat follow the resume protocol's confirm step?
 
 ### Token-profiler

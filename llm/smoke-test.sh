@@ -154,7 +154,7 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     agent_config claude-headroom "$profile/settings.json"
   check "RTK command hook is enabled in $profile" "RTK command hook is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" "rtk hook claude"
-  for sub in arm guard clear; do
+  for sub in arm guard clear end; do
     check "Idle compaction $sub hook is enabled in $profile" "Idle compaction $sub hook is missing in $profile" \
       agent_config claude-hook-enabled "$profile/settings.json" \
       "python3 \"\$HOME/.config/dotfiles/idle_compact.py\" $sub"
