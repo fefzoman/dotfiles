@@ -340,6 +340,7 @@ disable_claude_connectors() {
     mkdir -p "$profile"
     listing="$(with_claude_profile "$profile" "$claude_bin" mcp list 2>/dev/null || true)"
     agent_config connectors "$profile/settings.json" "$listing"
+    agent_config context-trim "$profile/settings.json"
   done
 }
 

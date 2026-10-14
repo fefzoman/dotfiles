@@ -13,6 +13,12 @@ CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "cont
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
+CONTEXT_TRIM_ENV = {"CLAUDE_CODE_DISABLE_ARTIFACT": "1"}
+CONTEXT_TRIM_SKILLS = {
+    **dict.fromkeys(("docs", "docx", "pptx", "xlsx", "pdf", "google-workspace", "morning", "import-memory", "skill-creator"), "off"),
+    **dict.fromkeys(("dataviz", "claude-api", "claude-in-chrome", "schedule", "run", "plugin-authoring", "keybindings-help",
+                     "fewer-permission-prompts"), "user-invocable-only"),
+}
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
 SHELL_END = "# END AI TOOLING SHELL ENVIRONMENT"
 
@@ -165,7 +171,7 @@ def attribution(settings: str) -> None:
 
 def connectors(settings: str, listing: str) -> None:
     # Account-level claude.ai connectors can't be removed locally; server-wide deny rules drop their tools from context.
-    used = {"Claude Docs", "Atlassian MCP"}
+    used = {"Atlassian MCP"}
     names = re.findall(r"^claude\.ai (.+?): ", listing, re.MULTILINE)
     if not names:
         print(f"Warning: no claude.ai connectors listed; keeping {settings} deny rules.", file=sys.stderr)
@@ -174,6 +180,13 @@ def connectors(settings: str, listing: str) -> None:
     deny = data.setdefault("permissions", {}).setdefault("deny", [])
     deny[:] = [rule for rule in deny if not rule.startswith("mcp__claude_ai_")]
     deny += ["mcp__" + re.sub(r"[^A-Za-z0-9_-]", "_", f"claude.ai {n}") for n in names if n not in used]
+    save(settings, data)
+
+
+def context_trim(settings: str) -> None:
+    data = load(settings)
+    data.setdefault("env", {}).update(CONTEXT_TRIM_ENV)
+    data.setdefault("skillOverrides", {}).update(CONTEXT_TRIM_SKILLS)
     save(settings, data)
 
 
@@ -234,6 +247,11 @@ def attribution_disabled(settings: str) -> bool:
     return load(settings).get("attribution") == {"commit": "", "pr": ""}
 
 
+def context_trimmed(settings: str) -> bool:
+    data = load(settings)
+    return CONTEXT_TRIM_ENV.items() <= data.get("env", {}).items() and CONTEXT_TRIM_SKILLS.items() <= data.get("skillOverrides", {}).items()
+
+
 def claude_headroom(settings: str) -> bool:
     return load(settings).get("env", {}).get("ANTHROPIC_BASE_URL") == HEADROOM_URL
 
@@ -259,9 +277,9 @@ COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
         codex_shell_path, codex_hooks, codex_statusline, statusline, context7_guard, idle_compact, attribution,
-        connectors, headroom_work, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
+        connectors, context_trim, headroom_work, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
-        claude_headroom, codex_headroom, codex_rtk_path, codex_hooks_valid,
+        context_trimmed, claude_headroom, codex_headroom, codex_rtk_path, codex_hooks_valid,
     )
 }
 

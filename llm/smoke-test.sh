@@ -150,6 +150,8 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
   check "Claude commit and PR attribution is disabled in $profile" \
     "Claude adds commit or PR attribution in $profile" \
     agent_config attribution-disabled "$profile/settings.json"
+  check "Claude startup context is trimmed in $profile" "Claude startup context trim is missing in $profile" \
+    agent_config context-trimmed "$profile/settings.json"
   check "Claude routes through Headroom in $profile" "Claude bypasses Headroom in $profile" \
     agent_config claude-headroom "$profile/settings.json"
   check "RTK command hook is enabled in $profile" "RTK command hook is missing in $profile" \
