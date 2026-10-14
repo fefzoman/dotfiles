@@ -71,39 +71,40 @@ class IdleCompactTest(unittest.TestCase):
         self.assertTrue(ic.is_prompt(prompt("fix it", now)))
         self.assertFalse(any(ic.is_prompt(r) for r in (meta, note, result("ok", now))))
 
-    def test_arm_skips_empty_or_five_minute_sessions(self) -> None:
+    def test_arm_skips_empty_sessions(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
-        for recs in ([prompt("x", old), reply("y", old, tokens=0)], [prompt("x", old), reply("y", old, ttl="5m")]):
-            self.assertEqual(self.run_hook(ic.arm, self.save(recs))[0], 0)
+        self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", old), reply("y", old, tokens=0)]))[0], 0)
 
-    def test_arm_wakes_with_digest_then_stores_the_reply(self) -> None:
+    def test_lifetime_follows_latest_cache_ttl(self) -> None:
+        now = time.time()
+        self.assertEqual(ic.lifetime("claude", [reply("a", now, ttl="5m")]), 300.0)
+        self.assertEqual(ic.lifetime("claude", [reply("a", now, ttl="5m"), reply("b", now)]), 3600.0)
+        self.assertEqual(ic.lifetime("claude", [reply("a", now), reply("b", now, ttl="5m")]), 300.0)
+
+    def test_arm_saves_excerpts_without_waking(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
         recs = [prompt("<ide_opened_file>a.py opened</ide_opened_file>Fix the token refresh race", old), tool("Edit", {"file_path": f"{self.cwd}/a.py"}, old),
                 result("Traceback: boom", old, error=True), prompt("yes", old), reply("done", old)]
-        code, _, err = self.run_hook(ic.arm, self.save(recs))
-        self.assertEqual(code, 2)
-        self.assertIn("Idle checkpoint:", err)
-        self.assertIn("T1", err)
-        self.assertIn("Fix the token refresh race", err)
-        self.assertNotIn("a.py opened", err)
-        self.assertNotIn("- T4", err)
-        self.assertIn(f"{self.cwd}/a.py (1)", err)
-        self.assertIn("Last error, T3: Traceback: boom", err)
-
-        later = time.time() + 1
-        hook = self.save(recs + [reply("## Idle checkpoint\n### Goal\nFix race\n### Done\nx\n### Next steps\ny", later)])
-        self.assertEqual(self.run_hook(ic.arm, hook)[0], 0)
+        hook = self.save(recs)
+        self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
         folder = ic.folder_for("s1")
-        self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
+        checkpoint = (folder / "checkpoint.md").read_text()
+        self.assertIn("### Goal\nT1: Fix the token refresh race", checkpoint)
+        self.assertNotIn("a.py opened", checkpoint)
+        self.assertIn("### Current state\nT5: done", checkpoint)
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
+        digest = ic.render_digest(json.loads((folder / "digest.json").read_text()))
+        self.assertNotIn("- T4", digest)
+        self.assertIn(f"{self.cwd}/a.py (1)", digest)
+        self.assertIn("Last error, T3: Traceback: boom", digest)
         self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
         self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
         loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2"})[1])
         self.assertEqual(loaded["systemMessage"], "Loaded idle checkpoint s1 into session s2.")
         context = loaded["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("### Goal\nFix race", context)
+        self.assertIn("### Goal\nT1: Fix the token refresh race", context)
         self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
 
     def test_newer_activity_or_token_cancels_the_sleeper(self) -> None:

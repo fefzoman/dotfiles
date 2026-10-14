@@ -43,17 +43,6 @@ SECRET = re.compile(
     r"|(?i:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*\S{8,}",
     re.S,
 )
-REQUEST = (
-    "Idle checkpoint: the user is away and the prompt cache expires in about {left}. Do not call "
-    "tools. Write a checkpoint that lets a fresh session, with no access to this conversation, continue the "
-    "work. Keep an item only if that session would act wrongly or waste time without it. Skip routine "
-    "operations (commit, push, lint, test reruns), minor fixes that left no decision, tool output, your own "
-    "reasoning, and anything the digest below already lists unless you add why. Name exact files, functions, "
-    "commands and errors. If an earlier Idle checkpoint is in this conversation, update it instead of "
-    f"starting over. Under `{HEADER}`, use exactly these headings: Goal, Done, Decisions, Dead ends, Current "
-    "state, Constraints, Next steps, Pointers (turn numbers from the digest). Write 300-1,200 words, scaled "
-    'to the work. End with: "After {until}, run /pitstop and then /clear to continue from this checkpoint in this window."'
-)
 PROTOCOL = (
     "Resume protocol: before any tool call, state the goal and the first next step in two lines and ask the "
     "user to confirm. Treat Decisions and Dead ends as settled unless the user reopens them. For a missing "
@@ -75,11 +64,11 @@ def handoff(cwd: str) -> Path:
     return state_dir() / "handoff" / project_of(cwd)
 
 
-def lifetime(client: str = "claude") -> float:
+def lifetime(client: str = "claude", recs: list[dict[str, Any]] | None = None) -> float:
     test = os.environ.get("IDLE_COMPACT_TEST_SECONDS")
     if test:
         return float(test) / FIRE_FRACTION
-    return CODEX_CACHE_TTL if client == "codex" else 3600.0
+    return CODEX_CACHE_TTL if client == "codex" else cache_ttl(recs or [])
 
 
 def write(path: Path, text: str) -> None:
@@ -233,14 +222,14 @@ def last_call(recs: list[dict[str, Any]]) -> tuple[float, int] | None:
     return None
 
 
-def one_hour_cache(recs: list[dict[str, Any]]) -> bool:
+def cache_ttl(recs: list[dict[str, Any]]) -> float:
     for record in reversed(recs):
         created = (usage(record) or {}).get("cache_creation") or {}
         if created.get("ephemeral_1h_input_tokens"):
-            return True
+            return 3600.0
         if created.get("ephemeral_5m_input_tokens"):
-            return False
-    return False
+            return 300.0
+    return 3600.0
 
 
 def last_message(recs: list[dict[str, Any]]) -> float:
@@ -453,25 +442,16 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
     load_records = codex_records if client == "codex" else records
     recs = load_records(transcript, TAIL_BYTES)
-    fired = float(read(marker(session, "fired")) or 0)
-    if client == "claude" and fired and fired > last_prompt(recs):
-        reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= fired - 1)
-        folder = folder_for(session)
-        if reply and folder and read(marker(session, "stored")) != str(fired):
-            store_checkpoint(folder, session, reply, cwd, transcript)
-            write(marker(session, "stored"), str(fired))
-        return 0
     call = last_call(recs)
     if not call or call[1] < 1:
         return 0
-    if client == "claude" and (not one_hour_cache(recs) or native_idle_compact()):
+    if client == "claude" and native_idle_compact():
         return 0
     prune()
     token = uuid.uuid4().hex
     write(marker(session, "arm"), token)
     seen = last_message(recs)
-    gap = lifetime(client)
-    fire_at = call[0] + gap * FIRE_FRACTION
+    fire_at = call[0] + lifetime(client, recs) * FIRE_FRACTION
     while (wait := fire_at - time.time()) > 0:
         time.sleep(min(60.0, wait))
         if read(marker(session, "arm")) != token or last_message(load_records(transcript, TAIL_BYTES)) > seen:
@@ -482,28 +462,23 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     items = turns(full)
     folder = folder_for(session, cwd)
     digest = build_digest(full, cwd, items)
-    if client == "codex":
-        digest["last_prompt"] = last_prompt(full)
-        if read(marker(session, "arm")) != token or last_message(load_records(transcript, TAIL_BYTES)) > seen:
-            return 0
+    digest["last_prompt"] = last_prompt(full)
+    if read(marker(session, "arm")) != token or last_message(load_records(transcript, TAIL_BYTES)) > seen:
+        return 0
     write(folder / "digest.json", json.dumps(digest, indent=2, ensure_ascii=False) + "\n")
     write(folder / "transcript.md", render_transcript(items))
+    # shortcut: local excerpts, no model call; an idle summary turn would renew the cache but costs a turn.
+    requests = [t for t in items if t["kind"] == "user"]
+    replies = [t for t in items if t["kind"] == "assistant"]
+    selected = [("Goal", requests[:1]), ("Current state", replies[-1:]), ("Pointers: latest request", requests[-1:])]
+    sections = [HEADER, "Local transcript excerpts; use the turn pointers to retrieve complete details."]
+    for title, entries in selected:
+        sections.append(f"### {title}\n" + "\n".join(f"T{t['n']}: {t['text'][:4000]}" for t in entries))
+    store_checkpoint(folder, session, "\n\n".join(sections), cwd, transcript, client)
     if client == "codex":
-        # shortcut: Codex cannot wake idle turns; use model summaries when idle rewake is supported.
-        requests = [t for t in items if t["kind"] == "user"]
-        replies = [t for t in items if t["kind"] == "assistant"]
-        selected = [("Goal", requests[:1]), ("Current state", replies[-1:]), ("Pointers: latest request", requests[-1:])]
-        sections = [HEADER, "Local transcript excerpts; use the turn pointers to retrieve complete details."]
-        for title, entries in selected:
-            sections.append(f"### {title}\n" + "\n".join(f"T{t['n']}: {t['text'][:4000]}" for t in entries))
-        store_checkpoint(folder, session, "\n\n".join(sections), cwd, transcript, client)
+        # Claude async hook output reaches the model on the next turn; its guard tells the user instead.
         print(json.dumps({"systemMessage": "Idle checkpoint saved. Run $pitstop and then /clear to continue from it in this window."}))
-        return 0
-    now = time.time()
-    write(marker(session, "fired"), str(now))
-    left = minutes(call[0] + lifetime() - now)
-    print(REQUEST.format(left=left, until=clock(now + lifetime())) + "\n\n" + render_digest(digest), file=sys.stderr)
-    return 2
+    return 0
 
 
 def codex_last_call(path: Path) -> tuple[float, int] | None:
@@ -537,14 +512,12 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
             print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off. Run /clear to continue from it in this window."}))
         return 0
     call = last_call(recs)
-    if not unguarded(session, call, lifetime(client)):
+    if not unguarded(session, call, lifetime(client, recs)):
         return 0
     checkpoint = folder / "checkpoint.md" if folder else None
     stale = not checkpoint or not checkpoint.exists()
     if not stale:
-        written = checkpoint.stat().st_mtime
-        if client == "codex":
-            written = json.loads(read(folder / "digest.json") or "{}").get("last_prompt", written)
+        written = json.loads(read(folder / "digest.json") or "{}").get("last_prompt", checkpoint.stat().st_mtime)
         stale = last_prompt(recs) > written
     if stale:
         return codex_guard(hook) if client == "codex" else 0
@@ -592,7 +565,7 @@ def resume(cwd: str, only: str | None = None) -> str:
         digest = json.loads(read(folder / "digest.json") or "{}")
         codex = "\nclient: codex\n" in header + "\n"
         load_records = codex_records if codex else records
-        if old and last_prompt(load_records(Path(old[1]), TAIL_BYTES)) > (digest.get("last_prompt", written) if codex else written):
+        if old and last_prompt(load_records(Path(old[1]), TAIL_BYTES)) > digest.get("last_prompt", written):
             continue
         session = folder.name[11:]
         protocol = PROTOCOL.format(session=session)
