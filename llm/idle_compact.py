@@ -17,7 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-MIN_TOKENS = 120_000
 FIRE_FRACTION = 0.9
 # GPT-5.6+ defaults to a 30m minimum cache TTL: https://developers.openai.com/api/docs/guides/prompt-caching
 CODEX_CACHE_TTL = 30 * 60
@@ -81,10 +80,6 @@ def lifetime(client: str = "claude") -> float:
     if test:
         return float(test) / FIRE_FRACTION
     return CODEX_CACHE_TTL if client == "codex" else 3600.0
-
-
-def min_tokens(client: str = "claude") -> int:
-    return 1 if client == "codex" else int(os.environ.get("IDLE_COMPACT_TEST_MIN_TOKENS") or MIN_TOKENS)
 
 
 def write(path: Path, text: str) -> None:
@@ -467,7 +462,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
             write(marker(session, "stored"), str(fired))
         return 0
     call = last_call(recs)
-    if not call or call[1] < min_tokens(client):
+    if not call or call[1] < 1:
         return 0
     if client == "claude" and (not one_hour_cache(recs) or native_idle_compact()):
         return 0
@@ -515,13 +510,13 @@ def codex_last_call(path: Path) -> tuple[float, int] | None:
     return last_call(codex_records(path, TAIL_BYTES))
 
 
-def unguarded(session: str, call: tuple[float, int] | None, gap: float, client: str = "claude") -> bool:
-    return bool(call) and call[1] >= min_tokens(client) and time.time() - call[0] >= gap and read(marker(session, "guard")) != str(call[0])
+def unguarded(session: str, call: tuple[float, int] | None, gap: float) -> bool:
+    return bool(call) and call[1] > 0 and time.time() - call[0] >= gap and read(marker(session, "guard")) != str(call[0])
 
 
 def codex_guard(hook: dict[str, Any]) -> int:
     session, call = hook["session_id"], codex_last_call(Path(hook["transcript_path"]))
-    if not unguarded(session, call, lifetime("codex"), "codex"):
+    if not unguarded(session, call, lifetime("codex")):
         return 0
     write(marker(session, "guard"), str(call[0]))
     message = (
@@ -542,7 +537,7 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
             print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off. Run /clear to continue from it in this window."}))
         return 0
     call = last_call(recs)
-    if not unguarded(session, call, lifetime(client), client):
+    if not unguarded(session, call, lifetime(client)):
         return 0
     checkpoint = folder / "checkpoint.md" if folder else None
     stale = not checkpoint or not checkpoint.exists()

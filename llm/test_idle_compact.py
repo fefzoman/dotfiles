@@ -47,7 +47,7 @@ class IdleCompactTest(unittest.TestCase):
         self.env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.home / "state"),
                                                 "HOME": str(self.home)}, clear=False)
         self.env.start()
-        for key in ("IDLE_COMPACT_TEST_SECONDS", "IDLE_COMPACT_TEST_MIN_TOKENS", "CLAUDE_CONFIG_DIR"):
+        for key in ("IDLE_COMPACT_TEST_SECONDS", "CLAUDE_CONFIG_DIR"):
             os.environ.pop(key, None)
         self.transcript = self.home / "s1.jsonl"
 
@@ -71,10 +71,10 @@ class IdleCompactTest(unittest.TestCase):
         self.assertTrue(ic.is_prompt(prompt("fix it", now)))
         self.assertFalse(any(ic.is_prompt(r) for r in (meta, note, result("ok", now))))
 
-    def test_arm_skips_small_or_five_minute_sessions(self) -> None:
+    def test_arm_skips_empty_or_five_minute_sessions(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
-        for recs in ([prompt("x", old), reply("y", old, tokens=100_000)], [prompt("x", old), reply("y", old, ttl="5m")]):
+        for recs in ([prompt("x", old), reply("y", old, tokens=0)], [prompt("x", old), reply("y", old, ttl="5m")]):
             self.assertEqual(self.run_hook(ic.arm, self.save(recs))[0], 0)
 
     def test_arm_wakes_with_digest_then_stores_the_reply(self) -> None:

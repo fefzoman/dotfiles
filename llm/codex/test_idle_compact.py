@@ -20,7 +20,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.home = Path(directory.name)
         self.env = mock.patch.dict(os.environ, {
             "HOME": str(self.home), "XDG_STATE_HOME": str(self.home / "state"),
-            "IDLE_COMPACT_TEST_SECONDS": "0.01", "IDLE_COMPACT_TEST_MIN_TOKENS": "120000", "IDLE_COMPACT": "on",
+            "IDLE_COMPACT_TEST_SECONDS": "0.01", "IDLE_COMPACT": "on",
         })
         self.env.start()
         self.addCleanup(self.env.stop)

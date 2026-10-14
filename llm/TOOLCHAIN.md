@@ -142,7 +142,7 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 Fix: write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
-Claude idle compaction shares the 120K floor with the quota safeguard. Codex checkpoints any session with positive input usage, including a 65K session. Idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 30-minute gap, where the idle guard handles the resume.
+Both clients checkpoint any session with positive input usage, including a 65K session; the quota safeguard keeps its 120K floor. Idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota, when the checkpoint turn itself can't run. In Codex the quota warning stays silent on a prompt after a 30-minute gap, where the idle guard handles the resume.
 
 #### One idle period (Codex)
 
@@ -152,7 +152,7 @@ After a 30-minute gap, the prompt guard offers the checkpoint once. Run `$pitsto
 
 [Codex background hooks](https://developers.openai.com/codex/hooks#how-background-hooks-run) cannot wake an idle session and are cancelled when the session ends. Codex therefore saves transcript excerpts locally rather than asking the model to write a summary; it makes no extra model request and does not run `/compact` automatically.
 
-#### One idle period (Claude, context ≥ 120K)
+#### One idle period (Claude)
 
 1. **Reply arrives.** The `Stop` hook starts `arm` in the background (`asyncRewake: true`, `timeout: 4000`). It sleeps until 54 min after the last call (0.9 of cache lifetime, the native compactor's fraction); a new message or newer arm token cancels it.
 2. **At 54 min** `arm` exits 2, waking the session with a checkpoint request plus a script-built digest. The model writes the checkpoint without tools; the turn reads from cache and renews it for an hour, keeping the full session cheap until ~1h54m after last activity.
@@ -198,7 +198,7 @@ Plain files, one folder per session: no shared writer, no locks, atomic rename o
 
 #### Settings and safety
 
-- `IDLE_COMPACT=off` disables the hooks. `IDLE_COMPACT_TEST_SECONDS` replaces either client's idle wait; `IDLE_COMPACT_TEST_MIN_TOKENS` replaces Claude's 120K floor, for live tests only.
+- `IDLE_COMPACT=off` disables the hooks. `IDLE_COMPACT_TEST_SECONDS` replaces either client's idle wait, for live tests only.
 - Any parse failure exits 0; a killed sleeper changes nothing since state is written only at fire time.
 - Common secrets (API keys, bearer tokens, private keys, password assignments) are redacted before writing.
 - The old session stays resumable, so a checkpoint that misses a detail loses nothing.
