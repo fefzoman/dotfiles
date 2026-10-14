@@ -154,6 +154,21 @@ uv() {{
             with patch("sys.stdin", io.StringIO(json.dumps(data))):
                 self.assertEqual(bool(agent_config.claude_plugin_enabled()), plugin_id == "ponytail@ponytail")
 
+    def test_codex_shell_path_keeps_tables_codex_added_inside_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.toml"
+            agent_config.codex_shell_path(str(config), "/old")
+            text = config.read_text().replace(
+                agent_config.SHELL_END, '\n[marketplaces.superpowers-dev]\nsource = "x"\n' + agent_config.SHELL_END
+            )
+            config.write_text(text)
+            agent_config.codex_shell_path(str(config), "/new")
+            text = config.read_text()
+            self.assertIn('[marketplaces.superpowers-dev]\nsource = "x"', text)
+            self.assertEqual(text.count("[shell_environment_policy]"), 1)
+            self.assertIn('"/new"', text)
+            self.assertNotIn('"/old"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

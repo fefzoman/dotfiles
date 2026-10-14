@@ -49,8 +49,12 @@ def hook_entries(data: dict):
 def codex_shell_path(config: str, path: str) -> None:
     config = Path(config)
     text = config.read_text(encoding="utf-8") if config.exists() else ""
+    # Codex inserts new tables before the trailing END marker; keep them.
     text = re.sub(
-        rf"\n?{re.escape(SHELL_BEGIN)}.*?{re.escape(SHELL_END)}\n?", "\n", text, flags=re.DOTALL
+        rf"\n?{re.escape(SHELL_BEGIN)}\n\[shell_environment_policy\]\nset = [^\n]*\n(.*?){re.escape(SHELL_END)}\n?",
+        r"\n\1",
+        text,
+        flags=re.DOTALL,
     )
     if re.search(r"(?m)^\s*(?:\[shell_environment_policy(?:\.|\])|shell_environment_policy\.)", text):
         raise SystemExit(f"{config} already defines shell_environment_policy; add {path!r} to its PATH")
