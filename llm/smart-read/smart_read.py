@@ -245,7 +245,7 @@ def trigram(db: sqlite3.Connection, query: str, path: str | None) -> list[int]:
 def embedder():
     from fastembed import TextEmbedding
 
-    return TextEmbedding(EMBED_MODEL, threads=os.cpu_count())
+    return TextEmbedding(EMBED_MODEL, threads=os.cpu_count(), cache_dir=str(CACHE / "models"))
 
 
 def embed_pending(db: sqlite3.Connection) -> int:
@@ -292,7 +292,7 @@ def rerank(db: sqlite3.Connection, query: str, ids: list[int]) -> list[tuple[int
     rows = {i: (p, s, t) for i, p, s, t in db.execute(
         f"SELECT id, path, symbol, text FROM chunks WHERE id IN ({','.join('?' * len(ids))})", ids)}
     docs = [f"{rows[i][0]} {rows[i][1]}\n{rows[i][2]}"[:RERANK_CHARS] for i in ids]
-    scores = list(TextCrossEncoder(RERANK_MODEL, threads=os.cpu_count()).rerank(query, docs))
+    scores = list(TextCrossEncoder(RERANK_MODEL, threads=os.cpu_count(), cache_dir=str(CACHE / "models")).rerank(query, docs))
     return sorted(zip(ids, scores), key=lambda pair: -pair[1])
 
 

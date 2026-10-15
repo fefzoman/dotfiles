@@ -27,7 +27,7 @@ smart-read index                                                 # embed every c
    characters. `--rerank` re-orders the top 20 with a cross-encoder first; see the evaluation for why it is off by
    default.
 
-The index is one SQLite file per repository under `~/.cache/smart-read`. Each query re-chunks only files whose mtime or
+The index is one SQLite file per repository under `~/.cache/smart-read`; models live in `~/.cache/smart-read/models` (fastembed defaults to `$TMPDIR`, which macOS purges). Each query re-chunks only files whose mtime or
 size changed. When more than 200 chunks lack embeddings, the query starts `smart-read index` in the background and
 answers lexically until it finishes. Changing the embedding model re-embeds everything.
 
