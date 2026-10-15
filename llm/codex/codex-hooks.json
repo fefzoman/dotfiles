@@ -1,5 +1,5 @@
 {
-  "description": "RTK command rewriting, Serena lifecycle reminders, Context7 version guard, and Codex context warnings and idle checkpoints.",
+  "description": "RTK command rewriting, Serena lifecycle reminders, Context7 version guard, and Codex context warnings and idle checkpoints, and prompt-cache switch and instruction-edit notes.",
   "hooks": {
     "PreToolUse": [
       {
@@ -87,6 +87,18 @@
             "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" arm --client codex",
             "async": true,
             "timeout": 11000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" instructions --client codex",
+            "timeout": 5
           }
         ]
       }

@@ -214,6 +214,32 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertIn("$pitstop and then /clear", hint["systemMessage"])
         self.assertNotIn("decision", hint)
 
+    def test_warm_switch_blocks_once_and_an_upgrade_hints(self):
+        os.environ.pop("IDLE_COMPACT_TEST_SECONDS")
+        now = time.time()
+        usage = {"type": "token_count", "info": {"last_token_usage": {"input_tokens": 150_000}}}
+        self.rows += [self.row("turn_context", {"model": "gpt-5.6-sol", "effort": "high"}, now - 90),
+                      self.row("event_msg", usage, now - 60),
+                      self.row("event_msg", {"type": "thread_settings_applied",
+                                             "thread_settings": {"model": "gpt-5.6-sol", "reasoning_effort": "low"}}, now)]
+        self.save()
+        hook = self.hook | {"prompt": "next", "model": "gpt-5.5"}
+        with mock.patch.object(ic, "codex_version", return_value="0.162.1"):
+            self.assertIn("Changing the model and effort", json.loads(self.run_hook(ic.guard, hook, "codex"))["reason"])
+            self.assertEqual(self.run_hook(ic.guard, hook, "codex"), "")
+        self.rows += [self.row("event_msg", usage, now - 30)]
+        self.save()
+        hook["model"] = "gpt-5.6-sol"
+        with mock.patch.object(ic, "codex_version", return_value="0.163.0"):
+            hint = json.loads(self.run_hook(ic.guard, hook, "codex"))["systemMessage"]
+        self.assertIn("Codex changed 0.162.1 → 0.163.0", hint)
+
+    def test_patched_agents_md_gets_a_note(self):
+        patch = "*** Begin Patch\n*** Update File: sub/AGENTS.md\n@@\n-a\n+b\n*** End Patch"
+        note = json.loads(self.run_hook(ic.instructions, {"tool_input": {"command": patch}}, "codex"))
+        self.assertIn("AGENTS.md changed", note["systemMessage"])
+        self.assertEqual(self.run_hook(ic.instructions, {"tool_input": {"command": "*** Update File: a.py"}}, "codex"), "")
+
     def test_session_end_saves_excerpts(self):
         self.run_hook(ic.end, self.hook, "codex")
         self.assertIn("Fix the parser", ic.resume(str(self.home)))

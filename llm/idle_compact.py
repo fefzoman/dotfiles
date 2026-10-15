@@ -36,6 +36,8 @@ DIGEST_CAP = 12_000
 TAIL_BYTES = 2_000_000
 HEADER = "## Idle checkpoint"
 IDE_NOTE = re.compile(r"(?s)<(ide_[a-z_]+|system-reminder)>.*?</\1>")
+SWITCH_NOTE = re.compile(r"<local-command-stdout>Set model to `([^`]+)`|<command-name>/fast</command-name>")
+INSTRUCTION_FILES = {"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.override.md"}
 SECTIONS = ("Goal", "Constraints", "Decisions", "Dead ends", "Done", "Current state", "Next steps", "Pointers")
 EDIT_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
 ROUTINE = re.compile(
@@ -604,6 +606,91 @@ def end(hook: dict[str, Any], client: str = "claude") -> int:
     return 0
 
 
+def squash(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def claude_changes(hook: dict[str, Any], recs: list[dict[str, Any]]) -> tuple[list[str], str]:
+    index = next((i for i in range(len(recs) - 1, -1, -1) if usage(recs[i])), None)
+    if index is None:
+        return [], ""
+    last, changed = recs[index], []
+    effort = (hook.get("effort") or {}).get("level")
+    if effort and last.get("effort") and effort != last["effort"]:
+        changed.append("effort")
+    model = squash(str(last["message"].get("model") or ""))
+    for record in recs[index + 1:]:
+        for found in SWITCH_NOTE.finditer(text_of(record)):
+            if found[1] is None:
+                changed.append("fast mode")
+            elif model and squash(found[1]) not in model and model not in squash(found[1]):
+                changed.append("model")
+    running = re.search(r"(?:/versions/|claude-code-)(\d+(?:\.\d+)+)", os.environ.get("CLAUDE_CODE_EXECPATH", ""))
+    before = last.get("version")
+    return list(dict.fromkeys(changed)), f"{before} → {running[1]}" if running and before and before != running[1] else ""
+
+
+def codex_version() -> str:
+    # ponytail: walks up to the codex process; on Linux `comm` is a bare name, so PATH's codex answers.
+    pid = os.getppid()
+    for _ in range(4):
+        try:
+            parent, _, command = subprocess.run(["ps", "-o", "ppid=,comm=", "-p", str(pid)], capture_output=True,
+                                                text=True, timeout=2).stdout.strip().partition(" ")
+            if Path(command.strip()).name == "codex":
+                out = subprocess.run([shutil.which(command.strip()) or command.strip(), "--version"],
+                                     capture_output=True, text=True, timeout=3).stdout.split()
+                return out[-1] if out else ""
+            pid = int(parent)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return ""
+    return ""
+
+
+def codex_changes(hook: dict[str, Any], session: str) -> tuple[list[str], str]:
+    at_call: dict[str, Any] = {}
+    context: dict[str, Any] = {}
+    pending: dict[str, Any] = {}
+    for record in records(Path(hook["transcript_path"]), TAIL_BYTES):
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        if record.get("type") == "turn_context":
+            context = {"model": payload.get("model"), "effort": payload.get("effort")}
+        elif payload.get("type") == "token_count" and payload.get("info"):
+            at_call, pending = context, {}
+        elif payload.get("type") == "thread_settings_applied":
+            settings = payload.get("thread_settings") or {}
+            pending = {"model": settings.get("model"), "effort": settings.get("reasoning_effort")}
+    now = {**at_call, **{k: v for k, v in pending.items() if v}, **({"model": hook["model"]} if hook.get("model") else {})}
+    changed = [k for k, v in now.items() if v and at_call.get(k) and v != at_call[k]]
+    before, running = read(marker(session, "version")), codex_version()
+    if running:
+        write(marker(session, "version"), running)
+    return changed, f"{before} → {running}" if before and running and before != running else ""
+
+
+def switched(hook: dict[str, Any], client: str, recs: list[dict[str, Any]], call: tuple[float, int] | None) -> bool:
+    session = hook["session_id"]
+    changed, version = codex_changes(hook, session) if client == "codex" else claude_changes(hook, recs)
+    warm = call and time.time() - call[0] < lifetime(client, recs) or client == "codex" and likely_warm(recs)
+    if not (changed or version) or not call or call[1] < min_tokens(client) or not warm:
+        return False
+    if read(marker(session, "switch")) == str(call[0]):
+        return False
+    write(marker(session, "switch"), str(call[0]))
+    size = call[1] // 1000
+    if not changed:
+        name = "Codex" if client == "codex" else "Claude Code"
+        print(json.dumps({"systemMessage": f"{name} changed {version} since this session's last call, so the next "
+                                           f"call rewrites about {size}K tokens of cached context."}))
+        return True
+    helper = "a `codex exec` run" if client == "codex" else "a subagent"
+    print(json.dumps({"decision": "block", "reason": (
+        f"Changing the {' and '.join(changed)} mid-session makes the next call rewrite about {size}K tokens of "
+        f"still-warm cached context. For a one-off task, ask for {helper} with that setting instead. To switch "
+        f"anyway, send the prompt again.\n\nYour prompt:\n{str(hook.get('prompt', ''))[:1500]}")}))
+    return True
+
+
 def unguarded(session: str, call: tuple[float, int] | None, gap: float, client: str = "claude") -> bool:
     return (bool(call) and call[1] >= min_tokens(client) and time.time() - call[0] >= gap
             and read(marker(session, "guard")) != str(call[0]))
@@ -620,7 +707,7 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
             print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off. Run /clear to continue from it in this window."}))
         return 0
     call = last_call(recs)
-    if not unguarded(session, call, lifetime(client, recs), client):
+    if switched(hook, client, recs, call) or not unguarded(session, call, lifetime(client, recs), client):
         return 0
     write(marker(session, "guard"), str(call[0]))
     pause, size = minutes(time.time() - call[0]), call[1] // 1000
@@ -647,6 +734,18 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         f"send the prompt again to continue the full session.\n\nYour prompt:\n{prompt[:1500]}"
     )
     print(json.dumps({"decision": "block", "reason": reason}))
+    return 0
+
+
+def instructions(hook: dict[str, Any], client: str = "claude") -> int:
+    tool = hook.get("tool_input") if isinstance(hook.get("tool_input"), dict) else {}
+    patch = str(tool.get("command") or tool.get("input") or "")
+    paths = [str(tool.get("file_path") or ""), *re.findall(r"(?m)^\*\*\* (?:Add|Update|Delete) File: (.+)$", patch)]
+    names = sorted({Path(path.strip()).name for path in paths} & INSTRUCTION_FILES)
+    if names:
+        note = " This session keeps the version loaded at its start." if client == "claude" else ""
+        print(json.dumps({"systemMessage": f"{', '.join(names)} changed. Once sent, edited instructions break the "
+                                           f"cached prompt prefix, so batch instruction edits.{note}"}))
     return 0
 
 
@@ -771,6 +870,7 @@ def main() -> int:
     commands.add_parser("clear")
     commands.add_parser("end").add_argument("--client", choices=("claude", "codex"), default="claude")
     commands.add_parser("guard").add_argument("--client", choices=("claude", "codex"), default="claude")
+    commands.add_parser("instructions").add_argument("--client", choices=("claude", "codex"), default="claude")
     find = commands.add_parser("search")
     find.add_argument("query")
     find.add_argument("--all", action="store_true")
@@ -801,6 +901,8 @@ def main() -> int:
             return clear(hook)
         if args.command == "end":
             return end(hook, args.client)
+        if args.command == "instructions":
+            return instructions(hook, args.client)
         return guard(hook, args.client)
     except (OSError, ValueError, KeyError, TypeError):
         return 0

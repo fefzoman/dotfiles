@@ -479,6 +479,8 @@ def call_diagnostics(
     usage: Usage,
     previous_at: dt.datetime | None,
     post_compaction: bool = False,
+    changed: list[str] | None = None,
+    ttl: float = INNER_SESSION_GAP.total_seconds(),
 ) -> tuple[int | None, str]:
     current_at = parse_timestamp(timestamp)
     gap = (
@@ -486,16 +488,23 @@ def call_diagnostics(
         if current_at and previous_at
         else None
     )
+    cached = min(usage.cached_input_tokens, usage.input_tokens)
+    missed = bool(usage.input_tokens) and cached * 2 < usage.input_tokens
     if previous_at is None:
-        return gap, "session start"
+        return gap, "session start" if missed else "warm"
     if post_compaction:
         return gap, "post-compaction"
-    if gap is not None and gap > INNER_SESSION_GAP.total_seconds():
+    if not missed:
+        return gap, "warm"
+    if gap is None or gap > ttl:
         return gap, "resume after idle"
-    cached = min(usage.cached_input_tokens, usage.input_tokens)
-    if usage.input_tokens and cached * 2 < usage.input_tokens:
-        return gap, "cache expiry/prefix change"
-    return gap, "warm"
+    if changed:
+        return gap, "+".join(changed) + " changed"
+    return gap, "unexplained miss"
+
+
+def setting_changes(previous: dict[str, str], current: dict[str, str]) -> list[str]:
+    return [name for name, value in current.items() if value and previous.get(name) and previous[name] != value]
 
 
 TEST_PATTERNS = re.compile(
@@ -735,6 +744,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     pending_compaction: Any = None
     previous_model_call_at: dt.datetime | None = None
     last_activity_at: dt.datetime | None = None
+    settings: dict[str, str] = {}
+    call_settings: dict[str, str] = {}
     seq = 0
 
     modern_usage = rollout_has_modern_usage(path)
@@ -847,6 +858,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             effort = dict_get_first(payload, ("reasoning_effort", "effort"))
             if effort:
                 report.reasoning_effort = str(effort)
+            settings = {"model": str(model or ""), "effort": str(effort or ""),
+                        "service tier": str(payload.get("service_tier") or "")}
             turn_window = dict_get_first(payload, ("model_context_window", "context_window"))
             if isinstance(turn_window, (int, float)) and turn_window:
                 report.context_window = int(turn_window)
@@ -906,8 +919,10 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                 usage,
                 previous_model_call_at,
                 post_compaction=pending_compaction is not None,
+                changed=setting_changes(call_settings, settings),
             )
             previous_model_call_at = parse_timestamp(timestamp) or previous_model_call_at
+            call_settings = settings
 
             assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
             visible = [x for x in active if id(x) not in assistant_new_ids]
@@ -1009,10 +1024,12 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                         delta,
                         previous_model_call_at,
                         post_compaction=pending_compaction is not None,
+                        changed=setting_changes(call_settings, settings),
                     )
                     previous_model_call_at = (
                         parse_timestamp(timestamp) or previous_model_call_at
                     )
+                    call_settings = settings
 
                     # The model-generated records since the previous token event
                     # belong to this call's output, not its request input.
@@ -1381,6 +1398,8 @@ def analyze_claude_session(
     last_activity_at: dt.datetime | None = None
     previous_model_call_at: dt.datetime | None = None
     post_compaction = False
+    call_settings: dict[str, str] = {}
+    cache_ttl = 3600.0
     has_compaction_boundaries = claude_has_compaction_boundaries(path)
     seq = 0
 
@@ -1420,18 +1439,20 @@ def analyze_claude_session(
                         report.file_payloads.get(file_name, 0) + share
                     )
 
-    def record_usage(timestamp: str, usage: Usage) -> None:
-        nonlocal previous_model_call_at, post_compaction
+    def record_usage(timestamp: str, usage: Usage, settings: dict[str, str], ttl: float) -> None:
+        nonlocal previous_model_call_at, post_compaction, call_settings, cache_ttl
         report.total.add_assign(usage)
         report.last = usage
         report.model_calls += 1
         report.inner_usage.add_assign(usage)
         report.inner_model_calls += 1
         gap_seconds, cold_reason = call_diagnostics(
-            timestamp, usage, previous_model_call_at, post_compaction
+            timestamp, usage, previous_model_call_at, post_compaction,
+            setting_changes(call_settings, settings), cache_ttl,
         )
         previous_model_call_at = parse_timestamp(timestamp) or previous_model_call_at
         post_compaction = False
+        call_settings, cache_ttl = settings, ttl or cache_ttl
 
         known_by_category: dict[str, float] = collections.defaultdict(float)
         for item in active:
@@ -1549,9 +1570,14 @@ def analyze_claude_session(
             context_window = dict_get_first(message.get("usage"), ("context_window",))
             if isinstance(context_window, (int, float)) and context_window:
                 report.context_window = int(context_window)
-            usage = claude_usage(message.get("usage"))
+            raw_usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
+            usage = claude_usage(raw_usage)
             if usage_obj_nonzero(usage):
-                record_usage(timestamp, usage)
+                created = raw_usage.get("cache_creation") or {}
+                settings = {"model": str(message.get("model") or ""), "effort": str(rec.get("effort") or ""),
+                            "CLI version": str(rec.get("version") or ""), "fast mode": str(raw_usage.get("speed") or "")}
+                ttl = 3600.0 if created.get("ephemeral_1h_input_tokens") else 300.0 if created.get("ephemeral_5m_input_tokens") else 0.0
+                record_usage(timestamp, usage, settings, ttl)
                 if timestamp:
                     report.activity_events.append(ActivityEvent(timestamp, usage=usage))
 
@@ -2181,6 +2207,15 @@ def render_model_calls(
         )
 
 
+def cold_causes(calls: Iterable[ModelCall]) -> list[tuple[str, tuple[int, int]]]:
+    causes: dict[str, list[int]] = collections.defaultdict(lambda: [0, 0])
+    for call in calls:
+        if call.cold_reason != "warm":
+            causes[call.cold_reason][0] += 1
+            causes[call.cold_reason][1] += max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
+    return sorted(((r, (c, f)) for r, (c, f) in causes.items()), key=lambda item: item[1][1], reverse=True)
+
+
 def render_cold_calls(report: SessionReport, show_calls: int) -> None:
     cold = [
         (index, call)
@@ -2195,8 +2230,12 @@ def render_cold_calls(report: SessionReport, show_calls: int) -> None:
         return
     print()
     print(style(f"COLD / INVALIDATED PREFIX EVENTS — top {min(show_calls, len(cold))}", "bold"))
-    print(style("Reasons are log-derived; cache expiry and prefix mutation cannot be separated.", "dim"))
+    print(style("Unexplained = missed inside the cache TTL with no logged setting change: "
+                "a hook, instruction, tool or proxy changed the prefix.", "dim"))
     print("─" * 72)
+    print("by cause: " + ", ".join(
+        f"{reason} {count}× {human_int(fresh)}" for reason, (count, fresh) in cold_causes(report.calls)
+    ))
     print(f"{'#':>3}  {'fresh':>9} {'gap':>8}  reason")
     for index, call in cold[:show_calls]:
         fresh = max(0, call.usage.input_tokens - call.usage.cached_input_tokens)
@@ -2681,6 +2720,14 @@ def render_top(profile: Profile, by: str, limit: int, sessions: int, include_arc
             )
         return
 
+    if by == "cause":
+        calls = [call for path in paths for call in analyze_profile_session(path, profile).calls]
+        print(style(f"COLD CALLS BY CAUSE — fresh input across {len(paths)} sessions", "bold", "cyan"))
+        print("─" * 110)
+        for i, (reason, (count, fresh)) in enumerate(cold_causes(calls)[:limit], 1):
+            print(f"{i:>2}. {human_int(fresh):>9}  {count:>5}×  {reason}")
+        return
+
     aggregate: dict[str, int] = collections.defaultdict(int)
     for path in paths:
         r = analyze_profile_session(path, profile, keep_calls=False)
@@ -2736,7 +2783,7 @@ def build_parser() -> argparse.ArgumentParser:
         sessions_parser.add_argument("--archived", action="store_true")
 
         top = actions.add_parser("top", help="Rank usage across recent sessions.")
-        top.add_argument("--by", choices=("session", "command", "file"), default="session")
+        top.add_argument("--by", choices=("session", "command", "file", "cause"), default="session")
         top.add_argument("--limit", type=int, default=15)
         top.add_argument("--sessions", type=int, default=50, help="How many recent sessions to scan.")
         top.add_argument("--archived", action="store_true")

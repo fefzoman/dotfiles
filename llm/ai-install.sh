@@ -74,6 +74,17 @@ with_claude_profile() {
   fi
 }
 
+warn_live_sessions() {
+  local answer=""
+
+  # Upgrades and hook, MCP or skill edits change the prompt prefix open sessions resume with.
+  pgrep -f '(^|/)(claude|codex)( |$)' >/dev/null || return 0
+  echo "Warning: Claude or Codex sessions are running; resuming them after this install rebuilds their prompt cache." >&2
+  [[ -t 0 ]] || return 0
+  read -r -p "Continue? [y/N] " answer || true
+  [[ "$answer" == [yY]* ]] || exit 1
+}
+
 install_ai_tools() {
   if [[ "$OS" == Darwin ]]; then
     command -v brew >/dev/null 2>&1 || { echo "Homebrew is required." >&2; exit 1; }
@@ -354,6 +365,7 @@ install_shell_config() {
   fi
 }
 
+warn_live_sessions
 echo "==> Installing AI command-line tools..."
 install_ai_tools
 echo "==> Installing VS Code commands..."

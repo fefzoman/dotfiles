@@ -126,6 +126,28 @@ class InnerSessionTest(unittest.TestCase):
         self.assertEqual(report.inner_model_calls, 1)
         self.assertEqual(report.inner_usage.input_tokens, 100)
 
+    def test_cold_calls_name_setting_changes_and_unexplained_misses(self) -> None:
+        def call(at: str, name: str, cached: int) -> dict[str, object]:
+            return {"timestamp": at, "type": "token_usage_record",
+                    "payload": {"response_id": name, "usage": usage(100, cached, 1, 0)}}
+
+        def context(at: str, model: str, effort: str) -> dict[str, object]:
+            return {"timestamp": at, "type": "turn_context", "payload": {"model": model, "effort": effort}}
+
+        report = self.analyze([
+            context("2026-09-20T10:00:00Z", "gpt-5.5", "high"),
+            call("2026-09-20T10:00:01Z", "one", 90),
+            call("2026-09-20T10:01:00Z", "two", 90),
+            context("2026-09-20T10:02:00Z", "gpt-5.6-sol", "low"),
+            call("2026-09-20T10:02:01Z", "three", 10),
+            call("2026-09-20T10:03:00Z", "four", 10),
+        ])
+
+        self.assertEqual([c.cold_reason for c in report.calls],
+                         ["warm", "warm", "model+effort changed", "unexplained miss"])
+        self.assertEqual(token_profiler.cold_causes(report.calls),
+                         [("model+effort changed", (1, 90)), ("unexplained miss", (1, 90))])
+
     def test_cold_calls_distinguish_idle_and_compaction(self) -> None:
         report = self.analyze(
             [

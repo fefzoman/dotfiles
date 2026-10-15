@@ -46,6 +46,7 @@ token-profiler codex sessions --archived
 token-profiler claude session SESSION_ID
 token-profiler codex top --by session
 token-profiler claude top --by command --sessions 100
+token-profiler claude top --by cause --sessions 100
 token-profiler codex current --json
 ```
 
@@ -98,8 +99,10 @@ Optimization measurements retain their original scopes and are never summed:
 - per-tool call/result totals, averages, maxima, and payload share
 - tool-result outliers over 2K tokens with arguments and repeated-query markers
 - largest model calls ranked by both total and fresh input
-- model-call gaps and cold-prefix causes (start, idle resume, compaction, or
-  indistinguishable cache-expiry/prefix changes)
+- model-call gaps and cache-miss causes: session start, idle past the cache
+  TTL, compaction, a model/effort/fast-mode/CLI-version change, or an
+  unexplained miss inside the TTL (a hook, instruction, tool or proxy changed
+  the prefix); `top --by cause` totals them across sessions
 - per-work-window resume context, first-call cold cost/share, and later-call
   fresh-input total/average
 - Ponytail plugin/policy state

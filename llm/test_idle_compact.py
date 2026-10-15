@@ -164,7 +164,7 @@ class IdleCompactTest(unittest.TestCase):
 
     def test_five_minute_cache_gets_a_hint_instead_of_a_block(self) -> None:
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
-        old = time.time() - 30
+        old = int(time.time()) - 30
         hook = self.save([prompt("x", old - 60), reply("cp", old, ttl="5m")]) | {"prompt": "go on"}
         ic.store_checkpoint(ic.folder_for("s1", self.cwd), "s1", "## Idle checkpoint\n### Goal\nship", self.cwd,
                             self.transcript, prompted=old - 60)
@@ -220,6 +220,36 @@ class IdleCompactTest(unittest.TestCase):
         shown = ic.turn("s1", "T3")
         self.assertLessEqual(len(shown), ic.OUTPUT_CAP)
         self.assertIn("T2 · result", shown)
+
+    def test_guard_blocks_a_warm_switch_once_and_hints_an_upgrade(self) -> None:
+        now = time.time()
+        call = reply("done", now - 60) | {"effort": "high", "version": "2.1.300"}
+        call["message"]["model"] = "claude-opus-5-5"
+        switch = {"type": "user", "timestamp": iso(now - 30), "message": {"role": "user", "content":
+                  "<local-command-stdout>Set model to `Sonnet 5.5`</local-command-stdout>"}}
+        same = json.loads(json.dumps(switch).replace("Sonnet", "Opus"))
+        hook = self.save([prompt("go", now - 70), call, same]) | {"prompt": "next", "effort": {"level": "low"}}
+        reason = json.loads(self.run_hook(ic.guard, hook)[1])["reason"]
+        self.assertIn("Changing the effort mid-session", reason)
+        self.assertTrue(reason.endswith("Your prompt:\nnext"))
+        self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
+
+        call["timestamp"] = iso(now - 50)
+        hook = self.save([prompt("go", now - 70), call, switch]) | {"prompt": "next"}
+        self.assertIn("Changing the model", json.loads(self.run_hook(ic.guard, hook)[1])["reason"])
+
+        call["timestamp"] = iso(now - 40)
+        hook = self.save([prompt("go", now - 70), call, same]) | {"prompt": "next"}
+        self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
+        os.environ["CLAUDE_CODE_EXECPATH"] = "/x/.local/share/claude/versions/2.1.301"
+        hint = json.loads(self.run_hook(ic.guard, hook)[1])["systemMessage"]
+        self.assertIn("2.1.300 → 2.1.301", hint)
+
+    def test_instruction_edits_get_a_note(self) -> None:
+        for path, noted in (("/r/CLAUDE.md", True), ("/r/AGENTS.md", True), ("/r/README.md", False)):
+            out = self.run_hook(ic.instructions, {"tool_input": {"file_path": path}})[1]
+            self.assertEqual(bool(out), noted)
+        self.assertIn("loaded at its start", out or self.run_hook(ic.instructions, {"tool_input": {"file_path": "CLAUDE.md"}})[1])
 
     def test_native_compactor_flag_delays_but_does_not_skip_the_checkpoint(self) -> None:
         (self.home / ".claude.json").write_text(json.dumps(

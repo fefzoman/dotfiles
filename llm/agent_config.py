@@ -152,6 +152,8 @@ def idle_compact(settings: str) -> None:
         "UserPromptSubmit": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} guard", "timeout": 10}]},
         "SessionStart": {"matcher": "clear", "hooks": [{"type": "command", "command": f"{IDLE_COMPACT} clear", "timeout": 10}]},
         "SessionEnd": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} end", "timeout": 30}]},
+        "PostToolUse": {"matcher": "Edit|MultiEdit|Write",
+                        "hooks": [{"type": "command", "command": f"{IDLE_COMPACT} instructions", "timeout": 5}]},
     }
     hooks = data.setdefault("hooks", {})
     # Sweeping every event also drops hooks this installer no longer wants.
