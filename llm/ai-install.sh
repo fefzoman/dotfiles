@@ -289,6 +289,7 @@ install_codex_hooks() {
     mkdir -p "$profile"
     agent_config codex-hooks "$profile/hooks.json" "$SCRIPT_DIR/codex/codex-hooks.json"
     agent_config codex-statusline "$profile/config.toml"
+    agent_config codex-effort "$profile/config.toml"
   done
 }
 
@@ -350,6 +351,7 @@ disable_claude_connectors() {
     listing="$(with_claude_profile "$profile" "$claude_bin" mcp list 2>/dev/null || true)"
     agent_config connectors "$profile/settings.json" "$listing"
     agent_config context-trim "$profile/settings.json"
+    agent_config effort "$profile/settings.json"
   done
 }
 

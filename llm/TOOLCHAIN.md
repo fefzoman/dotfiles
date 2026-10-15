@@ -203,6 +203,10 @@ Settings that change the prompt prefix discard a still-warm cache. Each guard co
 
 The global policy tells both agents never to suggest `/model`, `/effort` or `/fast` mid-session. `token-profiler … top --by cause` totals misses by cause. A model switch from the VS Code picker writes no transcript note, so only the profiler sees it. Codex rollouts don't record upgrades, so the profiler counts them as unexplained. A Claude model alias resolves inside the client and moves only on an upgrade, so the model isn't pinned.
 
+### Default effort
+
+The installer sets `effortLevel = "high"` in both Claude profiles and a top-level `model_reasoning_effort = "high"` in both Codex homes; profile tables keep their own. Claude keeps thinking in context for the whole session and Codex until the next user message, so every thinking token is re-read on each later call. Measured per Opus 5.5 call: medium 232 thinking tokens, high 247, xhigh 558. Medium saves nothing over high, and xhigh doubles thinking, which made up 15–37% of input in the largest sessions. Start a session with `claude --effort xhigh` (or `codex -c model_reasoning_effort=xhigh`) for hard design or debugging; switching mid-session rewrites the cache.
+
 ### Token-profiler
 
 `token-profiler codex | codex-work | claude | claude-work`. Model-call windows split after gaps > 30 min and report: context size on the first resumed call; first-call fresh input and its share of the window's fresh input; later-call fresh total and average; cold-start, idle-resume, post-compaction, setting-change and unexplained-miss attribution where the transcript shows enough. Claude records add exact cache-read and cache-creation counts. Reads local session files only; no model/API requests.

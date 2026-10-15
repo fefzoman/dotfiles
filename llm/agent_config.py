@@ -20,6 +20,8 @@ CONTEXT_TRIM_SKILLS = {
     **dict.fromkeys(("dataviz", "claude-api", "claude-in-chrome", "schedule", "run", "plugin-authoring", "keybindings-help",
                      "fewer-permission-prompts"), "user-invocable-only"),
 }
+# xhigh doubles thinking per call (Opus 5.5: 558 vs 247 tokens), and every later call re-reads it.
+EFFORT = "high"
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
 SHELL_END = "# END AI TOOLING SHELL ENVIRONMENT"
 
@@ -117,6 +119,25 @@ def codex_statusline(config: str) -> None:
         installed = None
     if installed != CODEX_STATUSLINE:
         raise SystemExit(f"{config}: add {setting.strip()} to the existing tui configuration")
+    path.write_text(text, encoding="utf-8")
+
+
+def effort(settings: str) -> None:
+    data = load(settings)
+    data["effortLevel"] = EFFORT
+    save(settings, data)
+
+
+def codex_effort(config: str) -> None:
+    path = Path(config)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    first_table = re.search(r"(?m)^[ \t]*\[", text)
+    top, tables = (text[:first_table.start()], text[first_table.start():]) if first_table else (text, "")
+    line = f"model_reasoning_effort = {json.dumps(EFFORT)}"
+    top, found = re.subn(r"(?m)^[ \t]*model_reasoning_effort[ \t]*=.*$", line, top)
+    text = (top if found else line + "\n" + top) + tables
+    if tomllib.loads(text).get("model_reasoning_effort") != EFFORT:
+        raise SystemExit(f"{config}: set {line} at the top level")
     path.write_text(text, encoding="utf-8")
 
 
@@ -282,7 +303,7 @@ def codex_hooks_valid(required: str, installed: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, codex_statusline, statusline, context7_guard, idle_compact, attribution,
+        codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, statusline, context7_guard, idle_compact, attribution,
         connectors, context_trim, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid,

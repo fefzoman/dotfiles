@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -185,6 +186,19 @@ uv() {{
             self.assertEqual(text.count("[shell_environment_policy]"), 1)
             self.assertIn('"/new"', text)
             self.assertNotIn('"/old"', text)
+
+    def test_effort_defaults_replace_only_the_top_level_codex_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config, settings = Path(tmp) / "config.toml", Path(tmp) / "settings.json"
+            config.write_text('model = "gpt"\nmodel_reasoning_effort = "xhigh"\n\n[profiles.deep]\nmodel_reasoning_effort = "max"\n')
+            agent_config.codex_effort(str(config))
+            agent_config.codex_effort(str(config))
+            data = tomllib.loads(config.read_text())
+            self.assertEqual(data["model_reasoning_effort"], "high")
+            self.assertEqual(data["profiles"]["deep"]["model_reasoning_effort"], "max")
+            settings.write_text('{"effortLevel": "xhigh", "model": "opus"}')
+            agent_config.effort(str(settings))
+            self.assertEqual(json.loads(settings.read_text()), {"effortLevel": "high", "model": "opus"})
 
 
 if __name__ == "__main__":
