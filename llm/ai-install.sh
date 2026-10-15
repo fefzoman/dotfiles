@@ -260,6 +260,7 @@ install_headroom() {
   fi
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$uv_bin" tool install \
     --python "$PYTHON_VERSION" --upgrade 'headroom-ai[proxy,code]'
+  "$("$uv_bin" tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" headroom-replay-ttl
   # Dedup's 10-minute tracker expires before the 1-hour prompt cache.
   headroom install apply --preset persistent-service --scope provider \
     --providers manual --target claude --target codex --env HEADROOM_DEDUPE=0

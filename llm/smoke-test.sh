@@ -92,6 +92,9 @@ check "Spec Kit starts" "Spec Kit failed to start" specify version
 check "Headroom persistent proxy is installed and healthy" \
   "Headroom persistent proxy is not installed or not healthy" \
   headroom install status
+check "Headroom keeps prompt-cache replay state for the 1h cache" \
+  "Headroom replay state still expires before the 1h prompt cache; rerun ai-install.sh" \
+  "$(uv tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" headroom-replay-ttl check
 check "Token profiler starts with tiktoken" "Token profiler failed to start" \
   token-profiler --version
 

@@ -124,6 +124,14 @@ Don't assume a Headroom feature applies to every protocol; check the actual requ
 
 Normal compression stays on for both; still minimize context before it reaches Headroom.
 
+### Replay TTL patch
+
+To keep hitting the prompt cache, Headroom replays the exact bytes it forwarded last turn. That state lives in the session tracker, which expires after `ProxyConfig.prefix_freeze_session_ttl = 600` seconds, while the compression cache next to it already defaults to 3900 (`HEADROOM_COMPRESSION_CACHE_TTL_SECONDS`). After a 10–60 minute pause, Headroom recompresses the history, the bytes no longer match, and Anthropic rewrites the whole 1-hour cache. Claude cache misses at 10–60 minute gaps went from 2% (1 of 63 calls, before Headroom) to 36% (40 of 112, after), costing ~9.8M extra 1h cache-write tokens between 2026-09-25 and 2026-10-15.
+
+No env var or flag sets this value, so `install_headroom` runs `agent_config.py headroom-replay-ttl` under Headroom's interpreter to change the default to 3900 before the service starts, and fails if the line moves. The smoke test checks it. The cost: each session's last forwarded history (a few MB for long sessions) stays in memory for 65 minutes instead of 10.
+
+Measured from the proxy log (5,100 Claude requests, 137 sessions, 2026-09-23 to 2026-10-15): compression removed 1.7% of input tokens, mostly tool-schema compaction. Weighted by cache-read and cache-write prices, that saved 1.5% of input cost (median per session 1.2%, maximum 25%), while the replay misses added 11%, a net loss of 9.5%. Re-measure after the patch; if the saving stays near 1.5%, routing Claude directly is the simpler choice.
+
 ### Same-thread compaction safeguards
 
 Goal: cut the first fresh-token spike after a long quota-reset pause without switching threads, handing off, or giving up warm cache early.

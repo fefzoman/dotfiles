@@ -13,6 +13,8 @@ CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "cont
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
+# Headroom's own compression-cache default (HEADROOM_COMPRESSION_CACHE_TTL_SECONDS): 1h prompt cache + 5 min.
+HEADROOM_REPLAY_TTL = 3900
 CONTEXT_TRIM_ENV = {"CLAUDE_CODE_DISABLE_ARTIFACT": "1"}
 CONTEXT_TRIM_SKILLS = {
     **dict.fromkeys(("docs", "docx", "pptx", "xlsx", "pdf", "google-workspace", "morning", "import-memory", "skill-creator"), "off"),
@@ -209,6 +211,23 @@ def headroom_work(claude_dir: str, codex_dir: str) -> None:
     codex.apply_provider_scope(manifest)
 
 
+def headroom_replay_ttl(check: str = "") -> bool:
+    # Runs under Headroom's interpreter. Replay state expiring at 600s makes a 10-60 min pause re-send a
+    # recompressed prefix and rewrite the whole 1h prompt cache; no env var or flag sets this default.
+    import headroom.proxy.models as models
+
+    path = Path(models.__file__)
+    text = path.read_text(encoding="utf-8")
+    pattern = r"(?m)^(\s*prefix_freeze_session_ttl: int = )(\d+)$"
+    if check:
+        return any(int(m[2]) == HEADROOM_REPLAY_TTL for m in re.finditer(pattern, text))
+    patched, count = re.subn(pattern, rf"\g<1>{HEADROOM_REPLAY_TTL}", text)
+    if count != 1:
+        raise SystemExit(f"{path}: prefix_freeze_session_ttl default not found; recheck Headroom's replay TTL.")
+    path.write_text(patched, encoding="utf-8")
+    return True
+
+
 # Smoke-test checks.
 
 
@@ -283,7 +302,7 @@ COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
         codex_shell_path, codex_hooks, codex_statusline, statusline, context7_guard, idle_compact, attribution,
-        connectors, context_trim, headroom_work, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
+        connectors, context_trim, headroom_work, headroom_replay_ttl, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_headroom, codex_headroom, codex_rtk_path, codex_hooks_valid,
     )

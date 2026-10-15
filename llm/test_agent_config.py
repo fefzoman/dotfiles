@@ -119,6 +119,22 @@ uv() {{
                 for marker in ("upgraded", "applied", "work-configured"):
                     self.assertEqual((home / marker).exists(), mode != "failure", marker)
 
+    def test_headroom_replay_ttl_patch_is_idempotent_and_fails_loudly(self):
+        with tempfile.TemporaryDirectory() as directory:
+            models = Path(directory) / "headroom/proxy/models.py"
+            models.parent.mkdir(parents=True)
+            command = ["python3", str(SCRIPT_DIR / "agent_config.py"), "headroom-replay-ttl"]
+            env = {**os.environ, "PYTHONPATH": directory, "PYTHONDONTWRITEBYTECODE": "1"}
+            run = lambda *extra: subprocess.run(command + list(extra), env=env, capture_output=True, text=True)
+            models.write_text("class ProxyConfig:\n    prefix_freeze_session_ttl: int = 600\n")
+            self.assertEqual(run("check").returncode, 1)
+            for _ in range(2):
+                self.assertEqual(run().returncode, 0)
+            self.assertIn("prefix_freeze_session_ttl: int = 3900\n", models.read_text())
+            self.assertEqual(run("check").returncode, 0)
+            models.write_text("class ProxyConfig:\n    renamed_ttl: int = 600\n")
+            self.assertIn("not found", run().stderr)
+
     def test_plugin_identity_and_state(self):
         for plugin_id, installed, enabled in (
             ("superpowers@openai-curated", True, True),
