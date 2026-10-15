@@ -81,7 +81,7 @@ claude_mcp_enabled() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk token-profiler node uv serena specify context7-mcp code code-work; do
+for command_name in python codex claude fabric rtk token-profiler smart-read node uv serena specify context7-mcp code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
@@ -99,7 +99,7 @@ for profile in codex codex-work claude claude-work; do
     token-profiler "$profile" --help
 done
 
-for file in ai-install.sh codex/codex_compact_warning.py idle_compact.py context7_version_guard.py \
+for file in ai-install.sh codex/codex_compact_warning.py idle_compact.py context7_version_guard.py read_hint.py \
   claude/claude_compact_statusline.py; do
   check "Installed $file matches the repository" "Installed $file is missing or stale" \
     cmp -s "$SCRIPT_DIR/$file" "$HOME/.config/dotfiles/${file##*/}"
@@ -162,6 +162,10 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
   done
   check "/pitstop command matches the repository in $profile" "/pitstop command is missing or stale in $profile" \
     cmp -s "$SCRIPT_DIR/claude/pitstop.md" "$profile/commands/pitstop.md"
+  check "/checkpoint command matches the repository in $profile" "/checkpoint command is missing or stale in $profile" \
+    cmp -s "$SCRIPT_DIR/claude/checkpoint.md" "$profile/commands/checkpoint.md"
+  check "smart-read hint is enabled in $profile" "smart-read hint is missing in $profile" \
+    agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
   check "/speckit-init command matches the repository in $profile" "/speckit-init command is missing or stale in $profile" \
     cmp -s "$SCRIPT_DIR/claude/speckit-init.md" "$profile/commands/speckit-init.md"
   check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \

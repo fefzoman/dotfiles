@@ -12,6 +12,7 @@ STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
 CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
+READ_HINT = 'python3 "$HOME/.config/dotfiles/read_hint.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
 # ENABLE_TOOL_SEARCH was set by Headroom's install, whose revert drops it; keep tool loading unchanged.
 CONTEXT_TRIM_ENV = {"CLAUDE_CODE_DISABLE_ARTIFACT": "1", "ENABLE_TOOL_SEARCH": "true"}
@@ -167,6 +168,16 @@ def context7_guard(settings: str) -> None:
     save(settings, data)
 
 
+def read_hint(settings: str) -> None:
+    data = load(settings)
+    hooks = data.setdefault("hooks", {})
+    hooks["PreToolUse"] = [
+        entry for entry in hooks.get("PreToolUse", [])
+        if all(hook.get("command") != READ_HINT for hook in entry.get("hooks", []))
+    ] + [{"matcher": "Read|Bash", "hooks": [{"type": "command", "command": READ_HINT, "timeout": 5}]}]
+    save(settings, data)
+
+
 def idle_compact(settings: str) -> None:
     data = load(settings)
     wanted = {
@@ -303,7 +314,7 @@ def codex_hooks_valid(required: str, installed: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, statusline, context7_guard, idle_compact, attribution,
+        codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, read_hint, statusline, context7_guard, idle_compact, attribution,
         connectors, context_trim, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid,

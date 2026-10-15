@@ -112,6 +112,8 @@ install_ai_tools() {
     --python "$PYTHON_VERSION" --upgrade serena-agent
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade specify-cli
+  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
+    --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/smart-read"
 }
 
 install_vscode_commands() {
@@ -317,6 +319,17 @@ install_claude_context7_guard() {
   done
 }
 
+install_read_hint() {
+  local config_dir="$HOME/.config/dotfiles" profile
+
+  mkdir -p "$config_dir"
+  install -m 0755 "$SCRIPT_DIR/read_hint.py" "$config_dir/read_hint.py"
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    mkdir -p "$profile"
+    agent_config read-hint "$profile/settings.json"
+  done
+}
+
 install_idle_compact() {
   local config_dir="$HOME/.config/dotfiles" profile
 
@@ -384,6 +397,8 @@ echo "==> Installing Claude Context7 version guard..."
 install_claude_context7_guard
 echo "==> Installing idle compaction hooks..."
 install_idle_compact
+echo "==> Installing smart-read hints for large whole-file reads..."
+install_read_hint
 echo "==> Disabling Claude commit and PR attribution..."
 disable_claude_attribution
 echo "==> Disabling unused claude.ai connectors in Claude profiles..."

@@ -66,6 +66,19 @@ Upstream's `serena setup codex` writes the equivalent Codex entry. Verify with `
 
 **Costs:** LSP startup/indexing, extra MCP process/state, per-language LSP limits, duplication if more than one Serena instance is configured.
 
+### smart-read
+
+Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-read/`, installed with `uv tool`) covers what is left: finding code by behavior ("where are spend retries configured") and reading part of a large SQL, Terraform, YAML or Markdown file. File reads were 30–55% of re-read input in the largest Claude sessions, mostly whole files printed with `cat`. It is a CLI, so both clients use it through the shell with no extra tool schemas.
+
+- `search "<question>" [--path P] [-k N]`:
+  - Fuses three rankings with weighted Reciprocal Rank Fusion: BM25 over symbol-aware chunks, a trigram index, and local code embeddings (`jina-embeddings-v2-base-code`).
+  - It prints the best line ranges with line numbers.
+  - Cross-encoder reranking is opt-in with `--rerank`. On this machine's repositories, every CPU reranker fastembed offers lowered accuracy and added 0.7–4.8 s per query.
+- `outline FILE` lists symbols with line ranges.
+- One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. Embeddings for large changes run in the background.
+- Model choice and retrieval quality are in `llm/smart-read/README.md`.
+- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a non-blocking note pointing at `smart-read` before a whole-file read of 400 or more lines.
+
 ## 5. Context7
 
 Current docs/examples for third-party libraries and APIs — external knowledge, not repo navigation. Serena: "how does OUR code work?" (where is our FastAPI app initialized?). Context7: "how does THIS dependency work?" (how does `StreamingResponse` behave in the current FastAPI?).
@@ -235,6 +248,7 @@ Each piece has exactly one owner:
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Headroom removal | `llm/ai-install.sh` `remove_headroom` | Unroutes all four profiles, removes the service and tool when present (§7) |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
+| smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_read_hint` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
 | Spec Kit CLI | `llm/ai-install.sh` `install_ai_tools`, `install_global_agents` | `uv tool install --upgrade specify-cli`; project initialization stays explicit through `/speckit-init` (Claude) or `$speckit-init` (Codex) |
 | Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
 
