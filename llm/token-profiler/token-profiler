@@ -758,6 +758,17 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     # they were distinct transcript messages.
     instruction_fingerprints: set[int] = set()
 
+    def add_reasoning(usage: Usage) -> None:
+        # Exact count from usage; kept out of since_last_token so the next request counts it as input.
+        if usage.reasoning_output_tokens:
+            active.append(
+                SourceItem("Reasoning/thinking", "assistant reasoning", usage.reasoning_output_tokens,
+                           "assistant", "reasoning", seq)
+            )
+            report.observed_payload["Reasoning/thinking"] = (
+                report.observed_payload.get("Reasoning/thinking", 0) + usage.reasoning_output_tokens
+            )
+
     def add_source(item: SourceItem, generator: bool = False, text: str = "") -> None:
         active.append(item)
         since_last_token.append(item)
@@ -966,6 +977,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                 )
 
             since_last_token = []
+            add_reasoning(usage)
 
             if pending_compaction is not None:
                 set_compacted_history(pending_compaction)
@@ -1080,6 +1092,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                         )
 
                     since_last_token = []
+                    add_reasoning(delta)
 
                     # Apply compaction only after attributing the request that
                     # caused/preceded the compacted history.
@@ -1110,6 +1123,9 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             tok = estimate_tokens(text)
             if role == "user" and not report.title and not looks_like_instructions(text):
                 report.title = truncate(text, 72)
+            if role == "user":
+                # Codex drops earlier reasoning from the request once a new user turn starts.
+                active = [x for x in active if x.category != "Reasoning/thinking"]
 
             if looks_like_instructions(text):
                 category = "AGENTS.md/instructions"
@@ -1374,6 +1390,38 @@ def add_report_totals(target: SessionReport, source: SessionReport) -> None:
         for key, value in getattr(source, attribute).items():
             destination[key] = destination.get(key, 0) + value
 
+
+# Client bookkeeping attachments that never reach the model.
+CLAUDE_HIDDEN_ATTACHMENTS = {
+    "prompt_snapshot", "deferred_tools_record", "auto_mode", "command_permissions",
+    "credential_org", "remote_session_change", "skill_mention", "plan_mode_exit",
+}
+
+
+def claude_attachment_source(att: dict[str, Any]) -> tuple[str, str, str, str | None] | None:
+    """Return (category, label, model-visible text, file) for a Claude attachment record."""
+    kind = str(att.get("type") or "attachment")
+    if kind in CLAUDE_HIDDEN_ATTACHMENTS:
+        return None
+    if kind == "instructions":
+        files = [f for f in att.get("files") or [] if isinstance(f, dict)]
+        paths = ", ".join(str(f.get("path") or "") for f in files)
+        return "AGENTS.md/instructions", f"CLAUDE.md: {paths}", obj_text([f.get("content") for f in files]), None
+    if kind == "nested_memory":
+        content = att.get("content")
+        text = content.get("content") if isinstance(content, dict) else content
+        return "AGENTS.md/instructions", f"CLAUDE.md: {att.get('path')}", obj_text(text), None
+    if kind in {"hook_success", "hook_additional_context"}:
+        text = obj_text(att.get("content"))
+        return "AGENTS.md/instructions", instruction_source(text, f"hook: {att.get('hookName')}"), text, None
+    if kind == "edited_text_file":
+        file_name = str(att.get("filename") or "") or None
+        return "Repository/file reads", f"edited file: {file_name}", obj_text(att.get("snippet")), file_name
+    if kind == "queued_command":
+        return "Conversation/history", "queued prompt", obj_text(att.get("prompt")), None
+    return "Platform reminders", kind, obj_text({k: v for k, v in att.items() if k != "type"}), None
+
+
 def analyze_claude_session(
     path: Path,
     keep_calls: bool = True,
@@ -1402,6 +1450,8 @@ def analyze_claude_session(
     cache_ttl = 3600.0
     has_compaction_boundaries = claude_has_compaction_boundaries(path)
     seq = 0
+    calibration = [0.0, 0.0]  # exact visible output tokens, o200k estimate of the same blocks
+    platform_floor: float | None = None  # system prompt and tool schemas, measured on the first call
 
     def add_source(item: SourceItem, generator: bool = False, text: str = "") -> None:
         active.append(item)
@@ -1440,7 +1490,7 @@ def analyze_claude_session(
                     )
 
     def record_usage(timestamp: str, usage: Usage, settings: dict[str, str], ttl: float) -> None:
-        nonlocal previous_model_call_at, post_compaction, call_settings, cache_ttl
+        nonlocal previous_model_call_at, post_compaction, call_settings, cache_ttl, platform_floor
         report.total.add_assign(usage)
         report.last = usage
         report.model_calls += 1
@@ -1457,17 +1507,19 @@ def analyze_claude_session(
         known_by_category: dict[str, float] = collections.defaultdict(float)
         for item in active:
             known_by_category[item.category] += item.tokens
-        known_sum = sum(known_by_category.values())
+        exact_known = min(known_by_category.get("Reasoning/thinking", 0.0), usage.input_tokens)
+        estimated = sum(known_by_category.values()) - known_by_category.get("Reasoning/thinking", 0.0)
         attributed: dict[str, float] = {}
         if usage.input_tokens:
-            scale = (
-                usage.input_tokens / known_sum
-                if known_sum > usage.input_tokens and known_sum
-                else 1.0
-            )
+            # o200k under-counts Claude's tokenizer; calibrate on this session's exact visible output.
+            ratio = max(1.0, calibration[0] / calibration[1]) if calibration[1] else 1.0
+            if platform_floor is None:
+                platform_floor = max(0.0, usage.input_tokens - exact_known - estimated)
+            room = max(0.0, usage.input_tokens - exact_known - platform_floor)
+            scale = min(ratio, room / estimated) if estimated else 1.0
             known_used = 0.0
             for category, value in known_by_category.items():
-                amount = value * scale
+                amount = exact_known if category == "Reasoning/thinking" else value * scale
                 attributed[category] = amount
                 known_used += amount
             residual = max(0.0, usage.input_tokens - known_used)
@@ -1556,15 +1608,24 @@ def analyze_claude_session(
                 )
             continue
 
+        if record_type == "attachment" and isinstance(rec.get("attachment"), dict):
+            source = claude_attachment_source(rec["attachment"])
+            if source:
+                category, label, text, file_name = source
+                add_source(
+                    SourceItem(category, label, estimate_tokens(text), "external", "attachment", seq, file=file_name)
+                )
+            continue
+
         message = rec.get("message")
         if not isinstance(message, dict):
             continue
         content = message.get("content")
 
         if record_type == "assistant":
+            # One API message is split across records, one content block each, all repeating its usage.
             message_id = str(message.get("id") or rec.get("uuid") or f"seq-{seq}")
-            if message_id in seen_message_ids:
-                continue
+            first_record = message_id not in seen_message_ids
             seen_message_ids.add(message_id)
             report.model = str(message.get("model") or report.model)
             context_window = dict_get_first(message.get("usage"), ("context_window",))
@@ -1572,7 +1633,7 @@ def analyze_claude_session(
                 report.context_window = int(context_window)
             raw_usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
             usage = claude_usage(raw_usage)
-            if usage_obj_nonzero(usage):
+            if first_record and usage_obj_nonzero(usage):
                 created = raw_usage.get("cache_creation") or {}
                 settings = {"model": str(message.get("model") or ""), "effort": str(rec.get("effort") or ""),
                             "CLI version": str(rec.get("version") or ""), "fast mode": str(raw_usage.get("speed") or "")}
@@ -1580,6 +1641,15 @@ def analyze_claude_session(
                 record_usage(timestamp, usage, settings, ttl)
                 if timestamp:
                     report.activity_events.append(ActivityEvent(timestamp, usage=usage))
+                calibration[0] += max(0, usage.output_tokens - usage.reasoning_output_tokens)
+                if usage.reasoning_output_tokens:
+                    # Transcripts keep only the thinking signature; the exact count is in usage.
+                    add_source(
+                        SourceItem(
+                            "Reasoning/thinking", "assistant thinking", usage.reasoning_output_tokens,
+                            "assistant", "thinking", seq,
+                        )
+                    )
 
             blocks = content if isinstance(content, list) else [{"type": "text", "text": content}]
             for block in blocks:
@@ -1591,6 +1661,7 @@ def analyze_claude_session(
                         continue
                     text = str(block.get("text") or "")
                     tokens = estimate_tokens(text)
+                    calibration[1] += tokens
                     if tokens:
                         add_source(
                             SourceItem(
@@ -1619,6 +1690,7 @@ def analyze_claude_session(
                 report.tool_calls[name] = report.tool_calls.get(name, 0) + 1
                 arg_text = obj_text(args)
                 tokens = estimate_tokens(arg_text)
+                calibration[1] += tokens
                 if tokens:
                     add_source(
                         SourceItem(
@@ -1848,7 +1920,9 @@ CATEGORY_ORDER = [
     "MCP/tool results",
     "File changes",
     "Conversation/history",
+    "Reasoning/thinking",
     "AGENTS.md/instructions",
+    "Platform reminders",
     "Compacted history",
     "Other visible context",
     "Other/platform context",

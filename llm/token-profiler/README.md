@@ -120,6 +120,16 @@ file, tool, instruction, history, and payload contributions. Exact provider
 usage remains authoritative; attribution is diagnostic rather than billing
 data.
 
+Thinking/reasoning is attributed from exact usage counts, since transcripts keep
+only its signature: Claude keeps it for the rest of the session, Codex until the
+next user message (both measured from per-call input growth). Claude
+attachments that reach the model (hook output, CLAUDE.md, skill/tool/agent
+listings, reminders) are counted; client bookkeeping such as `prompt_snapshot`
+is not. Because `o200k_base` under-counts Claude's tokenizer (about 1.6–1.8×),
+Claude estimates are scaled by the session's exact-to-estimated ratio for
+visible assistant output. The system prompt and tool schemas, measured as the
+first call's unexplained input, stay in `Other/platform context`.
+
 Payload is reported in three views: all historically observed transcript
 items, items still active after the latest compaction, and their estimated
 difference. Instruction sources are separated when the rollout preserves a

@@ -42,6 +42,25 @@ class InnerSessionTest(unittest.TestCase):
             )
             return token_profiler.analyze_session(rollout)
 
+    def test_codex_reasoning_stays_in_context_until_next_user_message(self) -> None:
+        def call(response_id: str, minute: int, reasoning: int) -> dict[str, object]:
+            return {
+                "timestamp": f"2026-09-20T10:{minute:02d}:00Z",
+                "type": "token_usage_record",
+                "payload": {"response_id": response_id, "usage": usage(500, 400, 60, reasoning)},
+            }
+
+        user = {
+            "timestamp": "2026-09-20T10:03:00Z",
+            "type": "response_item",
+            "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Next task"}]},
+        }
+        report = self.analyze([call("one", 1, 40), call("two", 2, 0), user, call("three", 4, 0)])
+
+        self.assertEqual(report.observed_payload["Reasoning/thinking"], 40)
+        self.assertEqual(report.calls[1].attributed["Reasoning/thinking"], 40)
+        self.assertNotIn("Reasoning/thinking", report.calls[2].attributed)
+
     def test_latest_window_resets_after_gap_over_30_minutes(self) -> None:
         records = [
             {
@@ -483,6 +502,58 @@ class ClaudeSessionTest(unittest.TestCase):
         self.assertEqual([window["calls"] for window in windows], [2, 1])
         self.assertEqual(windows[1]["first_call_input_tokens"], 175)
         self.assertEqual(windows[1]["first_call_fresh_tokens"], 75)
+
+    def test_split_message_thinking_and_attachments_are_attributed(self) -> None:
+        split_usage = {
+            "input_tokens": 10,
+            "cache_read_input_tokens": 990,
+            "output_tokens": 300,
+            "output_tokens_details": {"thinking_tokens": 200},
+        }
+        records = [
+            {"type": "attachment", "timestamp": "2026-09-20T10:00:00Z",
+             "attachment": {"type": "skill_listing", "content": "- pitstop: resume work " * 20}},
+            {"type": "attachment", "timestamp": "2026-09-20T10:00:00Z",
+             "attachment": {"type": "prompt_snapshot", "systemPrompt": ["system " * 500]}},
+            {"type": "attachment", "timestamp": "2026-09-20T10:00:00Z",
+             "attachment": {"type": "hook_success", "hookName": "SessionStart:startup",
+                            "content": "PONYTAIL MODE ACTIVE " * 20}},
+            {"type": "user", "timestamp": "2026-09-20T10:00:01Z",
+             "message": {"role": "user", "content": "Run the tests"}},
+            {"type": "assistant", "timestamp": "2026-09-20T10:00:05Z",
+             "message": {"id": "split", "role": "assistant", "usage": split_usage,
+                         "content": [{"type": "thinking", "thinking": "", "signature": "x" * 900}]}},
+            {"type": "assistant", "timestamp": "2026-09-20T10:00:05Z",
+             "message": {"id": "split", "role": "assistant", "usage": split_usage,
+                         "content": [{"type": "tool_use", "id": "bash-split", "name": "Bash",
+                                      "input": {"command": "pytest -q"}}]}},
+            {"type": "user", "timestamp": "2026-09-20T10:00:09Z",
+             "message": {"role": "user", "content": [
+                 {"type": "tool_result", "tool_use_id": "bash-split", "content": "3 passed"}]}},
+            {"type": "assistant", "timestamp": "2026-09-20T10:00:12Z",
+             "message": {"id": "next", "role": "assistant",
+                         "usage": {"input_tokens": 5, "cache_read_input_tokens": 1400, "output_tokens": 10},
+                         "content": [{"type": "text", "text": "Done."}]}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "split.jsonl"
+            transcript.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+            report = token_profiler.analyze_claude_session(transcript)
+
+        self.assertEqual(report.model_calls, 2)
+        self.assertEqual(report.total.output_tokens, 310)
+        self.assertEqual(report.tool_calls, {"Bash": 1})
+        self.assertGreater(report.tool_payloads["Bash"], 0)
+        self.assertEqual(report.observed_payload["Reasoning/thinking"], 200)
+        self.assertGreater(report.observed_payload["Platform reminders"], 0)
+        self.assertIn("Ponytail", report.instruction_payloads)
+        visible = sum(report.observed_payload.values())
+        self.assertLess(visible, 1000)  # the 500-word prompt_snapshot is not model-visible
+        floor = report.calls[0].attributed["Other/platform context"]
+        self.assertGreater(floor, 0)
+        self.assertAlmostEqual(report.calls[1].attributed["Other/platform context"], floor)
+        self.assertEqual(report.calls[1].attributed["Reasoning/thinking"], 200)
+        self.assertAlmostEqual(sum(report.calls[1].attributed.values()), 1405)
 
     def test_profile_subcommands_map_to_distinct_homes(self) -> None:
         personal = token_profiler.profile_for("claude")
