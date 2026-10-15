@@ -2015,39 +2015,6 @@ def read_rtk_savings(project: str) -> dict[str, Any] | None:
         return None
 
 
-def read_headroom_savings() -> dict[str, Any] | None:
-    headroom = shutil.which("headroom")
-    if not headroom:
-        return None
-
-    env = os.environ.copy()
-    env["HEADROOM_BEACON"] = "off"
-    try:
-        result = subprocess.run(
-            [headroom, "savings", "--json"],
-            env=env,
-            capture_output=True,
-            check=True,
-            text=True,
-            timeout=15,
-        )
-        payload = json.loads(result.stdout)
-        lifetime = payload.get("lifetime")
-        windows = payload.get("windows")
-        if not isinstance(lifetime, dict) or not isinstance(windows, dict):
-            return None
-        return {
-            "scope": "global ledger",
-            "top_model": str(payload.get("top_model") or "unknown"),
-            "lifetime": lifetime,
-            "today": windows.get("today") or {},
-            "last_7_days": windows.get("last_7_days") or {},
-            "last_30_days": windows.get("last_30_days") or {},
-        }
-    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
-        return None
-
-
 def read_ponytail_status(agent: str, profile_home: Path) -> dict[str, Any]:
     policy_path = profile_home / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")
     policy_active = False
@@ -2124,7 +2091,6 @@ def collect_optimization(report: SessionReport) -> dict[str, Any]:
             "inner_session_cache_hit_ratio": report.inner_cache_hit,
         },
         "rtk_savings_estimate": read_rtk_savings(report.cwd),
-        "headroom_savings": read_headroom_savings(),
         "serena_activity": observed_tool(report, "serena"),
         "context7_activity": observed_tool(report, "context7"),
         "ponytail": read_ponytail_status(
@@ -2152,15 +2118,6 @@ def render_optimization(report: SessionReport) -> None:
             "RTK saved (estimated)",
             f"{human_int(rtk['saved_tokens_estimate'])} "
             f"({rtk['average_savings_percent']:.1f}%, {rtk['commands']} project commands)",
-        )
-    headroom = optimization["headroom_savings"]
-    if headroom:
-        lifetime = headroom["lifetime"]
-        print_kv(
-            "Headroom saved (ledger)",
-            f"{human_int(lifetime.get('tokens_saved', 0))} "
-            f"({float(lifetime.get('savings_percent') or 0):.1f}%, "
-            f"{int(lifetime.get('calls') or 0)} global calls)",
         )
     for label, key in (("Serena observed", "serena_activity"), ("Context7 observed", "context7_activity")):
         activity = optimization[key]
@@ -2526,14 +2483,6 @@ def render_short_report(report: SessionReport) -> None:
             "RTK saved (est.)",
             f"{human_int(rtk_savings['saved_tokens_estimate'])} "
             f"({rtk_savings['average_savings_percent']:.1f}%, {rtk_savings['commands']} commands)",
-        )
-    headroom = optimization["headroom_savings"]
-    if headroom:
-        lifetime = headroom["lifetime"]
-        print_kv(
-            "Headroom saved",
-            f"{human_int(lifetime.get('tokens_saved', 0))} "
-            f"({float(lifetime.get('savings_percent') or 0):.1f}%, global ledger)",
         )
     print_kv(
         "Tools observed",

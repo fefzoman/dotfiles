@@ -25,9 +25,8 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 
 - Use RTK for supported noisy commands when compact output suffices. Use automatic rewriting only with a verified active hook; otherwise prefix manually. Keep exact-output and unsupported commands native.
 - Keep searches and logs narrow; use rg's own count, sorting, and exclusion flags instead of pipelines that bypass RTK. Prefer pgrep, diff stats before targeted diffs, and bounded failure logs.
-- Headroom compression never justifies broad output. Recover hidden details with RTK_DISABLED=1 or Headroom retrieval; verify recovered source before relying on it.
+- Recover details RTK hid with RTK_DISABLED=1; verify recovered source before relying on it.
 - Never suggest /model, /effort or /fast mid-session: each rewrites the cached context. Delegate work that needs another model or effort to a subagent with that setting.
-- Call headroom_retrieve alone in its turn; batched with another tool, the proxy passes it to Claude Code, which rejects it as an unknown tool.
 
 ## Finish
 

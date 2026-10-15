@@ -81,7 +81,7 @@ claude_mcp_enabled() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk headroom token-profiler node uv serena specify context7-mcp code code-work; do
+for command_name in python codex claude fabric rtk token-profiler node uv serena specify context7-mcp code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
@@ -89,12 +89,8 @@ done
 check "Codex starts" "Codex failed to start" codex --version
 check "Claude Code starts" "Claude Code failed to start" claude --version
 check "Spec Kit starts" "Spec Kit failed to start" specify version
-check "Headroom persistent proxy is installed and healthy" \
-  "Headroom persistent proxy is not installed or not healthy" \
-  headroom install status
-check "Headroom keeps prompt-cache replay state for the 1h cache" \
-  "Headroom replay state still expires before the 1h prompt cache; rerun ai-install.sh" \
-  "$(uv tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" headroom-replay-ttl check
+check "Headroom is uninstalled" "Headroom is still installed; rerun ai-install.sh" \
+  bash -c '! command -v headroom'
 check "Token profiler starts with tiktoken" "Token profiler failed to start" \
   token-profiler --version
 
@@ -134,8 +130,8 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     codex_plugin_enabled "$profile"
   check "Superpowers is installed and enabled in $profile" "Superpowers is missing or disabled in $profile" \
     codex_plugin_enabled "$profile" superpowers@openai-curated superpowers@superpowers-dev
-  check "Codex routes through Headroom in $profile" "Codex bypasses Headroom in $profile" \
-    agent_config codex-headroom "$profile/config.toml"
+  check "Codex reaches OpenAI directly in $profile" "Codex still routes through Headroom in $profile" \
+    agent_config codex-direct "$profile/config.toml"
   check "Codex command PATH includes RTK in $profile" "Codex command PATH cannot resolve RTK in $profile" \
     agent_config codex-rtk-path "$profile/config.toml" "$rtk_dir"
 done
@@ -155,8 +151,8 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     agent_config attribution-disabled "$profile/settings.json"
   check "Claude startup context is trimmed in $profile" "Claude startup context trim is missing in $profile" \
     agent_config context-trimmed "$profile/settings.json"
-  check "Claude routes through Headroom in $profile" "Claude bypasses Headroom in $profile" \
-    agent_config claude-headroom "$profile/settings.json"
+  check "Claude reaches Anthropic directly in $profile" "Claude still routes through Headroom in $profile" \
+    agent_config claude-direct "$profile/settings.json"
   check "RTK command hook is enabled in $profile" "RTK command hook is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" "rtk hook claude"
   for sub in arm guard clear end instructions; do

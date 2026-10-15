@@ -81,59 +81,60 @@ fi
                     2 if mode == "upstream" else 0,
                 )
 
-    def test_headroom_stop_race_and_persistent_failure(self):
-        for mode in ("success", "race", "failure", "fresh"):
+    def test_headroom_removal_unroutes_all_profiles_then_uninstalls(self):
+        for mode in ("installed", "race", "failure", "absent"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 home = Path(directory)
-                if mode != "fresh":
-                    manifest = home / ".headroom/deploy/default/manifest.json"
-                    manifest.parent.mkdir(parents=True)
-                    manifest.write_text("{}")
-                (home / "headroom-ai/bin").mkdir(parents=True)
-                python = home / "headroom-ai/bin/python"
-                python.write_text('#!/usr/bin/env bash\ntouch "$HOME/work-configured"\n')
-                python.chmod(0o755)
-                result = self.run_installer_function("install_headroom", home, f'''
+                manifest = home / ".headroom/deploy/default/manifest.json"
+                manifest.parent.mkdir(parents=True)
+                manifest.write_text("{}")
+                if mode != "absent":
+                    (home / "headroom-ai/bin").mkdir(parents=True)
+                    python = home / "headroom-ai/bin/python"
+                    python.write_text('#!/usr/bin/env bash\necho "unroute $3 $4" >> "$HOME/log"\n')
+                    python.chmod(0o755)
+                result = self.run_installer_function("remove_headroom", home, f'''
 mode={mode}
-PYTHON_VERSION=3.13
-stop_attempts=0
+remove_attempts=0
 headroom() {{
-  if [[ "$*" == "install stop --profile default" ]]; then
-    ((stop_attempts+=1))
-    [[ "$mode" == success || ( "$mode" == race && "$stop_attempts" -gt 1 ) ]]
-  elif [[ "$1 $2" == "install apply" ]]; then
-    touch "$HOME/applied"
-  else
-    return 2
-  fi
+  [[ "$*" == "install remove --profile default" ]] || return 2
+  ((remove_attempts+=1))
+  echo remove >> "$HOME/log"
+  [[ "$mode" == installed || ( "$mode" == race && "$remove_attempts" -gt 1 ) ]]
 }}
 uv() {{
-  if [[ "$1 $2" == "tool dir" ]]; then
-    printf '%s\\n' "$HOME"
-  else
-    touch "$HOME/upgraded"
-  fi
+  if [[ "$1 $2" == "tool dir" ]]; then printf '%s\\n' "$HOME"; else echo "uv $*" >> "$HOME/log"; fi
 }}
 ''')
                 self.assertEqual(result.returncode == 0, mode != "failure", result.stderr)
-                for marker in ("upgraded", "applied", "work-configured"):
-                    self.assertEqual((home / marker).exists(), mode != "failure", marker)
+                log = (home / "log").read_text().splitlines() if mode != "absent" else []
+                unrouted = [f"unroute {home}/.claude {home}/.codex", f"unroute {home}/.claude-work {home}/.codex-work"]
+                expected = {"installed": [*unrouted, "remove", "uv tool uninstall headroom-ai"],
+                            "race": [*unrouted, "remove", "remove", "uv tool uninstall headroom-ai"],
+                            "failure": [*unrouted, "remove", "remove"], "absent": []}
+                self.assertEqual(log, expected[mode])
 
-    def test_headroom_replay_ttl_patch_is_idempotent_and_fails_loudly(self):
+    def test_headroom_unroute_strips_only_headroom_routing(self):
         with tempfile.TemporaryDirectory() as directory:
-            models = Path(directory) / "headroom/proxy/models.py"
-            models.parent.mkdir(parents=True)
-            command = ["python3", str(SCRIPT_DIR / "agent_config.py"), "headroom-replay-ttl"]
-            env = {**os.environ, "PYTHONPATH": directory, "PYTHONDONTWRITEBYTECODE": "1"}
-            run = lambda *extra: subprocess.run(command + list(extra), env=env, capture_output=True, text=True)
-            models.write_text("class ProxyConfig:\n    prefix_freeze_session_ttl: int = 600\n")
-            self.assertEqual(run("check").returncode, 1)
-            for _ in range(2):
-                self.assertEqual(run().returncode, 0)
-            self.assertIn("prefix_freeze_session_ttl: int = 3900\n", models.read_text())
-            self.assertEqual(run("check").returncode, 0)
-            models.write_text("class ProxyConfig:\n    renamed_ttl: int = 600\n")
-            self.assertIn("not found", run().stderr)
+            root = Path(directory)
+            for module in ("headroom/install/models.py", "headroom/providers/codex/install.py"):
+                (root / module).parent.mkdir(parents=True, exist_ok=True)
+                (root / module).touch()
+            (root / "headroom/install/models.py").write_text("def ManagedMutation(*args): return args\n")
+            (root / "headroom/providers/codex/install.py").write_text(
+                "from pathlib import Path\n"
+                "def revert_provider_scope(mutation, manifest):\n"
+                "    Path(mutation[2] + '.reverted').write_text(mutation[1])\n")
+            claude, codex = root / "claude", root / "codex"
+            claude.mkdir()
+            codex.mkdir()
+            (claude / "settings.json").write_text(json.dumps({"env": {
+                "ANTHROPIC_BASE_URL": agent_config.HEADROOM_URL, "ENABLE_TOOL_SEARCH": "true"}}))
+            subprocess.run(["python3", str(SCRIPT_DIR / "agent_config.py"), "headroom-unroute", str(claude), str(codex)],
+                           env={**os.environ, "PYTHONPATH": directory, "PYTHONDONTWRITEBYTECODE": "1"}, check=True)
+            self.assertEqual(json.loads((claude / "settings.json").read_text()), {"env": {"ENABLE_TOOL_SEARCH": "true"}})
+            self.assertEqual((codex / "config.toml.reverted").read_text(), "toml-block")
+            self.assertTrue(agent_config.claude_direct(str(claude / "settings.json")))
 
     def test_plugin_identity_and_state(self):
         for plugin_id, installed, enabled in (

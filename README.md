@@ -41,7 +41,7 @@ The smoke test makes no model or API requests. `llm/ai-install.sh` runs the
 non-strict test automatically after installation.
 
 `base-macos.sh` / `base-linux.sh` (sharing `base-common.sh`) own general machine tooling, while `llm/ai-install.sh` owns
-Codex, Claude Code, Fabric, RTK, Headroom, Ponytail, Serena, Context7, the token
+Codex, Claude Code, Fabric, RTK, Ponytail, Serena, Context7, the token
 profiler, and AI profile shell commands. It configures every applicable tool
 for personal and work Codex/Claude profiles and installs `llm/codex/__AGENTS.md`
 in both Codex profiles and `llm/claude/__AGENTS.md` in both Claude profiles.
@@ -168,7 +168,6 @@ Python, Vim, Vimdoc, and YAML.
 | VS Code profile launchers | Open an existing VS Code installation with separate personal or work agent state | `code .`, `code-work .` |
 | Fabric | Pattern-based text transformation through a selected model provider; it does not inherit Codex CLI tools or live environment access | `fabric --setup`, `fabric --listpatterns`, `fabric -p summarize < FILE`, `fabric --stream 'PROMPT'` |
 | RTK | Compacts supported shell output before it enters an agent's context | `rtk gain`, `rtk gain --history`, `rtk discover --all --since 7`, `RTK_DISABLED=1 COMMAND` |
-| Headroom | Local proxy that compresses and manages Codex/Claude context | `headroom install status`, `headroom install apply`, `headroom install remove` |
 | Ponytail | Guides agents toward the smallest correct implementation | Codex: `@ponytail`, `@ponytail-review`; Claude: `/ponytail`, `/ponytail-review` |
 | Serena | Semantic repository navigation and symbol-level code operations through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `serena --help` |
 | Context7 | Retrieves current third-party library and API documentation through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `context7-mcp --help` |
@@ -227,31 +226,24 @@ rtk discover --all --since 7     # missed filtering opportunities
 rtk gain --all --format json     # machine-readable savings
 ```
 
-## Headroom
+## Headroom (removed)
 
-[Headroom](https://github.com/headroomlabs-ai/headroom) is installed with its
-Codex and Claude proxies and code-compression dependencies in an isolated `uv`
-tool environment. The installer runs it as a persistent launchd/systemd proxy on
-port 8787 (`headroom install apply`) and routes all four profiles to it through
-their own config, so terminal CLIs and the VS Code extensions share one path:
-
-```text
-~/.claude/settings.json, ~/.claude-work/settings.json   env.ANTHROPIC_BASE_URL
-~/.codex/config.toml,    ~/.codex-work/config.toml      model_provider = "headroom"
-```
+Headroom, a local context-compression proxy, is no longer installed: it saved
+about 1.5% of Claude input cost while breaking the prompt cache after pauses
+(see `llm/TOOLCHAIN.md` §7). On machines that still have it, `ai-install.sh`
+points all four profiles back at Anthropic and OpenAI, removes the persistent
+service, and uninstalls the `headroom-ai` tool. `~/.headroom` (logs and the
+savings ledger) is left in place.
 
 The default Claude profile is always used without `CLAUDE_CONFIG_DIR`, because
 setting it (even to `~/.claude`) moves user MCPs such as Serena into
-`~/.claude/.claude.json`, which the VS Code extension never reads. Headroom's
-anonymous beacon is disabled with `HEADROOM_BEACON=off`. Check the proxy with
-`headroom install status`; remove it with `headroom install remove`.
+`~/.claude/.claude.json`, which the VS Code extension never reads.
 
 ## Ponytail
 
 [Ponytail](https://github.com/DietrichGebert/ponytail) is installed as a plugin
 in all personal and work Codex/Claude profiles. Its lifecycle hooks and skills
-load in every CLI while model traffic still routes through Headroom. Node.js is
-installed because Ponytail's hooks require it.
+load in every CLI. Node.js is installed because Ponytail's hooks require it.
 
 Codex shell commands bypass hook trust in both profiles. Claude user and enabled
 plugin hooks run by default; project hooks require trusting the folder. Codex
@@ -291,7 +283,7 @@ show exact usage for the latest inner session, where a gap greater than 30
 minutes starts a new work period.
 
 Optimization reporting keeps scopes separate: exact cache reuse, estimated RTK
-project savings, Headroom's global savings ledger, observed Serena/Context7
+project savings, observed Serena/Context7
 activity, and Ponytail activation status. The profiler does not add overlapping
 savings or invent a Ponytail savings number. Exact token totals remain
 authoritative.
@@ -358,9 +350,9 @@ Shell files and frameworks replaced by the Bash reset are moved to:
 | `tf` | `terraform` |
 | `v` | `nvim` |
 | `term`, `terminal`, `alac` | Open Alacritty |
-| `codex [ARGS]` | Ponytail-enabled Codex through Headroom with `~/.codex` |
+| `codex [ARGS]` | Ponytail-enabled Codex with `~/.codex` |
 | `codex-work [ARGS]` | Same with `~/.codex-work` |
-| `claude [ARGS]` | Ponytail-enabled Claude through Headroom with `~/.claude` |
+| `claude [ARGS]` | Ponytail-enabled Claude with `~/.claude` |
 | `claude-work [ARGS]` | Same with `~/.claude-work` |
 | `?? [QUESTION]` | Answer through Codex using `gpt-6-sol` with medium reasoning |
 

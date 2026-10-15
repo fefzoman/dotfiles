@@ -94,7 +94,6 @@ Optimization measurements retain their original scopes and are never summed:
 
 - exact provider cache reuse for the outer and inner session
 - estimated project-level RTK shell-output savings
-- Headroom's global durable savings ledger
 - observed Serena and Context7 call counts and estimated result payload
 - per-tool call/result totals, averages, maxima, and payload share
 - tool-result outliers over 2K tokens with arguments and repeated-query markers

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 export RTK_TELEMETRY_DISABLED=1
-export HEADROOM_BEACON=off
 export TRANSFORMERS_VERBOSITY=error
 export CTX7_TELEMETRY_DISABLED=1
 export MCP_TIMEOUT="${MCP_TIMEOUT:-60000}"
@@ -37,8 +36,6 @@ codex() {
   command codex --dangerously-bypass-hook-trust "$@"
 }
 
-# Headroom routing lives in each profile's config (see install_headroom), so
-# codex, claude and the VS Code extensions all reach the persistent proxy.
 code() {
   env -u CLAUDE_CONFIG_DIR CODEX_HOME="$HOME/.codex" code "$@"
 }
@@ -250,22 +247,20 @@ configure_agent_mcps() {
   done
 }
 
-install_headroom() {
-  local uv_bin
+remove_headroom() {
+  local python uv_bin
 
   uv_bin="$(command -v uv)"
-  if command -v headroom >/dev/null 2>&1 && [[ -f "$HOME/.headroom/deploy/default/manifest.json" ]]; then
-    # Headroom can report an identity change while the proxy exits.
-    headroom install stop --profile default || headroom install stop --profile default || return
+  python="$("$uv_bin" tool dir)/headroom-ai/bin/python"
+  [[ -x "$python" ]] || return 0
+  # Unroute every profile while Headroom's modules still exist: its Codex revert also
+  # moves threads back to the native provider's history menu.
+  "$python" "$SCRIPT_DIR/agent_config.py" headroom-unroute "$HOME/.claude" "$HOME/.codex"
+  "$python" "$SCRIPT_DIR/agent_config.py" headroom-unroute "$HOME/.claude-work" "$HOME/.codex-work"
+  if [[ -f "$HOME/.headroom/deploy/default/manifest.json" ]]; then
+    headroom install remove --profile default || headroom install remove --profile default || return
   fi
-  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$uv_bin" tool install \
-    --python "$PYTHON_VERSION" --upgrade 'headroom-ai[proxy,code]'
-  "$("$uv_bin" tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" headroom-replay-ttl
-  # Dedup's 10-minute tracker expires before the 1-hour prompt cache.
-  headroom install apply --preset persistent-service --scope provider \
-    --providers manual --target claude --target codex --env HEADROOM_DEDUPE=0
-  "$("$uv_bin" tool dir)/headroom-ai/bin/python" "$SCRIPT_DIR/agent_config.py" \
-    headroom-work "$HOME/.claude-work" "$HOME/.codex-work"
+  "$uv_bin" tool uninstall headroom-ai
 }
 
 install_global_agents() {
@@ -369,6 +364,8 @@ install_shell_config() {
 warn_live_sessions
 echo "==> Installing AI command-line tools..."
 install_ai_tools
+echo "==> Removing Headroom from Codex and Claude profiles..."
+remove_headroom
 echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
@@ -393,8 +390,6 @@ echo "==> Installing Superpowers for Codex and Claude profiles..."
 install_superpowers
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
 configure_agent_mcps
-echo "==> Installing Headroom for Codex and Claude..."
-install_headroom
 echo "==> Installing Codex and Claude token profiler..."
 bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."

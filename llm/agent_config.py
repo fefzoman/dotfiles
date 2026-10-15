@@ -13,9 +13,8 @@ CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "cont
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
-# Headroom's own compression-cache default (HEADROOM_COMPRESSION_CACHE_TTL_SECONDS): 1h prompt cache + 5 min.
-HEADROOM_REPLAY_TTL = 3900
-CONTEXT_TRIM_ENV = {"CLAUDE_CODE_DISABLE_ARTIFACT": "1"}
+# ENABLE_TOOL_SEARCH was set by Headroom's install, whose revert drops it; keep tool loading unchanged.
+CONTEXT_TRIM_ENV = {"CLAUDE_CODE_DISABLE_ARTIFACT": "1", "ENABLE_TOOL_SEARCH": "true"}
 CONTEXT_TRIM_SKILLS = {
     **dict.fromkeys(("docs", "docx", "pptx", "xlsx", "pdf", "google-workspace", "morning", "import-memory", "skill-creator"), "off"),
     **dict.fromkeys(("dataviz", "claude-api", "claude-in-chrome", "schedule", "run", "plugin-authoring", "keybindings-help",
@@ -198,34 +197,17 @@ def context_trim(settings: str) -> None:
     save(settings, data)
 
 
-def headroom_work(claude_dir: str, codex_dir: str) -> None:
-    # Runs under Headroom's own interpreter, the only one with these modules.
-    import headroom.providers.claude.install as claude
-    import headroom.providers.codex.install as codex
-    from headroom.install.state import load_manifest
+def headroom_unroute(claude_dir: str, codex_dir: str) -> None:
+    # Runs under Headroom's interpreter: only its revert hands Codex threads back to the native provider.
+    from headroom.install.models import ManagedMutation
+    from headroom.providers.codex.install import revert_provider_scope
 
-    manifest = load_manifest("default")
-    claude.claude_settings_path = lambda: Path(claude_dir) / "settings.json"
-    codex.codex_config_path = lambda: Path(codex_dir) / "config.toml"
-    claude.apply_provider_scope(manifest)
-    codex.apply_provider_scope(manifest)
-
-
-def headroom_replay_ttl(check: str = "") -> bool:
-    # Runs under Headroom's interpreter. Replay state expiring at 600s makes a 10-60 min pause re-send a
-    # recompressed prefix and rewrite the whole 1h prompt cache; no env var or flag sets this default.
-    import headroom.proxy.models as models
-
-    path = Path(models.__file__)
-    text = path.read_text(encoding="utf-8")
-    pattern = r"(?m)^(\s*prefix_freeze_session_ttl: int = )(\d+)$"
-    if check:
-        return any(int(m[2]) == HEADROOM_REPLAY_TTL for m in re.finditer(pattern, text))
-    patched, count = re.subn(pattern, rf"\g<1>{HEADROOM_REPLAY_TTL}", text)
-    if count != 1:
-        raise SystemExit(f"{path}: prefix_freeze_session_ttl default not found; recheck Headroom's replay TTL.")
-    path.write_text(patched, encoding="utf-8")
-    return True
+    settings = Path(claude_dir) / "settings.json"
+    data = load(settings)
+    if data.get("env", {}).get("ANTHROPIC_BASE_URL") == HEADROOM_URL:
+        del data["env"]["ANTHROPIC_BASE_URL"]
+        save(settings, data)
+    revert_provider_scope(ManagedMutation("codex", "toml-block", str(Path(codex_dir) / "config.toml")), None)
 
 
 # Smoke-test checks.
@@ -277,14 +259,13 @@ def context_trimmed(settings: str) -> bool:
     return CONTEXT_TRIM_ENV.items() <= data.get("env", {}).items() and CONTEXT_TRIM_SKILLS.items() <= data.get("skillOverrides", {}).items()
 
 
-def claude_headroom(settings: str) -> bool:
-    return load(settings).get("env", {}).get("ANTHROPIC_BASE_URL") == HEADROOM_URL
+def claude_direct(settings: str) -> bool:
+    return load(settings).get("env", {}).get("ANTHROPIC_BASE_URL") != HEADROOM_URL
 
 
-def codex_headroom(config: str) -> bool:
+def codex_direct(config: str) -> bool:
     config = load_toml(config)
-    provider = config.get("model_providers", {}).get("headroom", {})
-    return config.get("model_provider") == "headroom" and provider.get("base_url") == f"{HEADROOM_URL}/v1"
+    return config.get("model_provider") != "headroom" and "headroom" not in config.get("model_providers", {})
 
 
 def codex_rtk_path(config: str, rtk_dir: str) -> bool:
@@ -302,9 +283,9 @@ COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
         codex_shell_path, codex_hooks, codex_statusline, statusline, context7_guard, idle_compact, attribution,
-        connectors, context_trim, headroom_work, headroom_replay_ttl, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
+        connectors, context_trim, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
-        context_trimmed, claude_headroom, codex_headroom, codex_rtk_path, codex_hooks_valid,
+        context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid,
     )
 }
 
