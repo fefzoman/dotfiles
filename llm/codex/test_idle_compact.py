@@ -86,6 +86,16 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
         self.assertIn("Parser fixed", ic.resume(str(self.home)))
 
+    def test_manual_checkpoint_writes_in_thread_without_a_fork(self):
+        out = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "$checkpoint"}, "codex"))
+        self.assertIn("or $pitstop in a new one", out["hookSpecificOutput"]["additionalContext"])
+        self.rows.append(self.row("response_item", {"type": "message", "role": "assistant", "content": [
+            {"type": "output_text", "text": "## Idle checkpoint\n### Goal\nShip the parser fix"}]}, time.time() + 1))
+        self.save()
+        self.assertEqual(self.run_hook(ic.arm, self.hook, "codex"), "")
+        self.assertIn("Ship the parser fix", (ic.folder_for("codex-session") / "checkpoint.md").read_text())
+        self.assertIn("Continuing from idle checkpoint codex-session", ic.resume(str(self.home)))
+
     def test_an_accepted_later_prompt_makes_the_checkpoint_stale(self):
         self.run_hook(ic.arm, self.hook, "codex")
         self.rows.append(self.row("response_item", {"type": "message", "role": "user", "content": [
@@ -254,8 +264,10 @@ class CodexIdleCompactTest(unittest.TestCase):
                        env={**os.environ, "SCRIPT_DIR": str(root)}, capture_output=True)
         self.assertTrue((self.home / ".config/dotfiles/idle_compact.py").is_file())
         self.assertTrue((self.home / ".agents/skills/pitstop/SKILL.md").is_file())
+        self.assertTrue((self.home / ".agents/skills/checkpoint/SKILL.md").is_file())
         for profile in [".claude", ".claude-work"]:
             self.assertTrue((self.home / profile / "commands/pitstop.md").is_file())
+            self.assertTrue((self.home / profile / "commands/checkpoint.md").is_file())
             self.assertIn("Stop", json.loads((self.home / profile / "settings.json").read_text())["hooks"])
         required = root / "codex/codex-hooks.json"
         target = self.home / "hooks.json"

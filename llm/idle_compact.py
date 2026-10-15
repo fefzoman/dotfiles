@@ -56,16 +56,24 @@ SECRET = re.compile(
     r"|(?i:password|passwd|secret|token|api[_-]?key)\s*[=:]\s*\S{8,}",
     re.S,
 )
-REQUEST = (
-    "Idle checkpoint: the user is away and the prompt cache expires in about {left}. Do not call "
-    "tools. Write a checkpoint that lets a fresh session, with no access to this conversation, continue the "
+RULES = (
+    "Do not call tools. Write a checkpoint that lets a fresh session, with no access to this conversation, continue the "
     "work. Keep an item only if that session would act wrongly or waste time without it. Skip routine "
     "operations (commit, push, lint, test reruns), minor fixes that left no decision, tool output, your own "
     "reasoning, and anything the digest below already lists unless you add why. Name exact files, functions, "
     "commands and errors. If an earlier Idle checkpoint is in this conversation, update it instead of "
     f"starting over. Under `{HEADER}`, use exactly these headings: Goal, Done, Decisions, Dead ends, Current "
     "state, Constraints, Next steps, Pointers (turn numbers from the digest). Write 300-1,200 words, scaled "
-    'to the work. End with: "After {until}, run {pitstop} and then /clear to continue from this checkpoint in this window."'
+    "to the work. "
+)
+REQUEST = (
+    "Idle checkpoint: the user is away and the prompt cache expires in about {left}. " + RULES
+    + 'End with: "After {until}, run {pitstop} and then /clear to continue from this checkpoint in this window."'
+)
+MANUAL = re.compile(r"\s*[/$]checkpoint\s*")
+MANUAL_REQUEST = (
+    "Manual checkpoint: the user is compacting this session by hand. " + RULES
+    + 'End with: "Run /clear to continue from this checkpoint in this window, or {pitstop} in a new one."'
 )
 PROTOCOL = (
     "Resume protocol: before any tool call, state the goal and the first next step in two lines and ask the "
@@ -546,6 +554,15 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
     load_records = codex_records if client == "codex" else records
     recs = load_records(transcript, TAIL_BYTES)
+    requested = float(read(marker(session, "manual")) or 0)
+    if requested:
+        marker(session, "manual").unlink(missing_ok=True)
+        reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= requested - 1)
+        folder = folder_for(session)
+        if reply and folder:
+            store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
+            write(handoff(cwd), session)
+        return 0
     fired = float(read(marker(session, "fired")) or 0)
     if client == "claude" and fired and fired > last_prompt(recs):
         reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= fired - 1)
@@ -701,6 +718,15 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     folder, cwd = folder_for(session), hook.get("cwd") or os.getcwd()
     pitstop = "$pitstop" if client == "codex" else "/pitstop"
+    if MANUAL.fullmatch(str(hook.get("prompt", ""))):
+        full = load_records(Path(hook["transcript_path"]))
+        items, folder = turns(full), folder_for(session, cwd)
+        digest = build_digest(full, cwd, items)
+        save_snapshot(folder, items, digest)
+        write(marker(session, "manual"), str(time.time()))
+        context = MANUAL_REQUEST.format(pitstop=pitstop) + "\n\n" + render_digest(digest)
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}))
+        return 0
     if re.fullmatch(r"\s*[/$]pitstop\s*", str(hook.get("prompt", ""))):
         if folder and resume(cwd, session).startswith("Continuing"):
             write(handoff(cwd), session)

@@ -321,11 +321,13 @@ install_idle_compact() {
 
   mkdir -p "$config_dir"
   install -m 0755 "$SCRIPT_DIR/idle_compact.py" "$config_dir/idle_compact.py"
-  mkdir -p "$HOME/.agents/skills/pitstop"
-  install -m 0644 "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
+  for name in pitstop checkpoint; do
+    mkdir -p "$HOME/.agents/skills/$name"
+    install -m 0644 "$SCRIPT_DIR/codex/$name/SKILL.md" "$HOME/.agents/skills/$name/SKILL.md"
+  done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
-    install -m 0644 "$SCRIPT_DIR/claude/pitstop.md" "$profile/commands/pitstop.md"
+    install -m 0644 "$SCRIPT_DIR/claude/pitstop.md" "$SCRIPT_DIR/claude/checkpoint.md" "$profile/commands/"
     agent_config idle-compact "$profile/settings.json"
   done
 }
