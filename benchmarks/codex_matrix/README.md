@@ -13,7 +13,7 @@ The settings are `gpt-6-luna` / Low, `gpt-6.1-sol` / Medium, `gpt-6.1-sol` / Hig
 | `npm-pins` | Add exact package.json dependency pins through the existing validation caller. |
 | `tail-boundary` | Preserve complete JSONL records at byte-tail boundaries for both session readers. |
 
-The full prompts are in [run.py](run.py), and external acceptance checks are in [grade.py](grade.py). All six graders fail on the unchanged baseline. Its 21 existing regression tests pass with Python 3.13. Each trial must pass its grader and all 21 regression tests, finish within 240 seconds, preserve the original tests and commit, and change only its allowed production file or add test files. A model's claim of success does not affect grading. Failed trials remain in usage and cost totals.
+The full prompts are in [run.py](run.py), and external acceptance checks are in [grade.py](grade.py). All six graders fail on the unchanged baseline. Its 21 existing regression tests pass with Python 3.13. Each trial must pass its grader, all 21 regression tests and any tests it adds, finish within 240 seconds, preserve the original tests and commit, and change only its allowed production file or add test files. A model's claim of success does not affect grading. Failed trials remain in usage and cost totals.
 
 All trials use Codex CLI 0.162.1, the personal profile's existing authentication, a fresh conversation, the standard service tier, and workspace-write sandboxing. User config and exec rules are ignored; no custom proxy, hooks or MCP servers are loaded from config. Automatic delegation is disabled. Global instructions and the CLI's built-in prompt remain part of the measured context. Settings rotate through all four launch positions equally; at most two trials run concurrently. Backend caches are not flushed or forced cold. Cache-hit percentage is observed, and sessions do not share conversation history. One preliminary Luna availability call is excluded from trial measurements.
 
@@ -46,3 +46,29 @@ Cost is `(fresh - cache_write) × input_rate + cached × cached_rate + cache_wri
 ```
 
 The last command uses account quota. Completed trials are reused on restart. Trial clones, prompts, event logs, grading logs and diffs are retained in `~/codex-matrix-runs-20261016/`. Aggregate results and per-trial counters are written to `results.json` here. Task prompts stay fixed throughout the experiment. Every saved trial workspace is checked against the same final grader before reporting results.
+
+## Results
+
+All 48 saved workspaces were regraded with the same final acceptance checks, original regression tests and added tests. There were no timeouts or usage-accounting mismatches. All 302 model API calls are included, including failed trials.
+
+| Setting | API calls | Fresh input/call | Reasoning/call | Cache hit | Total API-equivalent cost | Success |
+|---|---:|---:|---:|---:|---:|---:|
+| Luna / Low | 78 | 2,201 | 4.6 | 88.0% | $0.0356 | 9/12 |
+| Sol / Medium | 72 | 2,210 | 43.8 | 88.7% | $0.6517 | 12/12 |
+| Sol / High | 82 | 2,639 | 103.5 | 87.3% | $0.8805 | 12/12 |
+| Astra / High | 70 | 2,299 | 71.9 | 88.2% | $4.1002 | 12/12 |
+
+| Task | Luna / Low | Sol / Medium | Sol / High | Astra / High |
+|---|---:|---:|---:|---:|
+| line-count | 1/2 | 2/2 | 2/2 | 2/2 |
+| quoted-shell | 2/2 | 2/2 | 2/2 | 2/2 |
+| codex-hook | 2/2 | 2/2 | 2/2 | 2/2 |
+| version-boundary | 2/2 | 2/2 | 2/2 | 2/2 |
+| npm-pins | 1/2 | 2/2 | 2/2 | 2/2 |
+| tail-boundary | 1/2 | 2/2 | 2/2 | 2/2 |
+
+Luna failures: the first line-count attempt produced an incorrect boolean expression; the second package-pins attempt changed installed-package source precedence; the second JSONL attempt broke unbounded reads. Every other trial passed its acceptance checks and regression tests.
+
+**Sol / Medium had the lowest API-equivalent total cost among settings passing all 12 trials.** The suite does not measure large features, architectural decisions or security audits. Twelve trials per setting are too few to infer general reliability. Caching is observed rather than experimentally forced cold.
+
+[Full per-trial counters and outcomes](results.json). Raw prompts, model event streams, diffs and final grading logs remain in `~/codex-matrix-runs-20261016/`.

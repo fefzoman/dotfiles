@@ -74,9 +74,10 @@ def summarize_usage(usages, model):
                 if totals['input_tokens'] else None, api_equivalent_cost_usd=cost)
 
 
-def command(args, cwd, timeout=60):
+def command(args, cwd, timeout=60, extra_env=None):
     return subprocess.run(args, cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True,
-                          text=True, timeout=timeout, env=os.environ | {'PYTHONDONTWRITEBYTECODE': '1'})
+                          text=True, timeout=timeout,
+                          env=os.environ | {'PYTHONDONTWRITEBYTECODE': '1'} | (extra_env or {}))
 
 
 def prepare():
@@ -93,6 +94,30 @@ def prepare():
         assert result.returncode != 0 and 'AssertionError' in result.stderr, (task, result.stderr)
     print('Baseline: 21 regression tests pass; all six independent task graders fail as expected.', flush=True)
     return baseline
+
+
+def grade_trial(result):
+    name = f'{result["task"]}-{result["model"]}-{result["effort"]}-{result["repeat"]}'
+    directory = ARTIFACTS / name
+    workspace = directory / 'repo'
+    status = command(['git', 'status', '--porcelain', '--untracked-files=all'], workspace).stdout.splitlines()
+    added_tests = [line[3:] for line in status if line.startswith('?? ') and
+                   Path(line[3:]).name.startswith('test_') and line.endswith('.py')]
+    grader = command([sys.executable, str(ROOT / 'benchmarks/codex_matrix/grade.py'),
+                      str(workspace), result['task']], workspace)
+    regressions = command([sys.executable, '-m', 'unittest', *REGRESSION, *added_tests, '-q'], workspace,
+                          extra_env={'PYTHONPATH': f'{workspace}{os.pathsep}{workspace / "llm"}'})
+    (directory / 'grade.log').write_text(grader.stdout + grader.stderr + regressions.stdout + regressions.stderr)
+    scope_ok = all(line[3:] == TASKS[result['task']][0] or line[3:] in added_tests for line in status)
+    head_ok = command(['git', 'rev-parse', '--short=7', 'HEAD'], workspace).stdout.strip() == COMMIT
+    events = [json.loads(line) for line in (directory / 'events.jsonl').read_text().splitlines() if line.strip()]
+    complete = any(row.get('type') == 'turn.completed' for row in events)
+    result.update(task_tests_pass=grader.returncode == 0, regression_tests_pass=regressions.returncode == 0,
+                  added_test_files=added_tests, scope_ok=scope_ok, head_ok=head_ok,
+                  success=result['exit_code'] == 0 and not result['timed_out'] and complete
+                  and grader.returncode == 0 and regressions.returncode == 0 and scope_ok and head_ok)
+    (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+    return result
 
 
 def trial(baseline, task, model, effort, repeat):
@@ -154,24 +179,13 @@ def trial(baseline, task, model, effort, repeat):
         assert len(completed) == 1
         assert all(usage[k] == completed[0].get(k, 0) for k in
                    ('input_tokens', 'cached_input_tokens', 'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens'))
-    grader = command([sys.executable, str(ROOT / 'benchmarks/codex_matrix/grade.py'), str(workspace), task], workspace)
-    regressions = command([sys.executable, '-m', 'unittest', *REGRESSION, '-q'], workspace)
-    (directory / 'grade.log').write_text(grader.stdout + grader.stderr + regressions.stdout + regressions.stderr)
-    status = command(['git', 'status', '--porcelain', '--untracked-files=all'], workspace).stdout
-    changed = [line[3:] for line in status.splitlines()]
-    scope_ok = all(p == target or (line.startswith('?? ') and Path(p).name.startswith('test_') and p.endswith('.py'))
-                   for line, p in zip(status.splitlines(), changed))
-    head_ok = command(['git', 'rev-parse', '--short=7', 'HEAD'], workspace).stdout.strip() == COMMIT
     patch = command(['git', 'diff', '--no-ext-diff'], workspace)
     (directory / 'patch.diff').write_text(patch.stdout)
-    success = returncode == 0 and not timed_out and bool(completed) and grader.returncode == 0 \
-        and regressions.returncode == 0 and scope_ok and head_ok
     result = dict(task=task, model=model, effort=effort, repeat=repeat, thread_id=thread_ids[0],
                   elapsed_seconds=elapsed, exit_code=returncode, timed_out=timed_out,
-                  task_tests_pass=grader.returncode == 0, regression_tests_pass=regressions.returncode == 0,
-                  scope_ok=scope_ok, head_ok=head_ok, success=success, usage=usage)
-    (directory / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
-    print(f'{name}: {"PASS" if success else "FAIL"}; {usage["calls"]} calls; '
+                  usage=usage)
+    grade_trial(result)
+    print(f'{name}: {"PASS" if result["success"] else "FAIL"}; {usage["calls"]} calls; '
           f'${usage["api_equivalent_cost_usd"]:.4f}; {elapsed:.0f}s', flush=True)
     return result
 
@@ -188,6 +202,7 @@ def main():
             jobs.extend((baseline, task, model, effort, repeat + 1) for model, effort in order)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda args: trial(*args), jobs))
+    results = [grade_trial(result) for result in results]
     summary = []
     for model, effort in SETTINGS:
         runs = [r for r in results if (r['model'], r['effort']) == (model, effort)]
