@@ -51,19 +51,19 @@ class SmartReadTest(unittest.TestCase):
         db = sr.connect(self.root)
         self.assertEqual(sr.refresh(db, self.root), 2)
         self.assertEqual(sr.refresh(db, self.root), 0)
-        hits, _ = sr.search(db, self.root, "renew the token", None, 3, use_dense=False, use_rerank=False)
+        hits, _ = sr.search(db, self.root, "renew the token", None, 3, use_dense=False)
         path, symbol = db.execute("SELECT path, symbol FROM chunks WHERE id=?", (hits[0][0],)).fetchone()
         self.assertEqual(path, "auth.py")
         self.assertTrue(symbol.startswith("def refresh_token"))
-        hits, _ = sr.search(db, self.root, "facebook spend", "models/", 3, use_dense=False, use_rerank=False)
+        hits, _ = sr.search(db, self.root, "facebook spend", "models/", 3, use_dense=False)
         self.assertTrue(hits)
         self.assertTrue(all(db.execute("SELECT path FROM chunks WHERE id=?", (i,)).fetchone()[0] == "models/spend.sql"
                             for i, _ in hits))
         (self.root / "auth.py").write_text("def other():\n    pass\n")
         self.assertEqual(sr.refresh(db, self.root), 1)
-        hits, _ = sr.search(db, self.root, "renew", None, 3, use_dense=False, use_rerank=False)
+        hits, _ = sr.search(db, self.root, "renew", None, 3, use_dense=False)
         self.assertEqual(hits, [])
-        self.assertIn("1-", sr.render(db, sr.search(db, self.root, "other", None, 1, False, False)[0], ""))
+        self.assertIn("1-", sr.render(db, sr.search(db, self.root, "other", None, 1, False)[0], ""))
 
     def test_rrf_rewards_agreement(self):
         self.assertEqual(sr.rrf([[1, 2, 3], [2, 3, 1], [2]])[0], 2)

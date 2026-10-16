@@ -73,11 +73,10 @@ Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-re
 - `search "<question>" [--path P] [-k N]`:
   - Fuses three rankings with weighted Reciprocal Rank Fusion: BM25 over symbol-aware chunks, a trigram index, and local code embeddings (`jina-embeddings-v2-base-code`).
   - It prints the best line ranges with line numbers.
-  - Cross-encoder reranking is opt-in with `--rerank`. On this machine's repositories, every CPU reranker fastembed offers lowered accuracy and added 0.7–4.8 s per query.
 - `outline FILE` lists symbols with line ranges.
 - One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. Embeddings for large changes run in the background.
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
-- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a non-blocking note pointing at `smart-read` before a whole-file read of 400 or more lines.
+- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a non-blocking note pointing at `smart-read` before a whole-file read of 80 or more lines.
 
 ## 5. Context7
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hybrid code search for agents: symbol-aware chunks, BM25 + trigram + embeddings, weighted RRF, optional cross-encoder rerank."""
+"""Hybrid code search for agents: symbol-aware chunks, BM25 + trigram + embeddings, weighted RRF."""
 
 from __future__ import annotations
 
@@ -16,15 +16,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 EMBED_MODEL = os.environ.get("SMART_READ_EMBED", "jinaai/jina-embeddings-v2-base-code")
-RERANK_MODEL = os.environ.get("SMART_READ_RERANK", "Xenova/ms-marco-MiniLM-L-6-v2")
 CACHE = Path(os.environ.get("SMART_READ_CACHE") or Path.home() / ".cache" / "smart-read")
 WINDOW, OVERLAP, MAX_SEGMENT = 60, 10, 80
 MAX_FILE_BYTES = 512_000
-RRF_K, CANDIDATES, RERANK_TOP = 60, 50, 20
+RRF_K, CANDIDATES = 60, 50
 # BM25, trigram, dense; tuned on the README eval (trigram only helps partial identifiers, so it weighs least).
 RRF_WEIGHTS = (0.7, 0.3, 1.0)
 HIT_LINES, OUTPUT_CAP = 40, 9000
-EMBED_CHARS, RERANK_CHARS = 2000, 1500
+EMBED_CHARS = 2000
 TEXT_SUFFIXES = {
     ".py", ".pyi", ".sql", ".j2", ".jinja", ".tf", ".hcl", ".tfvars", ".yaml", ".yml", ".json", ".toml", ".ini", ".cfg",
     ".md", ".rst", ".txt", ".sh", ".bash", ".zsh", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java", ".kt", ".scala",
@@ -286,16 +285,6 @@ def rrf(rankings: list[list[int]], weights: tuple[float, ...] = RRF_WEIGHTS) -> 
     return sorted(scores, key=lambda i: -scores[i])
 
 
-def rerank(db: sqlite3.Connection, query: str, ids: list[int]) -> list[tuple[int, float]]:
-    from fastembed.rerank.cross_encoder import TextCrossEncoder
-
-    rows = {i: (p, s, t) for i, p, s, t in db.execute(
-        f"SELECT id, path, symbol, text FROM chunks WHERE id IN ({','.join('?' * len(ids))})", ids)}
-    docs = [f"{rows[i][0]} {rows[i][1]}\n{rows[i][2]}"[:RERANK_CHARS] for i in ids]
-    scores = list(TextCrossEncoder(RERANK_MODEL, threads=os.cpu_count(), cache_dir=str(CACHE / "models")).rerank(query, docs))
-    return sorted(zip(ids, scores), key=lambda pair: -pair[1])
-
-
 def background_index(root: Path) -> None:
     lock = CACHE / f"{hashlib.sha1(str(root).encode()).hexdigest()[:16]}.indexing"
     try:
@@ -309,8 +298,8 @@ def background_index(root: Path) -> None:
                      start_new_session=True)
 
 
-def search(db: sqlite3.Connection, root: Path, query: str, path: str | None, k: int, use_dense: bool = True,
-           use_rerank: bool = False) -> tuple[list[tuple[int, float]], str]:
+def search(db: sqlite3.Connection, root: Path, query: str, path: str | None, k: int,
+           use_dense: bool = True) -> tuple[list[tuple[int, float]], str]:
     refresh(db, root)
     note = ""
     rankings = [lexical(db, query, path), trigram(db, query, path)]
@@ -323,10 +312,6 @@ def search(db: sqlite3.Connection, root: Path, query: str, path: str | None, k: 
             embed_pending(db)
         rankings.append(dense(db, query, path))
     fused = rrf(rankings)
-    if not fused:
-        return [], note
-    if use_rerank:
-        return rerank(db, query, fused[:RERANK_TOP])[:k], note
     return [(i, 1.0 / (n + 1)) for n, i in enumerate(fused[:k])], note
 
 
@@ -358,7 +343,6 @@ def main() -> int:
     find.add_argument("query")
     find.add_argument("--path", help="limit to a file, directory prefix or glob (repo-relative)")
     find.add_argument("-k", type=int, default=5)
-    find.add_argument("--rerank", action="store_true", help="rerank the top 20 with a cross-encoder (slower)")
     find.add_argument("--lexical", action="store_true", help="BM25 + trigram only, no models")
     show = commands.add_parser("outline", help="symbols of a file with line ranges")
     show.add_argument("file")
@@ -383,8 +367,7 @@ def main() -> int:
     if path and Path(path).is_absolute():
         path = os.path.relpath(path, root)
     db = connect(root)
-    hits, note = search(db, root, args.query, path, args.k, use_dense=not args.lexical,
-                        use_rerank=args.rerank and not args.lexical)
+    hits, note = search(db, root, args.query, path, args.k, use_dense=not args.lexical)
     print(render(db, hits, note))
     return 0
 

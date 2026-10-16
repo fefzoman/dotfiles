@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """CodeSearchNet-style retrieval eval: docstring first sentence -> its function, docstrings stripped from the index.
 
-Usage: python eval.py REPO[,REPO...] [EMBED_MODEL,...] [RERANK_MODEL,...]
+Usage: python eval.py REPO[,REPO...] [EMBED_MODEL,...]
 """
 
 import ast
-import os
 import sys
 import tempfile
 import time
@@ -48,7 +47,6 @@ def build_corpus(repos: list[Path], corpus: Path) -> list[tuple[str, str, int]]:
 def main() -> int:
     repos = [Path(p).expanduser() for p in sys.argv[1].split(",")]
     embeds = sys.argv[2].split(",") if len(sys.argv) > 2 else [sr.EMBED_MODEL]
-    rerankers = sys.argv[3].split(",") if len(sys.argv) > 3 else [sr.RERANK_MODEL]
     work = Path(tempfile.mkdtemp())
     sr.CACHE = work / "cache"
     queries = build_corpus(repos, work / "corpus")
@@ -84,19 +82,6 @@ def main() -> int:
         fused = {q: sr.rrf([sr.lexical(db, q, None), sr.trigram(db, q, None), sr.dense(db, q, None)])
                  for q, _, _ in queries}
         report(f"hybrid RRF {short}", lambda q: fused[q])
-        for reranker in rerankers:
-            from fastembed.rerank.cross_encoder import TextCrossEncoder
-
-            encoder = TextCrossEncoder(reranker, threads=os.cpu_count())
-
-            def ranked(q, fused=fused, encoder=encoder):
-                ids = fused[q][:sr.RERANK_TOP]
-                docs = [f"{spans[i][0]} " + db.execute("SELECT symbol || char(10) || text FROM chunks WHERE id=?", (i,)).fetchone()[0]
-                        for i in ids]
-                scores = list(encoder.rerank(q, [d[:sr.RERANK_CHARS] for d in docs]))
-                return [i for i, _ in sorted(zip(ids, scores), key=lambda pair: -pair[1])] + fused[q][sr.RERANK_TOP:]
-
-            report(f"hybrid {short} + {reranker.split('/')[-1]}", ranked)
         sr.embedder = load_embedder
     return 0
 

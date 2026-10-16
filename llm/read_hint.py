@@ -9,7 +9,7 @@ import shutil
 import sys
 from pathlib import Path
 
-MIN_LINES = int(os.environ.get("READ_HINT_MIN_LINES") or 400)
+MIN_LINES = int(os.environ.get("READ_HINT_MIN_LINES") or 80)
 MAX_BYTES = 5_000_000
 WHOLE_READ = {"cat", "nl", "bat"}
 

@@ -12,8 +12,8 @@ HOOK = Path(__file__).with_name("read_hint.py")
 class ReadHintTest(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp())
-        (self.dir / "big.py").write_text("x = 1\n" * 500)
-        (self.dir / "small.py").write_text("x = 1\n" * 10)
+        (self.dir / "big.py").write_text("x = 1\n" * 80)
+        (self.dir / "small.py").write_text("x = 1\n" * 79)
         bin_dir = self.dir / "bin"
         bin_dir.mkdir()
         (bin_dir / "smart-read").write_text("#!/bin/sh\n")
@@ -27,7 +27,7 @@ class ReadHintTest(unittest.TestCase):
         return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
 
     def test_whole_reads_of_large_files_get_a_hint(self):
-        self.assertIn("big.py has 500 lines", self.run_hook("Read", {"file_path": str(self.dir / "big.py")}))
+        self.assertIn("big.py has 80 lines", self.run_hook("Read", {"file_path": str(self.dir / "big.py")}))
         self.assertIn("smart-read outline big.py", self.run_hook("Bash", {"command": "cd x && cat big.py"}))
 
     def test_ranged_small_piped_or_uninstalled_reads_pass_silently(self):
