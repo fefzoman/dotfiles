@@ -4,15 +4,15 @@ Use **Opus 5.5 / Medium** as the default, if available. Switch only when the cur
 
 | Signal | Switch to | Thinking tokens/call | Why |
 |---|---|---:|---|
-| Rename, formatting, boilerplate, or another small bounded edit | Haiku 5.5 / Low | not measured | Save the stronger setting for work that needs it. |
+| Rename, formatting, boilerplate, or another small bounded edit | Haiku 5.5 / Low | 152 | Save the stronger setting for work that needs it. |
 | Routine implementation, tests, or debugging | Opus 5.5 / Medium | 232 | Default balance for everyday development. |
 | The task spans several files, needs careful investigation, or Medium misses the cause | Opus 5.5 / High | 271 | Give the same model more reasoning for harder work. |
 | High still cannot resolve an architectural choice, uncertain root cause, security-sensitive change, or long multi-stage problem | Opus 5.5 / XHigh | 564 | Deeper reasoning for the hardest problems. |
 | XHigh still stalls on critical work where correctness outweighs cost | Opus 5.5 / Max | ~2,700 | Highest setting. |
 | The difficult part is resolved and remaining work is routine | Opus 5.5 / Medium | 232 | Step back down for follow-up work. |
-| Remaining work is only a tiny edit | Haiku 5.5 / Low | not measured | Use the lighter setting for trivial follow-up. |
+| Remaining work is only a tiny edit | Haiku 5.5 / Low | 152 | Use the lighter setting for trivial follow-up. |
 
-Thinking tokens/call is the mean per API call across local personal and work transcripts as of 2026-10-16 (Max from only 27 calls). Claude keeps thinking in context, so every later call re-reads it.
+Thinking tokens/call is the mean per API call across local personal and work transcripts as of 2026-10-16 (Max from only 27 calls; Haiku from a 50-task benchmark of small edits and lookups, where Medium averaged 436). Claude keeps thinking in context, so every later call re-reads it.
 
 ## Switching loop
 
