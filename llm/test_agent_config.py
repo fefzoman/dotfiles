@@ -194,11 +194,11 @@ uv() {{
             agent_config.codex_effort(str(config))
             agent_config.codex_effort(str(config))
             data = tomllib.loads(config.read_text())
-            self.assertEqual(data["model_reasoning_effort"], "high")
+            self.assertEqual(data["model_reasoning_effort"], "medium")
             self.assertEqual(data["profiles"]["deep"]["model_reasoning_effort"], "max")
             settings.write_text('{"effortLevel": "xhigh", "model": "opus"}')
             agent_config.effort(str(settings))
-            self.assertEqual(json.loads(settings.read_text()), {"effortLevel": "high", "model": "opus"})
+            self.assertEqual(json.loads(settings.read_text()), {"effortLevel": "medium", "model": "opus"})
 
 
 if __name__ == "__main__":
