@@ -21,7 +21,7 @@ CONTEXT_TRIM_SKILLS = {
     **dict.fromkeys(("dataviz", "claude-api", "claude-in-chrome", "schedule", "run", "plugin-authoring", "keybindings-help",
                      "fewer-permission-prompts"), "user-invocable-only"),
 }
-# xhigh doubles thinking per call (Opus 5.5: 558 vs 247 tokens), and every later call re-reads it.
+# xhigh doubles thinking per call (Opus 5.5: 564 vs 271 tokens), and every later call re-reads it.
 EFFORT = "high"
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
 SHELL_END = "# END AI TOOLING SHELL ENVIRONMENT"

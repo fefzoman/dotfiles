@@ -1,35 +1,32 @@
 # Claude model switching guide
 
-Use **Opus 5.5 / Medium** as the default, if available. Switch only when the current setting is a poor fit or the work stalls.
+Use **Opus 5.5 / High** as the default; the installer sets it. Choose the setting when a session starts: a mid-session `/model` or `/effort` switch rewrites the prompt cache, which costs more than the thinking it saves.
 
-| Signal | Switch to | Thinking tokens/call | Why |
+| Signal | Start with | Thinking tokens/call | Why |
 |---|---|---:|---|
-| Rename, formatting, boilerplate, or another small bounded edit | Haiku 5.5 / Low | 152 | Save the stronger setting for work that needs it. |
-| Routine implementation, tests, or debugging | Opus 5.5 / Medium | 232 | Default balance for everyday development. |
-| The task spans several files, needs careful investigation, or Medium misses the cause | Opus 5.5 / High | 271 | Give the same model more reasoning for harder work. |
-| High still cannot resolve an architectural choice, uncertain root cause, security-sensitive change, or long multi-stage problem | Opus 5.5 / XHigh | 564 | Deeper reasoning for the hardest problems. |
-| XHigh still stalls on critical work where correctness outweighs cost | Opus 5.5 / Max | ~2,700 | Highest setting. |
-| The difficult part is resolved and remaining work is routine | Opus 5.5 / Medium | 232 | Step back down for follow-up work. |
-| Remaining work is only a tiny edit | Haiku 5.5 / Low | 152 | Use the lighter setting for trivial follow-up. |
+| Rename, formatting, boilerplate, or another small bounded edit | Haiku 5.5 / Low | 152 | Cheapest setting; Medium averaged 436 on the same tasks and was not needed. |
+| Routine implementation, tests, debugging, or multi-file investigation | Opus 5.5 / High | 271 | Medium (232) saves only 39 tokens per call, too little to give up reasoning. |
+| High cannot resolve an architectural choice, uncertain root cause, security-sensitive change, or long multi-stage problem | Opus 5.5 / XHigh | 564 | 2.1× High, re-read on every later call; reserve for the hardest problems. |
+| XHigh still stalls on critical work where correctness outweighs cost | Opus 5.5 / Max | ~2,700 | ~10× High; last resort. |
 
-Thinking tokens/call is the mean per API call across local personal and work transcripts as of 2026-10-16 (Max from only 27 calls; Haiku from a 50-task benchmark of small edits and lookups, where Medium averaged 436). Claude keeps thinking in context, so every later call re-reads it.
+Thinking tokens/call is the mean per API call across local personal and work transcripts as of 2026-10-16 (Max from only 27 calls; Haiku from a 50-task benchmark of small edits and lookups). Claude keeps thinking in context, so every later call re-reads it.
 
 ## Switching loop
 
-1. Start with the default or the row that matches the task.
-2. If progress stalls, increase effort on Opus first; lower effort on Opus 5.5 often matches older models at higher effort.
-3. If XHigh still stalls, move to Max. This is the cap; reassess the problem or gather more evidence if it still stalls.
-4. Once the hard part is done, switch back to Opus / Medium for routine follow-up. Use Haiku / Low only when the remaining work is a tiny edit. Keep the current setting if progress is steady.
+1. Start with the row that matches the task: `claude --model haiku --effort low` for a small edit, plain `claude` otherwise.
+2. If High stalls, escalate without a mid-session switch: `/checkpoint`, `/clear`, `/effort xhigh`; the fresh chat continues from the checkpoint. For a new chat, use `claude --effort xhigh`.
+3. If XHigh stalls, do the same with Max. This is the cap; reassess the problem or gather more evidence if it still stalls.
+4. Once the hard part is done, finish in the current session; stepping down mid-session saves less than the cache rewrite costs. The next session starts at the default.
 
-Examples: a clear feature request → **Opus / Medium**; repeated unsuccessful debugging → **Opus / High**, then **Opus / XHigh** if needed; simple cleanup → **Haiku / Low**; search-heavy subagents → **Haiku or Sonnet / Low**.
+Examples: a clear feature request → **Opus / High**; repeated unsuccessful debugging → **Opus / XHigh** in a fresh chat; simple cleanup → **Haiku / Low**; search-heavy subagents → **Haiku / Low**.
 
-Choose only models and effort levels available in your Claude Code version and plan. Set a starting default in `~/.claude/settings.json`:
+Choose only models and effort levels available in your Claude Code version and plan. The installer writes `effortLevel` to each profile's `settings.json`; set `model` yourself:
 
 ```json
 {
   "model": "opus",
-  "effortLevel": "medium"
+  "effortLevel": "high"
 }
 ```
 
-Switch per session with `/model` and `/effort`; subagents can set their own `model` and `effort`. Use `/usage` to inspect plan usage. Judge cost per completed task, not per request: a stronger setting solving a task in one pass may be cheaper than repeated attempts with a lighter one. These recommendations are practical heuristics, not official benchmarks or fixed usage multipliers.
+Subagents can set their own `model` and `effort` without touching the parent's cache. Use `/usage` to inspect plan usage. Judge cost per completed task, not per request: a stronger setting solving a task in one pass may be cheaper than repeated attempts with a lighter one. These recommendations are practical heuristics, not official benchmarks or fixed usage multipliers.

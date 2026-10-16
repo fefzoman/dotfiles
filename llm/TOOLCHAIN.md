@@ -217,7 +217,7 @@ The global policy tells both agents never to suggest `/model`, `/effort` or `/fa
 
 ### Default effort
 
-The installer sets `effortLevel = "high"` in both Claude profiles and a top-level `model_reasoning_effort = "high"` in both Codex homes; profile tables keep their own. Claude keeps thinking in context for the whole session and Codex until the next user message, so every thinking token is re-read on each later call. Measured per Opus 5.5 call: medium 232 thinking tokens, high 247, xhigh 558. Medium saves nothing over high, and xhigh doubles thinking, which made up 15–37% of input in the largest sessions. Start a session with `claude --effort xhigh` (or `codex -c model_reasoning_effort=xhigh`) for hard design or debugging; switching mid-session rewrites the cache.
+The installer sets `effortLevel = "high"` in both Claude profiles and a top-level `model_reasoning_effort = "high"` in both Codex homes; profile tables keep their own. Claude keeps thinking in context for the whole session and Codex until the next user message, so every thinking token is re-read on each later call. Measured per Opus 5.5 call: medium 232 thinking tokens, high 271, xhigh 564. Medium saves only 39 tokens per call, and xhigh doubles thinking, which made up 15–37% of input in the largest sessions. Start a session with `claude --effort xhigh` (or `codex -c model_reasoning_effort=xhigh`) for hard design or debugging; switching mid-session rewrites the cache.
 
 ### Token-profiler
 
