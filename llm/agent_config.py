@@ -152,30 +152,22 @@ def statusline(settings: str) -> None:
     save(settings, data)
 
 
-def context7_guard(settings: str) -> None:
-    data = load(settings)
-    hooks = data.setdefault("hooks", {})
-    hooks["PreToolUse"] = [
-        entry
-        for entry in hooks.get("PreToolUse", [])
-        if all(hook.get("command") != CONTEXT7_GUARD for hook in entry.get("hooks", []))
-    ] + [
-        {
-            "matcher": "mcp__context7__query-docs|mcp__claude_ai_Context7__query-docs",
-            "hooks": [{"type": "command", "command": CONTEXT7_GUARD, "timeout": 5}],
-        }
-    ]
-    save(settings, data)
-
-
-def read_hint(settings: str) -> None:
+def pre_tool_hook(settings: str, matcher: str, command: str) -> None:
     data = load(settings)
     hooks = data.setdefault("hooks", {})
     hooks["PreToolUse"] = [
         entry for entry in hooks.get("PreToolUse", [])
-        if all(hook.get("command") != READ_HINT for hook in entry.get("hooks", []))
-    ] + [{"matcher": "Read|Bash", "hooks": [{"type": "command", "command": READ_HINT, "timeout": 5}]}]
+        if all(hook.get("command") != command for hook in entry.get("hooks", []))
+    ] + [{"matcher": matcher, "hooks": [{"type": "command", "command": command, "timeout": 5}]}]
     save(settings, data)
+
+
+def context7_guard(settings: str) -> None:
+    pre_tool_hook(settings, "mcp__context7__query-docs|mcp__claude_ai_Context7__query-docs", CONTEXT7_GUARD)
+
+
+def read_hint(settings: str) -> None:
+    pre_tool_hook(settings, "Read|Bash", READ_HINT)
 
 
 def idle_compact(settings: str) -> None:

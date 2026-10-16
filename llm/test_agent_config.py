@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import agent_config
+from llm import agent_config
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent

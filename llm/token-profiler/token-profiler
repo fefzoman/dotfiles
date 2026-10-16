@@ -185,27 +185,10 @@ class Usage:
     @classmethod
     def from_obj(cls, obj: dict[str, Any] | None) -> "Usage":
         obj = obj or {}
-        return cls(
-            input_tokens=int(obj.get("input_tokens") or 0),
-            cached_input_tokens=int(obj.get("cached_input_tokens") or 0),
-            cache_creation_input_tokens=int(obj.get("cache_creation_input_tokens") or 0),
-            output_tokens=int(obj.get("output_tokens") or 0),
-            reasoning_output_tokens=int(obj.get("reasoning_output_tokens") or 0),
-            total_tokens=int(obj.get("total_tokens") or 0),
-        )
+        return cls(*(int(obj.get(field.name) or 0) for field in dataclasses.fields(cls)))
 
     def delta(self, previous: "Usage") -> "Usage":
-        return Usage(
-            input_tokens=max(0, self.input_tokens - previous.input_tokens),
-            cached_input_tokens=max(0, self.cached_input_tokens - previous.cached_input_tokens),
-            cache_creation_input_tokens=max(
-                0,
-                self.cache_creation_input_tokens - previous.cache_creation_input_tokens,
-            ),
-            output_tokens=max(0, self.output_tokens - previous.output_tokens),
-            reasoning_output_tokens=max(0, self.reasoning_output_tokens - previous.reasoning_output_tokens),
-            total_tokens=max(0, self.total_tokens - previous.total_tokens),
-        )
+        return Usage(*(max(0, a - b) for a, b in zip(dataclasses.astuple(self), dataclasses.astuple(previous))))
 
     def increased_from(self, previous: "Usage") -> bool:
         return any([
@@ -457,6 +440,44 @@ def add_instruction_attribution(
             )
 
 
+def record_source(report: SessionReport, item: SourceItem, generator: bool = False, text: str = "") -> None:
+    report.observed_payload[item.category] = report.observed_payload.get(item.category, 0) + item.tokens
+    if item.category == "AGENTS.md/instructions":
+        report.instruction_payloads[item.label] = report.instruction_payloads.get(item.label, 0) + item.tokens
+    if generator and item.tokens:
+        report.generators.append(Generator(item.label, item.kind, item.tokens, item.command, item.file))
+    if item.command and item.tokens:
+        report.command_payloads[item.command] = report.command_payloads.get(item.command, 0) + item.tokens
+    if item.file and item.tokens:
+        report.file_payloads[item.file] = report.file_payloads.get(item.file, 0) + item.tokens
+    if text and item.command:
+        files = extract_files_from_command(item.command, text)
+        for file_name in files:
+            report.file_payloads[file_name] = report.file_payloads.get(file_name, 0) + max(1, item.tokens // len(files))
+
+
+def attribute(
+    report: SessionReport,
+    items: list[SourceItem],
+    input_tokens: int,
+    scale: float,
+    exact: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """Allocate one call's exact input across visible item categories and add it to the session totals."""
+    exact = exact or {}
+    attributed = {
+        category: exact.get(category, tokens * scale)
+        for category, tokens in summarize_sources(items).items()
+    }
+    residual = max(0.0, input_tokens - sum(attributed.values()))
+    if residual:
+        attributed["Other/platform context"] = residual
+    for category, amount in attributed.items():
+        report.cumulative_attribution[category] = report.cumulative_attribution.get(category, 0.0) + amount
+    add_instruction_attribution(report, items, scale)
+    return attributed
+
+
 def record_tool_result(
     report: SessionReport,
     names: list[str],
@@ -606,8 +627,6 @@ def classify_tool(name: str, command: str | None, is_mcp: bool = False) -> str:
         return "MCP/tool results"
     if lower in SHELL_NAMES or "exec" in lower or command:
         return shell_category(command)
-    if "mcp" in lower:
-        return "MCP/tool results"
     return "MCP/tool results"
 
 
@@ -641,14 +660,7 @@ def extract_files_from_command(command: str | None, output: str = "") -> list[st
             if m and ("/" in m.group(1) or "." in m.group(1)):
                 files.append(m.group(1))
 
-    # Stable order, no duplicates.
-    seen = set()
-    result = []
-    for f in files:
-        if f not in seen:
-            seen.add(f)
-            result.append(f)
-    return result[:100]
+    return list(dict.fromkeys(files))[:100]
 
 
 def session_id_from_path(path: Path) -> str:
@@ -772,34 +784,45 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
     def add_source(item: SourceItem, generator: bool = False, text: str = "") -> None:
         active.append(item)
         since_last_token.append(item)
-        report.observed_payload[item.category] = report.observed_payload.get(item.category, 0) + item.tokens
-        if item.category == "AGENTS.md/instructions":
-            report.instruction_payloads[item.label] = (
-                report.instruction_payloads.get(item.label, 0) + item.tokens
+        record_source(report, item, generator, text)
+
+    def record_call(timestamp: str, usage: Usage, input_tokens: int, context_tokens: int) -> None:
+        nonlocal previous_model_call_at, call_settings, since_last_token, pending_compaction
+        report.model_calls += 1
+        report.inner_usage.add_assign(usage)
+        report.inner_model_calls += 1
+        gap_seconds, cold_reason = call_diagnostics(
+            timestamp,
+            usage,
+            previous_model_call_at,
+            post_compaction=pending_compaction is not None,
+            changed=setting_changes(call_settings, settings),
+        )
+        previous_model_call_at = parse_timestamp(timestamp) or previous_model_call_at
+        call_settings = settings
+
+        # The model-generated records since the previous usage event belong to this call's output, not its input.
+        assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
+        visible = [x for x in active if id(x) not in assistant_new_ids]
+        attributed: dict[str, float] = {}
+        if input_tokens > 0:
+            known_sum = sum(x.tokens for x in visible)
+            attributed = attribute(report, visible, input_tokens,
+                                   input_tokens / known_sum if known_sum > input_tokens else 1.0)
+
+        if keep_calls:
+            window = report.context_window
+            report.calls.append(
+                ModelCall(timestamp, usage, report.total, window, context_tokens / window if window else 0.0,
+                          attributed, gap_seconds, cold_reason)
             )
 
-        if generator and item.tokens:
-            report.generators.append(
-                Generator(
-                    label=item.label,
-                    kind=item.kind,
-                    payload_tokens=item.tokens,
-                    command=item.command,
-                    file=item.file,
-                )
-            )
-        if item.command and item.tokens:
-            report.command_payloads[item.command] = report.command_payloads.get(item.command, 0) + item.tokens
-
-        if item.file and item.tokens:
-            report.file_payloads[item.file] = report.file_payloads.get(item.file, 0) + item.tokens
-
-        if text and item.command:
-            files = extract_files_from_command(item.command, text)
-            if files:
-                share = max(1, item.tokens // len(files))
-                for f in files:
-                    report.file_payloads[f] = report.file_payloads.get(f, 0) + share
+        since_last_token = []
+        add_reasoning(usage)
+        # Apply compaction only after attributing the request that preceded the compacted history.
+        if pending_compaction is not None:
+            set_compacted_history(pending_compaction)
+            pending_compaction = None
 
     def set_compacted_history(payload: Any) -> None:
         nonlocal active, since_last_token
@@ -922,66 +945,7 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             # historical response record.
             report.total = thread_total if thread_total and usage_obj_nonzero(thread_total) else modern_sum
             report.last = usage
-            report.model_calls += 1
-            report.inner_usage.add_assign(usage)
-            report.inner_model_calls += 1
-            gap_seconds, cold_reason = call_diagnostics(
-                timestamp,
-                usage,
-                previous_model_call_at,
-                post_compaction=pending_compaction is not None,
-                changed=setting_changes(call_settings, settings),
-            )
-            previous_model_call_at = parse_timestamp(timestamp) or previous_model_call_at
-            call_settings = settings
-
-            assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
-            visible = [x for x in active if id(x) not in assistant_new_ids]
-
-            known_by_cat: dict[str, float] = collections.defaultdict(float)
-            for item in visible:
-                known_by_cat[item.category] += item.tokens
-
-            input_tokens = usage.input_tokens
-            known_sum = sum(known_by_cat.values())
-            attributed: dict[str, float] = {}
-            if input_tokens > 0:
-                scale = input_tokens / known_sum if known_sum > input_tokens and known_sum > 0 else 1.0
-                known_used = 0.0
-                for cat, val in known_by_cat.items():
-                    amount = val * scale
-                    attributed[cat] = amount
-                    known_used += amount
-                residual = max(0.0, input_tokens - known_used)
-                if residual:
-                    attributed["Other/platform context"] = residual
-
-                for cat, amount in attributed.items():
-                    report.cumulative_attribution[cat] = (
-                        report.cumulative_attribution.get(cat, 0.0) + amount
-                    )
-                add_instruction_attribution(report, visible, scale)
-
-            if keep_calls:
-                report.calls.append(
-                    ModelCall(
-                        timestamp=timestamp,
-                        usage=usage,
-                        cumulative=report.total,
-                        context_window=report.context_window,
-                        context_ratio=(usage.input_tokens / report.context_window if report.context_window else 0.0),
-                        attributed=attributed,
-                        gap_seconds=gap_seconds,
-                        cold_reason=cold_reason,
-                    )
-                )
-
-            since_last_token = []
-            add_reasoning(usage)
-
-            if pending_compaction is not None:
-                set_compacted_history(pending_compaction)
-                pending_compaction = None
+            record_call(timestamp, usage, usage.input_tokens, usage.input_tokens)
             continue
 
         if rtype == "compacted":
@@ -1028,77 +992,8 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                     report.total = cumulative
                     report.last = last if usage_obj_nonzero(last) else delta
                     report.context_window = window
-                    report.model_calls += 1
-                    report.inner_usage.add_assign(delta)
-                    report.inner_model_calls += 1
-                    gap_seconds, cold_reason = call_diagnostics(
-                        timestamp,
-                        delta,
-                        previous_model_call_at,
-                        post_compaction=pending_compaction is not None,
-                        changed=setting_changes(call_settings, settings),
-                    )
-                    previous_model_call_at = (
-                        parse_timestamp(timestamp) or previous_model_call_at
-                    )
-                    call_settings = settings
-
-                    # The model-generated records since the previous token event
-                    # belong to this call's output, not its request input.
-                    assistant_new_ids = {id(x) for x in since_last_token if x.origin == "assistant"}
-                    visible = [x for x in active if id(x) not in assistant_new_ids]
-
-                    known_by_cat: dict[str, float] = collections.defaultdict(float)
-                    for item in visible:
-                        known_by_cat[item.category] += item.tokens
-
-                    input_tokens = delta.input_tokens or report.last.input_tokens
-                    cached = min(delta.cached_input_tokens, input_tokens)
-                    known_sum = sum(known_by_cat.values())
-
-                    attributed: dict[str, float] = {}
-                    if input_tokens > 0:
-                        if known_sum > input_tokens and known_sum > 0:
-                            scale = input_tokens / known_sum
-                        else:
-                            scale = 1.0
-                        known_used = 0.0
-                        for cat, val in known_by_cat.items():
-                            amount = val * scale
-                            attributed[cat] = amount
-                            known_used += amount
-                        residual = max(0.0, input_tokens - known_used)
-                        if residual:
-                            attributed["Other/platform context"] = residual
-
-                        for cat, amount in attributed.items():
-                            report.cumulative_attribution[cat] = (
-                                report.cumulative_attribution.get(cat, 0.0) + amount
-                            )
-                        add_instruction_attribution(report, visible, scale)
-
-                    if keep_calls:
-                        report.calls.append(
-                            ModelCall(
-                                timestamp=timestamp,
-                                usage=delta,
-                                cumulative=cumulative,
-                                context_window=window,
-                                context_ratio=(report.last.input_tokens / window if window else 0.0),
-                                attributed=attributed,
-                                gap_seconds=gap_seconds,
-                                cold_reason=cold_reason,
-                            )
-                        )
-
-                    since_last_token = []
-                    add_reasoning(delta)
-
-                    # Apply compaction only after attributing the request that
-                    # caused/preceded the compacted history.
-                    if pending_compaction is not None:
-                        set_compacted_history(pending_compaction)
-                        pending_compaction = None
+                    record_call(timestamp, delta, delta.input_tokens or report.last.input_tokens,
+                                report.last.input_tokens)
 
                 elif not usage_obj_nonzero(report.total) and usage_obj_nonzero(last):
                     # Legacy/incomplete logs with no cumulative totals.
@@ -1215,12 +1110,10 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
                 timestamp,
                 meta.get("args"),
             )
-            label_core = truncate(command or ", ".join(dict.fromkeys(effective_tools)), 88)
-            label = f"{label_core}"
             add_source(
                 SourceItem(
                     category=category,
-                    label=label,
+                    label=truncate(command or ", ".join(dict.fromkeys(effective_tools)), 88),
                     tokens=tok,
                     origin="external",
                     kind="command output" if command else "tool output",
@@ -1443,7 +1336,6 @@ def analyze_claude_session(
     active: list[SourceItem] = []
     calls_by_id: dict[str, dict[str, Any]] = {}
     seen_message_ids: set[str] = set()
-    last_activity_at: dt.datetime | None = None
     previous_model_call_at: dt.datetime | None = None
     post_compaction = False
     call_settings: dict[str, str] = {}
@@ -1455,47 +1347,13 @@ def analyze_claude_session(
 
     def add_source(item: SourceItem, generator: bool = False, text: str = "") -> None:
         active.append(item)
-        report.observed_payload[item.category] = (
-            report.observed_payload.get(item.category, 0) + item.tokens
-        )
-        if item.category == "AGENTS.md/instructions":
-            report.instruction_payloads[item.label] = (
-                report.instruction_payloads.get(item.label, 0) + item.tokens
-            )
-        if generator and item.tokens:
-            report.generators.append(
-                Generator(
-                    label=item.label,
-                    kind=item.kind,
-                    payload_tokens=item.tokens,
-                    command=item.command,
-                    file=item.file,
-                )
-            )
-        if item.command and item.tokens:
-            report.command_payloads[item.command] = (
-                report.command_payloads.get(item.command, 0) + item.tokens
-            )
-        if item.file and item.tokens:
-            report.file_payloads[item.file] = (
-                report.file_payloads.get(item.file, 0) + item.tokens
-            )
-        if text and item.command:
-            files = extract_files_from_command(item.command, text)
-            if files:
-                share = max(1, item.tokens // len(files))
-                for file_name in files:
-                    report.file_payloads[file_name] = (
-                        report.file_payloads.get(file_name, 0) + share
-                    )
+        record_source(report, item, generator, text)
 
     def record_usage(timestamp: str, usage: Usage, settings: dict[str, str], ttl: float) -> None:
         nonlocal previous_model_call_at, post_compaction, call_settings, cache_ttl, platform_floor
         report.total.add_assign(usage)
         report.last = usage
         report.model_calls += 1
-        report.inner_usage.add_assign(usage)
-        report.inner_model_calls += 1
         gap_seconds, cold_reason = call_diagnostics(
             timestamp, usage, previous_model_call_at, post_compaction,
             setting_changes(call_settings, settings), cache_ttl,
@@ -1504,11 +1362,10 @@ def analyze_claude_session(
         post_compaction = False
         call_settings, cache_ttl = settings, ttl or cache_ttl
 
-        known_by_category: dict[str, float] = collections.defaultdict(float)
-        for item in active:
-            known_by_category[item.category] += item.tokens
-        exact_known = min(known_by_category.get("Reasoning/thinking", 0.0), usage.input_tokens)
-        estimated = sum(known_by_category.values()) - known_by_category.get("Reasoning/thinking", 0.0)
+        known = summarize_sources(active)
+        thinking = known.get("Reasoning/thinking", 0)
+        exact_known = min(thinking, usage.input_tokens)
+        estimated = sum(known.values()) - thinking
         attributed: dict[str, float] = {}
         if usage.input_tokens:
             # o200k under-counts Claude's tokenizer; calibrate on this session's exact visible output.
@@ -1517,36 +1374,13 @@ def analyze_claude_session(
                 platform_floor = max(0.0, usage.input_tokens - exact_known - estimated)
             room = max(0.0, usage.input_tokens - exact_known - platform_floor)
             scale = min(ratio, room / estimated) if estimated else 1.0
-            known_used = 0.0
-            for category, value in known_by_category.items():
-                amount = exact_known if category == "Reasoning/thinking" else value * scale
-                attributed[category] = amount
-                known_used += amount
-            residual = max(0.0, usage.input_tokens - known_used)
-            if residual:
-                attributed["Other/platform context"] = residual
-            for category, amount in attributed.items():
-                report.cumulative_attribution[category] = (
-                    report.cumulative_attribution.get(category, 0.0) + amount
-                )
-            add_instruction_attribution(report, active, scale)
+            attributed = attribute(report, active, usage.input_tokens, scale, {"Reasoning/thinking": exact_known})
 
         if keep_calls:
+            window = report.context_window
             report.calls.append(
-                ModelCall(
-                    timestamp=timestamp,
-                    usage=usage,
-                    cumulative=dataclasses.replace(report.total),
-                    context_window=report.context_window,
-                    context_ratio=(
-                        usage.input_tokens / report.context_window
-                        if report.context_window
-                        else 0.0
-                    ),
-                    attributed=attributed,
-                    gap_seconds=gap_seconds,
-                    cold_reason=cold_reason,
-                )
+                ModelCall(timestamp, usage, dataclasses.replace(report.total), window,
+                          usage.input_tokens / window if window else 0.0, attributed, gap_seconds, cold_reason)
             )
 
     for rec in iter_rollout(path):
@@ -1560,15 +1394,6 @@ def analyze_claude_session(
             if not report.started_at:
                 report.started_at = timestamp
             report.ended_at = timestamp
-            activity_at = parse_timestamp(timestamp)
-            if activity_at:
-                if last_activity_at is None or activity_at - last_activity_at > INNER_SESSION_GAP:
-                    report.inner_started_at = timestamp
-                    report.inner_usage = Usage()
-                    report.inner_model_calls = 0
-                    report.inner_compactions = 0
-                last_activity_at = activity_at
-                report.inner_ended_at = timestamp
             report.activity_events.append(ActivityEvent(timestamp))
 
         report.session_id = str(rec.get("sessionId") or report.session_id)
@@ -1578,7 +1403,6 @@ def analyze_claude_session(
 
         if record_type == "system" and rec.get("subtype") == "compact_boundary":
             report.compactions += 1
-            report.inner_compactions += 1
             post_compaction = True
             if timestamp:
                 report.activity_events.append(ActivityEvent(timestamp, compaction=True))
@@ -1588,7 +1412,6 @@ def analyze_claude_session(
         if record_type == "summary":
             if not has_compaction_boundaries:
                 report.compactions += 1
-                report.inner_compactions += 1
                 post_compaction = True
                 if timestamp:
                     report.activity_events.append(ActivityEvent(timestamp, compaction=True))
@@ -1656,9 +1479,7 @@ def analyze_claude_session(
                 if not isinstance(block, dict):
                     continue
                 block_type = str(block.get("type") or "")
-                if block_type in {"text", "thinking"}:
-                    if block_type == "thinking":
-                        continue
+                if block_type == "text":
                     text = str(block.get("text") or "")
                     tokens = estimate_tokens(text)
                     calibration[1] += tokens
@@ -2175,6 +1996,10 @@ def collect_optimization(report: SessionReport) -> dict[str, Any]:
     }
 
 
+def ponytail_status(ponytail: dict[str, Any]) -> str:
+    return "enabled" if ponytail["plugin_enabled"] else "policy only" if ponytail["policy_active"] else "not detected"
+
+
 def render_optimization(report: SessionReport) -> None:
     optimization = collect_optimization(report)
 
@@ -2200,9 +2025,7 @@ def render_optimization(report: SessionReport) -> None:
             f"{'≥' if activity['calls_are_lower_bound'] else ''}{activity['calls_observed']} calls, "
             f"{human_int(activity['result_tokens_estimate'])} result tokens (estimated)",
         )
-    ponytail = optimization["ponytail"]
-    status = "enabled" if ponytail["plugin_enabled"] else "policy only" if ponytail["policy_active"] else "not detected"
-    print_kv("Ponytail", f"{status}; savings not measurable from rollout data")
+    print_kv("Ponytail", f"{ponytail_status(optimization['ponytail'])}; savings not measurable from rollout data")
 
 
 def render_payload_breakdown(title: str, note: str, payload: dict[str, int]) -> None:
@@ -2563,15 +2386,7 @@ def render_short_report(report: SessionReport) -> None:
         f"Serena {optimization['serena_activity']['calls_observed']}, "
         f"Context7 {optimization['context7_activity']['calls_observed']}",
     )
-    ponytail = optimization["ponytail"]
-    ponytail_status = (
-        "enabled"
-        if ponytail["plugin_enabled"]
-        else "policy only"
-        if ponytail["policy_active"]
-        else "not detected"
-    )
-    print_kv("Ponytail", f"{ponytail_status}; savings not measurable")
+    print_kv("Ponytail", f"{ponytail_status(optimization['ponytail'])}; savings not measurable")
     if report.parse_errors:
         print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
 

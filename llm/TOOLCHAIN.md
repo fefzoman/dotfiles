@@ -247,7 +247,7 @@ Each piece has exactly one owner:
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Headroom removal | `llm/ai-install.sh` `remove_headroom` | Unroutes all four profiles, removes the service and tool when present (§7) |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
-| smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_read_hint` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
+| smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
 | Spec Kit CLI | `llm/ai-install.sh` `install_ai_tools`, `install_global_agents` | `uv tool install --upgrade specify-cli`; project initialization stays explicit through `/speckit-init` (Claude) or `$speckit-init` (Codex) |
 | Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
 

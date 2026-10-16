@@ -47,7 +47,7 @@ class IdleCompactTest(unittest.TestCase):
         self.env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.home / "state"),
                                                 "HOME": str(self.home)}, clear=False)
         self.env.start()
-        for key in ("IDLE_COMPACT_TEST_SECONDS", "CLAUDE_CONFIG_DIR"):
+        for key in ("IDLE_COMPACT_TEST_SECONDS", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_EXECPATH"):
             os.environ.pop(key, None)
         self.transcript = self.home / "s1.jsonl"
 

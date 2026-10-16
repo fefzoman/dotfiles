@@ -219,6 +219,10 @@ def codex_records(path: Path, tail: int | None = None) -> list[dict[str, Any]]:
     return out
 
 
+def loader(client: str):
+    return codex_records if client == "codex" else records
+
+
 def stamp(record: dict[str, Any]) -> float:
     try:
         return datetime.fromisoformat(record["timestamp"].replace("Z", "+00:00")).timestamp()
@@ -236,6 +240,10 @@ def blocks(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 def text_of(record: dict[str, Any]) -> str:
     return "\n".join(b.get("text", "") for b in blocks(record) if b.get("type") == "text").strip()
+
+
+def replies_since(recs: list[dict[str, Any]], when: float) -> str:
+    return "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= when - 1)
 
 
 def is_prompt(record: dict[str, Any]) -> bool:
@@ -552,12 +560,12 @@ def codex_summary(session: str, cwd: str, recs: list[dict[str, Any]], request: s
 
 def arm(hook: dict[str, Any], client: str = "claude") -> int:
     session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
-    load_records = codex_records if client == "codex" else records
+    load_records = loader(client)
     recs = load_records(transcript, TAIL_BYTES)
     requested = float(read(marker(session, "manual")) or 0)
     if requested:
         marker(session, "manual").unlink(missing_ok=True)
-        reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= requested - 1)
+        reply = replies_since(recs, requested)
         folder = folder_for(session)
         if reply and folder:
             store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
@@ -565,7 +573,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         return 0
     fired = float(read(marker(session, "fired")) or 0)
     if client == "claude" and fired and fired > last_prompt(recs):
-        reply = "\n\n".join(text_of(r) for r in recs if r.get("type") == "assistant" and stamp(r) >= fired - 1)
+        reply = replies_since(recs, fired)
         folder = folder_for(session)
         if reply and folder and read(marker(session, "stored")) != str(fired):
             store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
@@ -613,7 +621,7 @@ def end(hook: dict[str, Any], client: str = "claude") -> int:
         return 0
     if marker(session, "arm").exists():
         write(marker(session, "arm"), "ended")
-    full = (codex_records if client == "codex" else records)(transcript)
+    full = loader(client)(transcript)
     call, folder = last_call(full), folder_for(session)
     if not call or call[1] < min_tokens(client) or folder and fresh(folder, full):
         return 0
@@ -714,7 +722,7 @@ def unguarded(session: str, call: tuple[float, int] | None, gap: float, client: 
 
 
 def guard(hook: dict[str, Any], client: str = "claude") -> int:
-    load_records = codex_records if client == "codex" else records
+    load_records = loader(client)
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     folder, cwd = folder_for(session), hook.get("cwd") or os.getcwd()
     pitstop = "$pitstop" if client == "codex" else "/pitstop"
@@ -802,8 +810,8 @@ def resume(cwd: str, only: str | None = None) -> str:
             continue
         header, ok, body = read(folder / "checkpoint.md").partition("\n---\n")
         old = re.search(r"(?m)^transcript: (.+)$", header)
-        load_records = codex_records if "\nclient: codex\n" in header + "\n" else records
-        if not ok or old and not fresh(folder, load_records(Path(old[1]), TAIL_BYTES)):
+        client = "codex" if "\nclient: codex\n" in header + "\n" else "claude"
+        if not ok or old and not fresh(folder, loader(client)(Path(old[1]), TAIL_BYTES)):
             continue
         found.append((folder, session, header, body))
         if len(found) == 5:
@@ -891,12 +899,10 @@ def turn(session: str, number: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("arm").add_argument("--client", choices=("claude", "codex"), default="claude")
+    for name in ("arm", "end", "guard", "instructions"):
+        commands.add_parser(name).add_argument("--client", choices=("claude", "codex"), default="claude")
     commands.add_parser("resume").add_argument("session", nargs="?")
     commands.add_parser("clear")
-    commands.add_parser("end").add_argument("--client", choices=("claude", "codex"), default="claude")
-    commands.add_parser("guard").add_argument("--client", choices=("claude", "codex"), default="claude")
-    commands.add_parser("instructions").add_argument("--client", choices=("claude", "codex"), default="claude")
     find = commands.add_parser("search")
     find.add_argument("query")
     find.add_argument("--all", action="store_true")

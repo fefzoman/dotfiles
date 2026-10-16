@@ -295,38 +295,14 @@ install_codex_hooks() {
   done
 }
 
-install_claude_compact_statusline() {
-  local config_dir="$HOME/.config/dotfiles" profile
+install_claude_hook() {
+  local script="$1" setting="$2" config_dir="$HOME/.config/dotfiles" profile
 
   mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/claude/claude_compact_statusline.py" \
-    "$config_dir/claude_compact_statusline.py"
+  install -m 0755 "$SCRIPT_DIR/$script" "$config_dir/"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
-    agent_config statusline "$profile/settings.json"
-  done
-}
-
-install_claude_context7_guard() {
-  local config_dir="$HOME/.config/dotfiles" profile
-
-  mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/context7_version_guard.py" \
-    "$config_dir/context7_version_guard.py"
-  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    mkdir -p "$profile"
-    agent_config context7-guard "$profile/settings.json"
-  done
-}
-
-install_read_hint() {
-  local config_dir="$HOME/.config/dotfiles" profile
-
-  mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/read_hint.py" "$config_dir/read_hint.py"
-  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    mkdir -p "$profile"
-    agent_config read-hint "$profile/settings.json"
+    agent_config "$setting" "$profile/settings.json"
   done
 }
 
@@ -392,13 +368,13 @@ install_codex_hooks
 echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
 echo "==> Installing Claude compact-warning status line..."
-install_claude_compact_statusline
+install_claude_hook claude/claude_compact_statusline.py statusline
 echo "==> Installing Claude Context7 version guard..."
-install_claude_context7_guard
+install_claude_hook context7_version_guard.py context7-guard
 echo "==> Installing idle compaction hooks..."
 install_idle_compact
 echo "==> Installing smart-read hints for large whole-file reads..."
-install_read_hint
+install_claude_hook read_hint.py read-hint
 echo "==> Disabling Claude commit and PR attribution..."
 disable_claude_attribution
 echo "==> Disabling unused claude.ai connectors in Claude profiles..."

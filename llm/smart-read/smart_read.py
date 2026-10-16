@@ -163,9 +163,13 @@ def repo_files(root: Path) -> list[str]:
     return [n for n in names if Path(n).suffix.lower() in TEXT_SUFFIXES or Path(n).name in TEXT_NAMES]
 
 
+def cache_key(root: Path) -> str:
+    return hashlib.sha1(str(root).encode()).hexdigest()[:16]
+
+
 def connect(root: Path) -> sqlite3.Connection:
     CACHE.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(CACHE / f"{hashlib.sha1(str(root).encode()).hexdigest()[:16]}.db")
+    db = sqlite3.connect(CACHE / f"{cache_key(root)}.db")
     db.executescript("""
         PRAGMA journal_mode=WAL;
         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
@@ -286,7 +290,7 @@ def rrf(rankings: list[list[int]], weights: tuple[float, ...] = RRF_WEIGHTS) -> 
 
 
 def background_index(root: Path) -> None:
-    lock = CACHE / f"{hashlib.sha1(str(root).encode()).hexdigest()[:16]}.indexing"
+    lock = CACHE / f"{cache_key(root)}.indexing"
     try:
         if lock.exists() and lock.stat().st_mtime > time.time() - 3600:
             return
