@@ -1,8 +1,8 @@
 # Claude model matrix benchmark
 
-This compares Claude settings on the same coding tasks in this repository: 8 routine tasks × 3 repeats × 6 settings, plus 4 harder tasks × 3 repeats × 3 settings, for 180 trials. Every trial starts from an independent copy of dotfiles at `270076e`. Results apply to these bounded Python and shell maintenance tasks, not arbitrary repositories or large architectural work.
+This compares Claude settings on the same coding tasks in this repository: 8 routine tasks × 3 repeats × 6 settings, plus 4 harder tasks × 3 repeats × 5 settings, for 204 trials. Every trial starts from an independent copy of dotfiles at `270076e`. Results apply to these bounded Python and shell maintenance tasks, not arbitrary repositories or large architectural work.
 
-The routine suite runs `claude-haiku-5-5` / Low and Medium, and `claude-opus-5-5` / Medium, High, XHigh and Max. The harder suite runs Haiku / Low, Opus / High and Opus / XHigh. The tasks cover:
+The routine suite runs `claude-haiku-5-5` / Low and Medium, and `claude-opus-5-5` / Medium, High, XHigh and Max. The harder suite runs every setting except Max. The tasks cover:
 
 | Task | Suite | Required behavior |
 |---|---|---|
@@ -45,7 +45,7 @@ The second command uses plan or API usage. Completed trials are reused on restar
 
 ## Results
 
-All 180 saved workspaces were regraded with the final checks. There were no timeouts or agent errors among them.
+All 204 saved workspaces were regraded with the final checks. There were no timeouts or agent errors among them.
 
 Routine suite, 24 trials per setting:
 
@@ -63,18 +63,20 @@ Harder suite, 12 trials per setting:
 | Setting | API calls | Fresh input/call | Reasoning/call | Cache hit | Total API-equivalent cost | Success | Median time |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | Haiku / Low | 144 | 2,526 | 278 | 93.4% | $0.17 | 11/12 | 32s |
+| Haiku / Medium | 158 | 2,868 | 397 | 93.5% | $0.22 | 10/12 | 44s |
+| Opus / Medium | 114 | 2,706 | 68 | 91.9% | $4.24 | 12/12 | 49s |
 | Opus / High | 130 | 3,037 | 127 | 92.5% | $5.34 | 12/12 | 56s |
 | Opus / XHigh | 152 | 3,051 | 318 | 93.0% | $6.93 | 12/12 | 91s |
 
-| Task | Haiku / Low | Opus / High | Opus / XHigh |
-|---|---:|---:|---:|
-| top_model | 3/3 | 3/3 | 3/3 |
-| monorepo | 2/3 | 3/3 | 3/3 |
-| sed_range | 3/3 | 3/3 | 3/3 |
-| effort_arg | 3/3 | 3/3 | 3/3 |
+| Task | Haiku / Low | Haiku / Medium | Opus / Medium | Opus / High | Opus / XHigh |
+|---|---:|---:|---:|---:|---:|
+| top_model | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
+| monorepo | 2/3 | 2/3 | 3/3 | 3/3 | 3/3 |
+| sed_range | 3/3 | 2/3 | 3/3 | 3/3 | 3/3 |
+| effort_arg | 3/3 | 3/3 | 3/3 | 3/3 | 3/3 |
 
-Every routine trial passed. The one failure, Haiku / Low on its third `monorepo` attempt, restored the git-root lookup but not the case-insensitive name match, so `Flask_Login` still went unchecked.
+Every routine trial passed. All three harder failures were Haiku: one Low and one Medium `monorepo` attempt restored the git-root lookup but not the case-insensitive name match, so `Flask_Login` still went unchecked; one Medium `sed_range` attempt hinted on a 50-line file because it ignored the file's length.
 
-**Opus / High had the lowest total cost among settings passing every trial in both suites.** Haiku / Low passed every routine trial at about 1/28 of that cost. XHigh matched High at 1.3–1.5× the cost and 1.5–1.6× the time, and Max matched it at 4.8× the cost and 7× the time. The suites do not measure large features, architectural decisions or security audits. Three repeats per task are too few to infer general reliability, and caching is observed rather than forced cold.
+**Opus / Medium had the lowest total cost among settings passing every trial in both suites**: 7% below High on routine tasks and 21% below on harder ones. Haiku / Low passed every routine trial at about 1/26 of that cost. Haiku / Medium cost more than Low and passed fewer harder trials. XHigh matched Medium at 1.6× the cost and 1.7–1.9× the time, and Max matched it on routine tasks at 5.2× the cost and 8× the time. The suites do not measure large features, architectural decisions or security audits. Three repeats per task are too few to infer general reliability, and caching is observed rather than forced cold.
 
 [Full per-trial counters and outcomes](results.json). Raw event streams, workspaces and grading output remain in `~/claude-matrix-runs-20261016/`.

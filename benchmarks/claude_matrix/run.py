@@ -26,7 +26,7 @@ SETTINGS = {
     "opus-xhigh": ("claude-opus-5-5", "xhigh"),
     "opus-max": ("claude-opus-5-5", "max"),
 }
-HARD_SETTINGS = ("haiku-low", "opus-high", "opus-xhigh")
+HARD_SETTINGS = ("haiku-low", "haiku-medium", "opus-medium", "opus-high", "opus-xhigh")
 
 
 def plan():
