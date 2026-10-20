@@ -5,13 +5,14 @@ from __future__ import annotations
 
 import argparse
 import ast
+import fcntl
 import hashlib
 import os
 import re
 import sqlite3
 import subprocess
 import sys
-import time
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -151,7 +152,9 @@ def chunk_file(path: str, text: str) -> list[Chunk]:
 
 def repo_root(start: Path) -> Path:
     found = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
-    return Path(found.stdout.strip()) if found.returncode == 0 else start.resolve()
+    if found.returncode:
+        raise ValueError(f"{start} is not inside a Git repository; cd into the target repository first")
+    return Path(found.stdout.strip()).resolve()
 
 
 def repo_files(root: Path) -> list[str]:
@@ -251,17 +254,22 @@ def embedder():
 def embed_pending(db: sqlite3.Connection) -> int:
     import numpy as np
 
-    rows = db.execute("SELECT id, path, symbol, text FROM chunks WHERE vec IS NULL ORDER BY id").fetchall()
-    if not rows:
+    total = db.execute("SELECT count(*) FROM chunks WHERE vec IS NULL").fetchone()[0]
+    if not total:
         return 0
+    print(f"Embedding 0/{total} chunks; loading {EMBED_MODEL} (Ctrl-C to stop)", file=sys.stderr, flush=True)
     model = embedder()
-    for start in range(0, len(rows), 64):
-        batch = rows[start:start + 64]
+    completed, last_id = 0, 0
+    while batch := db.execute("SELECT id, path, symbol, text FROM chunks WHERE vec IS NULL AND id > ? "
+                             "ORDER BY id LIMIT 64", (last_id,)).fetchall():
         vectors = model.embed([f"{p}\n{s}\n{t}"[:EMBED_CHARS] for _, p, s, t in batch], batch_size=64)
         db.executemany("UPDATE chunks SET vec=? WHERE id=?",
                        [(np.asarray(v, dtype=np.float32).tobytes(), i) for (i, *_), v in zip(batch, vectors)])
         db.commit()
-    return len(rows)
+        last_id = batch[-1][0]
+        completed += len(batch)
+        print(f"Embedded {completed}/{total} chunks", file=sys.stderr, flush=True)
+    return completed
 
 
 def dense(db: sqlite3.Connection, query: str, path: str | None) -> list[int]:
@@ -286,19 +294,6 @@ def rrf(rankings: list[list[int]], weights: tuple[float, ...] = RRF_WEIGHTS) -> 
     return sorted(scores, key=lambda i: -scores[i])
 
 
-def background_index(root: Path) -> None:
-    lock = CACHE / f"{cache_key(root)}.indexing"
-    try:
-        if lock.exists() and lock.stat().st_mtime > time.time() - 3600:
-            return
-        lock.write_text(str(os.getpid()))
-    except OSError:
-        return
-    subprocess.Popen([sys.executable, os.path.abspath(__file__), "index", "--root", str(root), "--lock", str(lock)],
-                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     start_new_session=True)
-
-
 def search(db: sqlite3.Connection, root: Path, query: str, path: str | None, k: int,
            use_dense: bool = True) -> tuple[list[tuple[int, float]], str]:
     refresh(db, root)
@@ -306,11 +301,8 @@ def search(db: sqlite3.Connection, root: Path, query: str, path: str | None, k: 
     rankings = [lexical(db, query, path), trigram(db, query, path)]
     if use_dense:
         pending = db.execute("SELECT count(*) FROM chunks WHERE vec IS NULL").fetchone()[0]
-        if pending > 200:
-            background_index(root)
-            note = f"note: embedding {pending} chunks in the background; results are lexical until it finishes"
-        elif pending:
-            embed_pending(db)
+        if pending:
+            note = f"note: {pending} chunks use lexical retrieval only; run `smart-read index` explicitly to embed them"
         rankings.append(dense(db, query, path))
     fused = rrf(rankings)
     return [(i, 1.0 / (n + 1)) for n, i in enumerate(fused[:k])], note
@@ -347,29 +339,38 @@ def main() -> int:
     find.add_argument("--lexical", action="store_true", help="BM25 + trigram only, no models")
     show = commands.add_parser("outline", help="symbols of a file with line ranges")
     show.add_argument("file")
-    build = commands.add_parser("index", help="refresh the index and embed every chunk")
+    build = commands.add_parser("index", help="refresh and embed pending chunks in the foreground (Ctrl-C to stop)")
     build.add_argument("--root")
-    build.add_argument("--lock", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.command == "outline":
         print(outline(Path(args.file)))
         return 0
-    root = repo_root(Path(getattr(args, "root", None) or os.getcwd()))
-    if args.command == "index":
-        try:
-            db = connect(root)
-            files = refresh(db, root)
-            print(f"{root}: {files} files re-chunked, {embed_pending(db)} chunks embedded")
-        finally:
-            if args.lock:
-                Path(args.lock).unlink(missing_ok=True)
-        return 0
-    path = args.path
-    if path and Path(path).is_absolute():
-        path = os.path.relpath(path, root)
-    db = connect(root)
-    hits, note = search(db, root, args.query, path, args.k, use_dense=not args.lexical)
-    print(render(db, hits, note))
+    try:
+        root = repo_root(Path(getattr(args, "root", None) or os.getcwd()))
+    except ValueError as exc:
+        parser.error(str(exc))
+    CACHE.mkdir(parents=True, exist_ok=True)
+    try:
+        with (CACHE / f"{cache_key(root)}.indexing").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print(f"{root}: index in use by another smart-read command; retry after it finishes", file=sys.stderr)
+                return 1
+            with closing(connect(root)) as db:
+                if args.command == "index":
+                    files = refresh(db, root)
+                    print(f"{root}: {files} files re-chunked", file=sys.stderr, flush=True)
+                    print(f"{root}: {embed_pending(db)} chunks embedded")
+                else:
+                    path = args.path
+                    if path and Path(path).is_absolute():
+                        path = os.path.relpath(path, root)
+                    hits, note = search(db, root, args.query, path, args.k, use_dense=not args.lexical)
+                    print(render(db, hits, note))
+    except KeyboardInterrupt:
+        print("Index/search interrupted; completed embedding batches are saved.", file=sys.stderr)
+        return 130
     return 0
 
 

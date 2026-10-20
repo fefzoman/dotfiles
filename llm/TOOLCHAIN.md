@@ -69,11 +69,11 @@ Upstream's `serena setup codex` writes the equivalent Codex entry. Verify with `
 
 Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-read/`, installed with `uv tool`) covers what is left: finding code by behavior ("where are spend retries configured") and reading part of a large SQL, Terraform, YAML or Markdown file. File reads were 30–55% of re-read input in the largest Claude sessions, mostly whole files printed with `cat`. It is a CLI, so both clients use it through the shell with no extra tool schemas.
 
-- `search "<question>" [--path P] [-k N]`:
-  - Fuses three rankings with weighted Reciprocal Rank Fusion: BM25 over symbol-aware chunks, a trigram index, and local code embeddings (`jina-embeddings-v2-base-code`).
+- `search "<question>" [--path P] [-k N]` inside the target Git repository:
+  - Fuses BM25, trigram, and existing local code embeddings (`jina-embeddings-v2-base-code`); pending chunks use lexical retrieval. Search never creates embeddings or starts workers. Agents default to `--lexical` to avoid loading models.
   - It prints the best line ranges with line numbers.
 - `outline FILE` lists symbols with line ranges.
-- One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. Embeddings for large changes run in the background.
+- One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. `index` embeds pending chunks in the foreground, with batch progress and Ctrl-C cancellation, only on explicit user request. An OS lock prevents overlapping commands in that repository.
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
 - `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a note pointing at `smart-read` before a whole-file read of 80 or more lines; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through.
 

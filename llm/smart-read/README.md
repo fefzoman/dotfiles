@@ -4,11 +4,12 @@ Hybrid code search for Claude Code and Codex. It returns the few line ranges a t
 less code enters, and is then re-read from, the conversation context.
 
 ```bash
-smart-read search "where are spend API retries configured"     # whole repo
+cd /path/to/repository
+smart-read search "where are spend API retries configured" --lexical # agent default, no models
 smart-read search "token refresh" --path src/auth/ -k 3          # file, directory prefix or glob
 smart-read search "facebook_spend" --lexical                     # no models: BM25 + trigram only
 smart-read outline models/marts/ad_spend_daily.sql               # symbols with line ranges, no models
-smart-read index                                                 # embed every chunk now
+smart-read index                                                 # explicit request only; foreground, Ctrl-C to stop
 ```
 
 ## How it works
@@ -26,8 +27,19 @@ smart-read index                                                 # embed every c
    characters.
 
 The index is one SQLite file per repository under `~/.cache/smart-read`; models live in `~/.cache/smart-read/models` (fastembed defaults to `$TMPDIR`, which macOS purges). Each query re-chunks only files whose mtime or
-size changed. When more than 200 chunks lack embeddings, the query starts `smart-read index` in the background and
-answers lexically until it finishes. Changing the embedding model re-embeds everything.
+size changed. Search never creates embeddings or starts background workers: it combines existing embeddings with
+lexical retrieval, including unembedded chunks. `--lexical` skips models entirely. Changing the embedding model
+invalidates existing vectors; only an explicit `smart-read index` rebuilds them.
+
+Search and index require a Git repository; a parent folder containing multiple repositories is rejected. `--path`
+filters search results, not discovery: cd into the actual repository first. `outline` works anywhere.
+
+Indexing runs in the foreground, loads pending text in batches of 64, and prints progress before model loading and
+after each committed batch. Ctrl-C exits with status 130; rerunning resumes the remaining chunks. Model inference
+can still use substantial RAM, which is released when the process exits. Never detach indexing.
+An OS lock is held until the command exits, without a time-based expiry. Concurrent search/index commands in the
+same repository fail with an "index in use" message; retry afterward. The lock file stays on disk but does not
+represent a running process by itself. Completed batches remain saved after interruption.
 
 Models (fastembed, CPU) can be overridden with `SMART_READ_EMBED`; the default was chosen by
 the evaluation below.
@@ -62,6 +74,7 @@ Model selection, with equal-weight fusion:
 
 ## Agent integration
 
-- The global agent policies tell both agents to use `smart-read` to find code by behavior or to read part of a large file.
+- Both agents default to `search --lexical` inside the target repository or `outline` for file structure. They may
+  run foreground embedding indexing only on an explicit user request, and must stop it on cancellation.
 - `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a non-blocking note when the agent reads a
   file of 80 or more lines whole with `cat` or an unranged Read. Set `READ_HINT_MIN_LINES` to change the threshold.

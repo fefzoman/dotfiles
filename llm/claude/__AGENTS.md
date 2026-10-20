@@ -11,7 +11,8 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 ## Retrieval
 
 - Code: Serena overview → symbol → references → needed bodies. Activate the repo before symbol calls and when switching repos; never start another Serena server unless asked.
-- Code by behavior, or part of a large file (SQL, Terraform, YAML, docs too): `smart-read search "<question>" [--path P]` or `smart-read outline FILE`, then read only the returned line ranges.
+- Code by behavior, or part of a large file (SQL, Terraform, YAML, docs too): run `smart-read search "<question>" --lexical [--path P]` inside the target Git repository, or `smart-read outline FILE`; read only the returned line ranges. `--path` filters results, not repository discovery.
+- Embedding indexing: run `smart-read index` only when the user explicitly requests it, inside the target repository, in the foreground. Never detach it (`&`, `nohup`) or leave its tool session unmonitored; poll until it exits and stop it on cancellation. Search never creates embeddings; omit `--lexical` only when semantic retrieval is needed.
 - Non-code, generated content, unsupported languages, exact-text searches, and tiny known files: plain file tools. Do not reread known content or rediscover available tools.
 - External API/library behavior that is unfamiliar or version-sensitive: Context7, at the version pinned in the project environment or lockfile. Stable language behavior needs neither tool.
 

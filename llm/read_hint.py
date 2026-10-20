@@ -67,8 +67,9 @@ def main() -> int:
         if lines >= MIN_LINES:
             notes.append(
                 f"{name} has {lines} lines. To read only what the task needs: `smart-read outline {name}` lists its "
-                f'symbols with line ranges; `smart-read search "<what you need>" --path {name}` returns the relevant '
-                "parts; then read just that line range."
+                f'symbols with line ranges; inside the target Git repository, `smart-read search "<what you need>" '
+                f'--lexical --path {name}` returns the relevant parts; then read just that line range. '
+                "Embedding indexing requires an explicit user request; never start it in the background."
             )
         if seen and lines >= BLOCK_LINES and str(path.resolve()) not in denied:
             blocked.append(str(path.resolve()))
