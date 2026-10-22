@@ -47,7 +47,7 @@ class IdleCompactTest(unittest.TestCase):
         self.env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.home / "state"),
                                                 "HOME": str(self.home)}, clear=False)
         self.env.start()
-        for key in ("IDLE_COMPACT_TEST_SECONDS", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_EXECPATH"):
+        for key in ("IDLE_COMPACT_TEST_SECONDS", "CLAUDE_CONFIG_DIR", "CLAUDE_CODE_EXECPATH", "CLAUDE_PROJECT_DIR"):
             os.environ.pop(key, None)
         self.transcript = self.home / "s1.jsonl"
 
@@ -131,6 +131,28 @@ class IdleCompactTest(unittest.TestCase):
         self.assertNotIn("patched a.py", (ic.folder_for("s1") / "checkpoint.md").read_text())
         loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2"})[1])
         self.assertIn("### Next steps\nlock", loaded["hookSpecificOutput"]["additionalContext"])
+
+    def test_checkpoint_after_cd_into_a_subdir_loads_in_the_launch_dir(self) -> None:
+        os.environ["CLAUDE_PROJECT_DIR"] = self.cwd
+        sub = Path(self.cwd) / "sub"
+        sub.mkdir()
+        now = time.time()
+        recs = [prompt("Fix the race", now - 60), reply("patched", now - 50)]
+        self.run_hook(ic.guard, self.save(recs) | {"cwd": str(sub), "prompt": "/checkpoint"})
+        hook = self.save(recs + [reply("## Idle checkpoint\n### Goal\nFix race", now + 2)]) | {"cwd": str(sub)}
+        self.run_hook(ic.arm, hook)
+        self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
+        loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2", "cwd": self.cwd})[1])
+        self.assertIn("### Goal\nFix race", loaded["hookSpecificOutput"]["additionalContext"])
+
+    def test_sleeper_waking_after_cache_expiry_stores_excerpts_instead(self) -> None:
+        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
+        now, nap = time.time(), time.sleep
+        hook = self.save([prompt("Fix the race", now), reply("patched", now)])
+        with mock.patch.object(ic.time, "sleep", lambda s: nap(s + 0.5)):
+            self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
+        self.assertFalse(ic.marker("s1", "fired").exists())
+        self.assertIn("Local transcript excerpts", (ic.folder_for("s1") / "checkpoint.md").read_text())
 
     def test_newer_activity_or_token_cancels_the_sleeper(self) -> None:
         old = time.time() - 30

@@ -142,6 +142,8 @@ def git(cwd: str, *args: str) -> str:
 
 
 def project_of(cwd: str) -> str:
+    # Claude hooks report the shell's latest cd; the launch dir keeps a session in one project.
+    cwd = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
     root = Path(git(cwd, "rev-parse", "--show-toplevel") or cwd)
     return f"{re.sub(r'[^A-Za-z0-9._-]+', '-', root.name) or 'root'}-{hashlib.sha1(str(root).encode()).hexdigest()[:6]}"
 
@@ -590,6 +592,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     seen, gap = last_message(recs), lifetime(client, recs)
     fraction = NATIVE_FIRE_FRACTION if client == "claude" and native_idle_compact() else FIRE_FRACTION
     fire_at = call[0] + gap * fraction
+    waited = fire_at > time.time()
     while (wait := fire_at - time.time()) > 0:
         time.sleep(min(60.0, wait))
         if read(marker(session, "arm")) != token or last_message(load_records(transcript, TAIL_BYTES)) > seen:
@@ -603,7 +606,11 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         return 0
     save_snapshot(folder, items, digest)
     now = time.time()
-    request = REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
+    if waited and now >= call[0] + gap:
+        # The host slept past the cache expiry, so waking now would rewrite the whole context.
+        store_checkpoint(folder, session, excerpts(items), cwd, transcript, client, last_prompt(full))
+        return 0
+    request =REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
                              pitstop="$pitstop" if client == "codex" else "/pitstop") + "\n\n" + render_digest(digest)
     if client == "claude":
         write(marker(session, "fired"), str(now))
