@@ -296,7 +296,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         result = subprocess.run([sys.executable, ic.__file__, "clear"], input=json.dumps(self.hook | {"session_id": "codex-new"}),
                                 text=True, capture_output=True, check=True)
         loaded = json.loads(result.stdout)
-        self.assertEqual(loaded["systemMessage"], "Loaded idle checkpoint codex-session into session codex-new.")
+        self.assertTrue(loaded["systemMessage"].startswith("Loaded idle checkpoint codex-session into session codex-new.\n\n"))
         self.assertIn("client: codex", ic.read(ic.folder_for("codex-session") / "checkpoint.md"))
         self.assertIn("Continuing from idle checkpoint codex-session", loaded["hookSpecificOutput"]["additionalContext"])
 

@@ -852,7 +852,9 @@ def clear(hook: dict[str, Any]) -> int:
     name = read(handoff(cwd))
     text = resume(cwd, name) if name else ""
     if text.startswith("Continuing"):
-        print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name} into session {hook['session_id']}.",
+        body = read(folder_for(name) / "checkpoint.md").partition("\n---\n")[2]
+        print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name} into session {hook['session_id']}."
+                                           f"\n\n{ordered_sections(body)}",
                           "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}))
     return 0
 
