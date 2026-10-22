@@ -76,7 +76,7 @@ Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-re
 - `outline FILE` lists symbols with line ranges.
 - One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. Embeddings for large changes run in the background.
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
-- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a non-blocking note pointing at `smart-read` before a whole-file read of 80 or more lines.
+- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a note pointing at `smart-read` before a whole-file read of 80 or more lines; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through.
 
 ## 5. Context7
 

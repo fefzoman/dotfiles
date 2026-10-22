@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Claude and Codex PreToolUse hook: before a whole-file read of a large file, point the model at smart-read."""
+"""Claude and Codex PreToolUse hook: before a whole-file read of a large file, point the model at smart-read.
+
+A very large file's first whole read in a session is denied; repeating the call goes through."""
 
 import json
 import os
@@ -7,9 +9,11 @@ import re
 import shlex
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 MIN_LINES = int(os.environ.get("READ_HINT_MIN_LINES") or 80)
+BLOCK_LINES = int(os.environ.get("READ_HINT_BLOCK_LINES") or 300)
 MAX_BYTES = 5_000_000
 WHOLE_READ = {"cat", "nl", "bat"}
 
@@ -53,16 +57,27 @@ def main() -> int:
     if not shutil.which("smart-read"):
         return 0
     cwd = Path(hook.get("cwd") or os.getcwd())
-    notes = []
+    session = str(hook.get("session_id") or "")
+    seen = Path(tempfile.gettempdir()) / f"read-hint-{session}" if re.fullmatch(r"[A-Za-z0-9_-]+", session) else None
+    denied = set(seen.read_text().splitlines()) if seen and seen.exists() else set()
+    notes, blocked = [], []
     for name in targets(hook):
-        lines = line_count(cwd / name)
+        path = cwd / name
+        lines = line_count(path)
         if lines >= MIN_LINES:
             notes.append(
                 f"{name} has {lines} lines. To read only what the task needs: `smart-read outline {name}` lists its "
                 f'symbols with line ranges; `smart-read search "<what you need>" --path {name}` returns the relevant '
                 "parts; then read just that line range."
             )
-    if notes:
+        if seen and lines >= BLOCK_LINES and str(path.resolve()) not in denied:
+            blocked.append(str(path.resolve()))
+    if blocked:
+        seen.write_text("".join(f"{p}\n" for p in sorted(denied | set(blocked))))
+        reason = "\n".join(notes) + "\nIf the task truly needs the whole file, repeat the same call."
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                                 "permissionDecisionReason": reason}}))
+    elif notes:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "\n".join(notes)}}))
     return 0
 

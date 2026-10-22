@@ -30,6 +30,23 @@ class ReadHintTest(unittest.TestCase):
         self.assertIn("big.py has 80 lines", self.run_hook("Read", {"file_path": str(self.dir / "big.py")}))
         self.assertIn("smart-read outline big.py", self.run_hook("Bash", {"command": "cd x && cat big.py"}))
 
+    def test_first_whole_read_of_a_huge_file_is_denied_once_per_session(self):
+        (self.dir / "huge.py").write_text("x = 1\n" * 300)
+        hook = {"cwd": str(self.dir), "session_id": f"t{os.getpid()}", "tool_name": "Read",
+                "tool_input": {"file_path": str(self.dir / "huge.py")}}
+
+        def run(extra=None):
+            out = subprocess.run([sys.executable, str(HOOK)], input=json.dumps(hook | (extra or {})),
+                                 capture_output=True, text=True, env=self.env, check=True).stdout
+            return json.loads(out)["hookSpecificOutput"]
+
+        self.addCleanup(Path(tempfile.gettempdir(), f"read-hint-{hook['session_id']}").unlink, missing_ok=True)
+        first = run()
+        self.assertEqual(first["permissionDecision"], "deny")
+        self.assertIn("huge.py has 300 lines", first["permissionDecisionReason"])
+        self.assertNotIn("permissionDecision", run())
+        self.assertNotIn("permissionDecision", run({"tool_input": {"file_path": str(self.dir / "big.py")}}))
+
     def test_ranged_small_piped_or_uninstalled_reads_pass_silently(self):
         self.assertEqual(self.run_hook("Read", {"file_path": str(self.dir / "big.py"), "offset": 1, "limit": 50}), "")
         self.assertEqual(self.run_hook("Read", {"file_path": str(self.dir / "small.py")}), "")
