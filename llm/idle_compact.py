@@ -40,6 +40,7 @@ SWITCH_NOTE = re.compile(r"<local-command-stdout>Set model to `([^`]+)`|<command
 INSTRUCTION_FILES = {"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.override.md"}
 SECTIONS = ("Goal", "Constraints", "Decisions", "Dead ends", "Done", "Current state", "Next steps", "Pointers")
 EDIT_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
+PATCH_FILE = re.compile(r"(?m)^\*\*\* (?:Add|Update|Delete) File: (.+)$")
 ROUTINE = re.compile(
     r"(yes|no|ok(ay)?|continue|go( on| ahead)?|proceed|thanks?( you)?|lgtm|do it|next|"
     r"commit( and push)?|push|run (the )?tests?)[.!]*",
@@ -101,6 +102,10 @@ def lifetime(client: str = "claude", recs: list[dict[str, Any]] | None = None) -
     if test:
         return float(test) / FIRE_FRACTION
     return CODEX_CACHE_TTL if client == "codex" else cache_ttl(recs or [])
+
+
+def pitstop(client: str) -> str:
+    return "$pitstop" if client == "codex" else "/pitstop"
 
 
 def min_tokens(client: str = "claude") -> int:
@@ -364,7 +369,7 @@ def edited_files(recs: list[dict[str, Any]]) -> Counter[str]:
                 elif ("replace" in name or "insert" in name) and args.get("relative_path"):
                     files[args["relative_path"]] += 1
                 elif "apply_patch" in name:
-                    for path in re.findall(r"(?m)^\*\*\* (?:Add|Update|Delete) File: (.+)$", str(args.get("input", ""))):
+                    for path in PATCH_FILE.findall(str(args.get("input", ""))):
                         files[path] += 1
     return files
 
@@ -610,8 +615,8 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         # The host slept past the cache expiry, so waking now would rewrite the whole context.
         store_checkpoint(folder, session, excerpts(items), cwd, transcript, client, last_prompt(full))
         return 0
-    request =REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
-                             pitstop="$pitstop" if client == "codex" else "/pitstop") + "\n\n" + render_digest(digest)
+    request = REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
+                             pitstop=pitstop(client)) + "\n\n" + render_digest(digest)
     if client == "claude":
         write(marker(session, "fired"), str(now))
         print(request, file=sys.stderr)
@@ -732,14 +737,13 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     load_records = loader(client)
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     folder, cwd = folder_for(session), hook.get("cwd") or os.getcwd()
-    pitstop = "$pitstop" if client == "codex" else "/pitstop"
     if MANUAL.fullmatch(str(hook.get("prompt", ""))):
         full = load_records(Path(hook["transcript_path"]))
         items, folder = turns(full), folder_for(session, cwd)
         digest = build_digest(full, cwd, items)
         save_snapshot(folder, items, digest)
         write(marker(session, "manual"), str(time.time()))
-        context = MANUAL_REQUEST.format(pitstop=pitstop) + "\n\n" + render_digest(digest)
+        context = MANUAL_REQUEST.format(pitstop=pitstop(client)) + "\n\n" + render_digest(digest)
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}))
         return 0
     if re.fullmatch(r"\s*[/$]pitstop\s*", str(hook.get("prompt", ""))):
@@ -761,7 +765,7 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     written = clock((folder / "checkpoint.md").stat().st_mtime)
     if warm or client == "claude" and cache_ttl(recs) < 3600:
         print(json.dumps({"systemMessage": f"An idle checkpoint from {written} is ready. To continue from it in "
-                                           f"this window, run {pitstop} and then /clear."}))
+                                           f"this window, run {pitstop(client)} and then /clear."}))
         return 0
     prompt = str(hook.get("prompt", ""))
     reason = (
@@ -781,7 +785,7 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
 def instructions(hook: dict[str, Any], client: str = "claude") -> int:
     tool = hook.get("tool_input") if isinstance(hook.get("tool_input"), dict) else {}
     patch = str(tool.get("command") or tool.get("input") or "")
-    paths = [str(tool.get("file_path") or ""), *re.findall(r"(?m)^\*\*\* (?:Add|Update|Delete) File: (.+)$", patch)]
+    paths = [str(tool.get("file_path") or ""), *PATCH_FILE.findall(patch)]
     names = sorted({Path(path.strip()).name for path in paths} & INSTRUCTION_FILES)
     if names:
         note = " This session keeps the version loaded at its start." if client == "claude" else ""
@@ -820,15 +824,15 @@ def resume(cwd: str, only: str | None = None) -> str:
         client = "codex" if "\nclient: codex\n" in header + "\n" else "claude"
         if not ok or old and not fresh(folder, loader(client)(Path(old[1]), TAIL_BYTES)):
             continue
-        found.append((folder, session, header, body))
+        found.append((folder, session, client, body))
         if len(found) == 5:
             break
     if not found:
         return "No idle checkpoint for this project."
-    folder, session, header, body = found[0]
+    folder, session, client, body = found[0]
     digest = json.loads(read(folder / "digest.json") or "{}")
     protocol = PROTOCOL.format(session=session)
-    if "\nclient: codex\n" in header + "\n":
+    if client == "codex":
         protocol = protocol.replace(" and ask the user to confirm", "")
     others = [f"- {s}, written {datetime.fromtimestamp(f.stat().st_mtime):%Y-%m-%d %H:%M}: {goal_line(b)}"
               for f, s, _, b in found[1:]]
@@ -936,15 +940,9 @@ def main() -> int:
         hook = json.load(sys.stdin)
         if not re.fullmatch(r"[A-Za-z0-9_-]+", hook["session_id"]):
             return 0
-        if args.command == "arm":
-            return arm(hook, args.client)
         if args.command == "clear":
             return clear(hook)
-        if args.command == "end":
-            return end(hook, args.client)
-        if args.command == "instructions":
-            return instructions(hook, args.client)
-        return guard(hook, args.client)
+        return {"arm": arm, "end": end, "guard": guard, "instructions": instructions}[args.command](hook, args.client)
     except (OSError, ValueError, KeyError, TypeError):
         return 0
 

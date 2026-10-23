@@ -223,26 +223,23 @@ def path_clause(path: str | None) -> tuple[str, tuple]:
     return ("AND c.path GLOB ?", (path if any(ch in path for ch in "*?[") else path + "*",)) if path else ("", ())
 
 
-def lexical(db: sqlite3.Connection, query: str, path: str | None) -> list[int]:
-    words = {w.lower() for w in WORD.findall(split_identifiers(query)) if len(w) > 1}
-    if not words:
-        return []
-    clause, args = path_clause(path)
-    match = " OR ".join(f'"{w}"' for w in sorted(words))
-    return [r[0] for r in db.execute(
-        f"SELECT c.id FROM lex JOIN chunks c ON c.id = lex.rowid WHERE lex MATCH ? {clause} "
-        f"ORDER BY bm25(lex, 5.0, 2.0, 1.0) LIMIT {CANDIDATES}", (match, *args))]
-
-
-def trigram(db: sqlite3.Connection, query: str, path: str | None) -> list[int]:
-    terms = {t for t in re.findall(r"[\w./-]{3,}", query)}
+def fts(db: sqlite3.Connection, table: str, rank: str, terms: set[str], path: str | None) -> list[int]:
     if not terms:
         return []
     clause, args = path_clause(path)
     match = " OR ".join('"' + t.replace('"', '""') + '"' for t in sorted(terms))
     return [r[0] for r in db.execute(
-        f"SELECT c.id FROM tri JOIN chunks c ON c.id = tri.rowid WHERE tri MATCH ? {clause} "
-        f"ORDER BY bm25(tri) LIMIT {CANDIDATES}", (match, *args))]
+        f"SELECT c.id FROM {table} JOIN chunks c ON c.id = {table}.rowid WHERE {table} MATCH ? {clause} "
+        f"ORDER BY {rank} LIMIT {CANDIDATES}", (match, *args))]
+
+
+def lexical(db: sqlite3.Connection, query: str, path: str | None) -> list[int]:
+    words = {w.lower() for w in WORD.findall(split_identifiers(query)) if len(w) > 1}
+    return fts(db, "lex", "bm25(lex, 5.0, 2.0, 1.0)", words, path)
+
+
+def trigram(db: sqlite3.Connection, query: str, path: str | None) -> list[int]:
+    return fts(db, "tri", "bm25(tri)", set(re.findall(r"[\w./-]{3,}", query)), path)
 
 
 def embedder():

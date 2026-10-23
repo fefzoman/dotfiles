@@ -310,7 +310,7 @@ install_claude_hook() {
 }
 
 install_idle_compact() {
-  local config_dir="$HOME/.config/dotfiles" profile
+  local config_dir="$HOME/.config/dotfiles" name profile
 
   mkdir -p "$config_dir"
   install -m 0755 "$SCRIPT_DIR/idle_compact.py" "$config_dir/idle_compact.py"
@@ -325,22 +325,14 @@ install_idle_compact() {
   done
 }
 
-disable_claude_attribution() {
-  local profile
-
-  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    mkdir -p "$profile"
-    agent_config attribution "$profile/settings.json"
-  done
-}
-
-disable_claude_connectors() {
+configure_claude_settings() {
   local claude_bin listing profile
 
   claude_bin="$(type -P claude)"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile"
     listing="$(with_claude_profile "$profile" "$claude_bin" mcp list 2>/dev/null || true)"
+    agent_config attribution "$profile/settings.json"
     agent_config connectors "$profile/settings.json" "$listing"
     agent_config context-trim "$profile/settings.json"
     agent_config effort "$profile/settings.json"
@@ -380,10 +372,8 @@ echo "==> Installing idle compaction hooks..."
 install_idle_compact
 echo "==> Installing smart-read hints for large whole-file reads..."
 install_claude_hook read_hint.py read-hint
-echo "==> Disabling Claude commit and PR attribution..."
-disable_claude_attribution
-echo "==> Disabling unused claude.ai connectors in Claude profiles..."
-disable_claude_connectors
+echo "==> Disabling Claude attribution and unused claude.ai connectors, trimming context, setting effort..."
+configure_claude_settings
 echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
 echo "==> Installing Superpowers for Codex and Claude profiles..."
