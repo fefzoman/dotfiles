@@ -17,10 +17,9 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 
 ## Delivery
 
-- Active Spec Kit specification, plan, and tasks own scope and state. Reconcile discoveries there; do not create parallel Superpowers designs or plans or read unrelated specifications.
-- Apply relevant skills within these rules. Use Spec Kit only when the project has it or the user runs speckit-init; load only the current step's context.
+- Apply relevant skills within these rules; load only the current step's context.
 - Run Superpowers brainstorming, writing-plans, worktrees, and subagent orchestration only when the user asks; keep designs and plans to a short inline outline, with no document file unless asked.
-- Priority: explicit user requirements → agent policy → constitution → active spec → plan → tasks → Superpowers defaults.
+- Priority: explicit user requirements → agent policy → Superpowers defaults.
 
 ## Tools
 

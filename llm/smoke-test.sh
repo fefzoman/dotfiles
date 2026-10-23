@@ -81,14 +81,13 @@ claude_mcp_enabled() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk token-profiler smart-read node uv serena specify context7-mcp code code-work; do
+for command_name in python codex claude fabric rtk token-profiler smart-read node uv serena context7-mcp code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
 
 check "Codex starts" "Codex failed to start" codex --version
 check "Claude Code starts" "Claude Code failed to start" claude --version
-check "Spec Kit starts" "Spec Kit failed to start" specify version
 check "Headroom is uninstalled" "Headroom is still installed; rerun ai-install.sh" \
   bash -c '! command -v headroom'
 check "Token profiler starts with tiktoken" "Token profiler failed to start" \
@@ -107,8 +106,6 @@ done
 
 check "Codex pitstop skill matches the repository" "Codex pitstop skill is missing or stale" \
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
-check "Codex speckit-init skill matches the repository" "Codex speckit-init skill is missing or stale" \
-  cmp -s "$SCRIPT_DIR/codex/speckit-init/SKILL.md" "$HOME/.agents/skills/speckit-init/SKILL.md"
 
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
@@ -166,8 +163,6 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     cmp -s "$SCRIPT_DIR/claude/checkpoint.md" "$profile/commands/checkpoint.md"
   check "smart-read hint is enabled in $profile" "smart-read hint is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
-  check "/speckit-init command matches the repository in $profile" "/speckit-init command is missing or stale in $profile" \
-    cmp -s "$SCRIPT_DIR/claude/speckit-init.md" "$profile/commands/speckit-init.md"
   check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \

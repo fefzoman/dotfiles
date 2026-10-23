@@ -111,8 +111,6 @@ install_ai_tools() {
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade serena-agent
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
-    --python "$PYTHON_VERSION" --upgrade specify-cli
-  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/smart-read"
 }
 
@@ -265,6 +263,14 @@ remove_headroom() {
   "$uv_bin" tool uninstall headroom-ai
 }
 
+remove_speckit() {
+  rm -rf "$HOME/.agents/skills/speckit-init"
+  rm -f "$HOME/.claude/commands/speckit-init.md" "$HOME/.claude-work/commands/speckit-init.md"
+  if "$(type -P uv)" tool list | grep -q '^specify-cli '; then
+    "$(type -P uv)" tool uninstall specify-cli
+  fi
+}
+
 install_global_agents() {
   local profile
 
@@ -272,12 +278,9 @@ install_global_agents() {
     mkdir -p "$profile"
     install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
   done
-  mkdir -p "$HOME/.agents/skills/speckit-init"
-  install -m 0644 "$SCRIPT_DIR/codex/speckit-init/SKILL.md" "$HOME/.agents/skills/speckit-init/SKILL.md"
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
-    install -m 0644 "$SCRIPT_DIR/claude/speckit-init.md" "$profile/commands/speckit-init.md"
   done
 }
 
@@ -359,6 +362,8 @@ echo "==> Installing AI command-line tools..."
 install_ai_tools
 echo "==> Removing Headroom from Codex and Claude profiles..."
 remove_headroom
+echo "==> Removing Spec Kit..."
+remove_speckit
 echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
