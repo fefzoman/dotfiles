@@ -3,12 +3,6 @@
 Neovim uses `Space` as `<leader>`. tmux uses `Ctrl+b` as its prefix; press the
 prefix, release it, then press the action key.
 
-## Shell
-
-| Keybinding | Action |
-|---|---|
-| `Ctrl+Left`, `Option+Left` | Move one word backward |
-| `Ctrl+Right`, `Option+Right` | Move one word forward |
 
 ## Neovim
 
@@ -198,8 +192,11 @@ and pane numbering starts at `1`, and mouse support is enabled.
 ```text
 Open Alacritty -> main tmux session starts
 cd PROJECT && nvim
-Space e   file tree       Space ff  find file
-Space fg  search text     Space lg  Git UI
-Ctrl+b c  new window      Ctrl+b %  left/right split
+Space e   file tree       
+Space ff  find file
+Space fg  search text     
+Space lg  Git UI
+Ctrl+b c  new window      
+Ctrl+b %  left/right split
 Ctrl+b "  top/bottom split
 ```

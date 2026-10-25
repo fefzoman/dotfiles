@@ -226,19 +226,6 @@ rtk discover --all --since 7     # missed filtering opportunities
 rtk gain --all --format json     # machine-readable savings
 ```
 
-## Headroom (removed)
-
-Headroom, a local context-compression proxy, is no longer installed: it saved
-about 1.5% of Claude input cost while breaking the prompt cache after pauses
-(see `llm/TOOLCHAIN.md` §7). On machines that still have it, `ai-install.sh`
-points all four profiles back at Anthropic and OpenAI, removes the persistent
-service, and uninstalls the `headroom-ai` tool. `~/.headroom` (logs and the
-savings ledger) is left in place.
-
-The default Claude profile is always used without `CLAUDE_CONFIG_DIR`, because
-setting it (even to `~/.claude`) moves user MCPs such as Serena into
-`~/.claude/.claude.json`, which the VS Code extension never reads.
-
 ## Ponytail
 
 [Ponytail](https://github.com/DietrichGebert/ponytail) is installed as a plugin

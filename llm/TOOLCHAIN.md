@@ -12,7 +12,7 @@
 
 The tools act at different stages; their savings overlap, so percentages are **never added**.
 
-This repo installs the stack for personal and work profiles of Codex and Claude Code: Serena and Context7 as user-level MCP servers, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly; Headroom was removed (§7). `token-profiler` reads local Codex and Claude sessions per profile.
+This repo installs the stack for personal and work profiles of Codex and Claude Code: Serena and Context7 as user-level MCP servers, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile.
 
 Two local safeguards complement them, neither runs `/compact` automatically:
 
@@ -118,16 +118,6 @@ After installation, restart the shell. Review new or changed Codex hooks in `/ho
 
 ## 7. Context safeguards
 
-Local hooks and reports that keep long sessions cheap without touching the request path.
-
-> **Side note: why Headroom was removed (2026-10-15).** Headroom is a local proxy that compressed context before it reached the model. All four profiles routed through it from 2026-09-23. Its proxy log (5,100 Claude requests, 137 sessions) showed it wasn't worth keeping:
->
-> - **Small gain.** It removed 1.7% of input tokens, mostly by compacting tool schemas. Weighted by cache price, that saved 1.5% of input cost (median per session 1.2%), because most of what it compressed sat in the already-cached prefix, billed at 0.1×. RTK, Serena and narrow retrieval had already removed most of what it could compress.
-> - **Bigger loss.** To keep cache hits it replayed the exact bytes it had forwarded, but kept that state for only 10 minutes (`prefix_freeze_session_ttl = 600`, with no setting to change it) while Claude's cache lasts an hour. After a 10–60 minute pause it sent a recompressed prefix and Anthropic rewrote the whole cache: misses at those gaps rose from 2% to 36%, adding 11% of input cost, a net loss of about 9.5%.
-> - **Ceiling.** Patching the installed package fixes the misses, but leaves a 1.5% saving that costs editing a third-party package on every upgrade, an always-on proxy, slower requests, a `headroom_retrieve` tool that broke when batched, and re-running the installer after every Codex login.
-> - **Codex** had no sessions since Headroom was installed, so there is no data either way.
->
-> `remove_headroom` in `ai-install.sh` unroutes all four profiles through Headroom's own revert, which also moves Codex threads back to the native provider's history menu. It then removes the service and uninstalls the tool. `ENABLE_TOOL_SEARCH=true`, which Headroom had set, is kept in the context trim. The smoke test checks that no profile still routes through the proxy.
 
 ### Same-thread compaction safeguards
 
@@ -259,8 +249,6 @@ Each piece has exactly one owner:
 | Piece | Owner | Mechanism |
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
-| Headroom removal | `llm/ai-install.sh` `remove_headroom` | Unroutes all four profiles, removes the service and tool when present (§7) |
-| Spec Kit removal | `llm/ai-install.sh` `remove_speckit` | Deletes the `speckit-init` skill and commands, uninstalls `specify-cli` when present |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
 | Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
