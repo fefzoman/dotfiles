@@ -627,6 +627,20 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     return 0
 
 
+def end_background(hook: dict[str, Any]) -> int:
+    log = marker(hook["session_id"], "end.log")
+    write(log, "")
+    with tempfile.TemporaryFile(mode="w+") as payload, log.open("a") as errors:
+        json.dump(hook, payload)
+        payload.seek(0)
+        # SessionEnd has a 3s deadline; the worker must outlive its process group and pipes.
+        subprocess.Popen(
+            [sys.executable, str(Path(__file__).resolve()), "end", "--client", "codex", "--foreground"],
+            stdin=payload, stdout=subprocess.DEVNULL, stderr=errors, start_new_session=True,
+        )
+    return 0
+
+
 def end(hook: dict[str, Any], client: str = "claude") -> int:
     session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
     if hook.get("reason") == "clear":
@@ -914,6 +928,7 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("arm", "end", "guard", "instructions"):
         commands.add_parser(name).add_argument("--client", choices=("claude", "codex"), default="claude")
+    commands.choices["end"].add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)
     commands.add_parser("resume").add_argument("session", nargs="?")
     commands.add_parser("clear")
     find = commands.add_parser("search")
@@ -942,8 +957,13 @@ def main() -> int:
             return 0
         if args.command == "clear":
             return clear(hook)
+        if args.command == "end" and args.client == "codex" and not args.foreground:
+            return end_background(hook)
         return {"arm": arm, "end": end, "guard": guard, "instructions": instructions}[args.command](hook, args.client)
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        if args.command == "end":
+            print(f"Checkpoint save failed: {error}", file=sys.stderr)
+            return 1
         return 0
 
 

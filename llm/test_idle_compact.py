@@ -2,6 +2,8 @@ import contextlib
 import io
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -225,6 +227,53 @@ class IdleCompactTest(unittest.TestCase):
         first = checkpoint.read_text()
         self.run_hook(ic.end, hook)
         self.assertEqual(checkpoint.read_text(), first)
+
+    def test_codex_session_end_finishes_after_shutdown_timeout(self) -> None:
+        old = time.time() - 30
+        hook = self.save([
+            {"timestamp": iso(old), "type": "response_item", "payload": {
+                "type": "message", "role": "user", "content": [{"text": "Keep my checkpoint"}]}},
+            {"timestamp": iso(old), "type": "event_msg", "payload": {
+                "type": "token_count", "info": {"last_token_usage": {"input_tokens": 100_000}}}},
+        ])
+        git = self.home / "bin/git"
+        git.parent.mkdir()
+        started = self.home / "git-started"
+        git.write_text(f'''#!{sys.executable}
+import os, time
+from pathlib import Path
+started = Path({str(started)!r})
+if not started.exists():
+    started.write_text(str(os.getpgrp()))
+    time.sleep(4)
+raise SystemExit(1)
+''')
+        git.chmod(0o755)
+        before = time.monotonic()
+        with subprocess.Popen(
+            [sys.executable, str(Path(ic.__file__).resolve()), "end", "--client", "codex"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            env=os.environ | {"PATH": str(git.parent) + os.pathsep + os.environ["PATH"]}, start_new_session=True,
+        ) as process:
+            try:
+                output, error = process.communicate(json.dumps(hook), timeout=3)
+            except subprocess.TimeoutExpired:
+                self.fail("SessionEnd did not hand off the checkpoint within 3 seconds")
+            self.assertEqual(process.returncode, 0, error)
+            self.assertEqual(output, "")
+            self.assertLess(time.monotonic() - before, 3)
+            deadline = time.monotonic() + 10
+            checkpoint = None
+            while time.monotonic() < deadline:
+                folder = ic.folder_for("s1")
+                checkpoint = folder / "checkpoint.md" if folder else None
+                if checkpoint and checkpoint.exists():
+                    break
+                time.sleep(0.05)
+            self.assertIsNotNone(checkpoint)
+            self.assertIn("Keep my checkpoint", checkpoint.read_text())
+            self.assertNotEqual(int(started.read_text()), process.pid)
+            self.assertGreater(time.monotonic() - before, 3)
 
     def test_resume_lists_other_checkpoints_in_the_project(self) -> None:
         old = time.time() - 30
