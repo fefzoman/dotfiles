@@ -63,7 +63,7 @@
           {
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" end --client codex",
-            "timeout": 30
+            "timeout": 3
           }
         ]
       }

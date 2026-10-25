@@ -88,7 +88,9 @@ def codex_hooks(target: str, required: str) -> None:
             if installed is None:
                 installed = {"hooks": []} if matcher is None else {"hooks": [], "matcher": matcher}
                 installed_groups.append(installed)
-            installed["hooks"] += [h for h in required_group["hooks"] if h not in installed["hooks"]]
+            commands = {h["command"] for h in required_group["hooks"]}
+            installed["hooks"] = [h for h in installed["hooks"] if h.get("command") not in commands]
+            installed["hooks"] += required_group["hooks"]
     save(target, data)
 
 

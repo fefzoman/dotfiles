@@ -245,9 +245,8 @@ setting it (even to `~/.claude`) moves user MCPs such as Serena into
 in all personal and work Codex/Claude profiles. Its lifecycle hooks and skills
 load in every CLI. Node.js is installed because Ponytail's hooks require it.
 
-Codex shell commands bypass hook trust in both profiles. Claude user and enabled
-plugin hooks run by default; project hooks require trusting the folder. Codex
-sessions launched outside the shell still require hook review.
+Codex requires review of new or changed hooks in `/hooks` in both profiles.
+Claude user and enabled plugin hooks run by default; project hooks require trusting the folder.
 Ponytail defaults to `full`; Codex uses `@ponytail` commands and Claude uses
 `/ponytail` commands.
 

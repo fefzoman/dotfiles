@@ -32,9 +32,7 @@ __codex_answer() {
 
 alias '??'='__codex_answer'
 
-codex() {
-  command codex --dangerously-bypass-hook-trust "$@"
-}
+unset -f codex
 
 code() {
   env -u CLAUDE_CONFIG_DIR CODEX_HOME="$HOME/.codex" code "$@"
@@ -250,11 +248,12 @@ configure_agent_mcps() {
 remove_headroom() {
   local python uv_bin
 
+  CODEX_HOME="$HOME/.codex" codex mcp remove headroom
+  CODEX_HOME="$HOME/.codex-work" codex mcp remove headroom
   uv_bin="$(command -v uv)"
   python="$("$uv_bin" tool dir)/headroom-ai/bin/python"
   [[ -x "$python" ]] || return 0
-  # Unroute every profile while Headroom's modules still exist: its Codex revert also
-  # moves threads back to the native provider's history menu.
+  # Headroom's revert also restores Codex threads to the native provider's history menu.
   "$python" "$SCRIPT_DIR/agent_config.py" headroom-unroute "$HOME/.claude" "$HOME/.codex"
   "$python" "$SCRIPT_DIR/agent_config.py" headroom-unroute "$HOME/.claude-work" "$HOME/.codex-work"
   if [[ -f "$HOME/.headroom/deploy/default/manifest.json" ]]; then
@@ -385,6 +384,6 @@ bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."
 install_shell_config
 echo "==> Run 'fabric --setup' once to select Fabric's AI provider."
-echo "==> Codex shell commands bypass hook trust; Claude user and plugin hooks run by default."
+echo "==> Review new or changed Codex hooks in /hooks; Claude user and plugin hooks run by default."
 echo "==> Running LLM toolchain smoke test..."
 bash "$SCRIPT_DIR/smoke-test.sh"

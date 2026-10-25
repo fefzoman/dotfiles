@@ -89,6 +89,12 @@ fi
                 manifest = home / ".headroom/deploy/default/manifest.json"
                 manifest.parent.mkdir(parents=True)
                 manifest.write_text("{}")
+                for profile in (".codex", ".codex-work"):
+                    config = home / profile / "config.toml"
+                    config.parent.mkdir()
+                    config.write_text('model = "keep"\n[mcp_servers.headroom]\ncommand = "missing-headroom"\n'
+                                      '[mcp_servers.headroom.tools.headroom_retrieve]\napproval_mode = "approve"\n'
+                                      '[mcp_servers.serena]\ncommand = "serena"\n')
                 if mode != "absent":
                     (home / "headroom-ai/bin").mkdir(parents=True)
                     python = home / "headroom-ai/bin/python"
@@ -114,6 +120,25 @@ uv() {{
                             "race": [*unrouted, "remove", "remove", "uv tool uninstall headroom-ai"],
                             "failure": [*unrouted, "remove", "remove"], "absent": []}
                 self.assertEqual(log, expected[mode])
+                for profile in (".codex", ".codex-work"):
+                    config = agent_config.load_toml(str(home / profile / "config.toml"))
+                    self.assertEqual(config, {"model": "keep", "mcp_servers": {"serena": {"command": "serena"}}})
+
+    def test_codex_hooks_updates_timeout_without_duplicates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target, required = Path(directory) / "hooks.json", SCRIPT_DIR / "codex/codex-hooks.json"
+            data = agent_config.load(str(required))
+            hooks = data["hooks"]["SessionEnd"][0]["hooks"]
+            checkpoint = next(h for h in hooks if "idle_compact.py" in h["command"])
+            checkpoint["timeout"] = 30
+            custom = {"type": "command", "command": "custom-cleanup", "timeout": 2}
+            hooks.append(custom)
+            agent_config.save(str(target), data)
+            for _ in range(2):
+                agent_config.codex_hooks(str(target), str(required))
+            hooks = agent_config.load(str(target))["hooks"]["SessionEnd"][0]["hooks"]
+            self.assertIn(custom, hooks)
+            self.assertEqual([h["timeout"] for h in hooks if "idle_compact.py" in h["command"]], [3])
 
     def test_headroom_unroute_strips_only_headroom_routing(self):
         with tempfile.TemporaryDirectory() as directory:
