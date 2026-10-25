@@ -144,7 +144,7 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 ### Idle compaction
 
-`llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour (5 minutes on an API key or in usage overage); the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK and Serena shrink tool output and can't touch this; Claude's auto-compaction starts only near 1M tokens.
+`llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour (5 minutes on an API key or in usage overage); the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK and Serena shrink tool output and can't touch this. Claude now also has native idle compaction; the measurements describe the earlier sessions, not the savings over that native feature.
 
 Fix: have the model write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
@@ -205,12 +205,16 @@ Plain files, one folder per session: no shared writer, no locks, atomic rename o
 - Secrets are redacted by pattern before writing: API keys (Anthropic, OpenAI, Stripe, GitHub, GitLab, Slack, AWS, Google, npm, Hugging Face), JWTs, bearer tokens, URL credentials, private keys and password-style assignments. Unrecognized formats can still land in the 0700 state directory.
 - The old session stays resumable, so a checkpoint that misses a detail loses nothing.
 
-#### Open questions
+#### Verified behavior and remaining limits (2026-10-25)
 
-- Does Codex show a non-blocking `systemMessage` from `UserPromptSubmit`?
-- Does Codex's `SessionEnd` payload include `transcript_path`? Without it the close-time excerpts are skipped.
-- What do Claude Code's `precomputeCompactionEnabled` and `awaySummaryEnabled` do? They may cover part of this natively.
-- Does the new chat follow the resume protocol's confirm step?
+Checked against Codex CLI 0.164.0, Claude Code 2.1.310, the local checkpoint code, git history and available October sessions.
+
+- **Codex hints:** `UserPromptSubmit` supports `systemMessage`, surfaced as a warning in the UI or event stream. It does not itself block the prompt; our blocking branch separately emits `decision: block`. This resolves the output-contract question; visibility in every client surface has not been tested. [OpenAI hook output reference](https://learn.chatgpt.com/docs/hooks#common-output-fields).
+- **Codex close-time transcript:** `SessionEnd` receives the common `transcript_path` field (`string | null`), and the transcript remains readable during the hook. A path is supported, not guaranteed. Our detached worker saves excerpts when it can read one; a null/missing path or read failure can leave no checkpoint, with worker errors in `<session>.end.log`. A real shutdown payload was not captured in this audit. [OpenAI SessionEnd reference](https://learn.chatgpt.com/docs/hooks#sessionend).
+- **Claude precompute:** the installed binary describes `precomputeCompactionEnabled` as preparing a compaction summary in the background before it is needed, only with auto-compaction enabled. Its native `compact_on_return` mode also checks this setting. This prepares same-session compaction; it does not produce this repo's searchable checkpoint files.
+- **Claude recap:** `awaySummaryEnabled` controls the session recap shown after 5+ minutes away. In 2.1.310 it requests under 40 words, caps the result at 400 characters, forbids tools and skips the transcript. It gives the returning user a recap without replacing the main conversation or providing a durable handoff. These two setting descriptions come from `~/.local/share/claude/versions/2.1.310`; internal gates may change on upgrade.
+- **Claude native idle compaction:** the installed changelog's 2.1.299 entry documents a 200K+ conversation compacting after about 54 minutes on the one-hour cache; `idleCompaction: false` disables it and `CLAUDE_CODE_IDLE_COMPACT_MIN_TOKENS` changes its floor (both require 2.1.290+). It overlaps the cost-saving goal. Our 85K floor, five-minute-cache handling and saved cross-chat checkpoints remain distinct. The local `native_idle_compact()` only recognizes cached `tengu_sunny_locket.mode == compact`; neither profile currently has that cached flag, so native-first scheduling is not established on this installation. See also [Claude's context-window guide](https://code.claude.com/docs/en/context-window#when-your-context-fills-up).
+- **Resume confirmation:** `PROTOCOL` asks Claude to state the goal and first step and request confirmation. For Codex checkpoints, `resume()` deliberately removes the confirmation clause; the Codex pitstop skill says to state both and continue. Git commit `730ce37` introduced that distinction. No fresh-chat pitstop exchange was found in the inspected October Codex rollouts, and local Claude conversation logs are unavailable, so actual model compliance remains unmeasured. The instruction is not a client-enforced approval gate.
 
 ### Prompt-cache guards
 

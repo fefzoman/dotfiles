@@ -63,5 +63,5 @@
 | Close-time checkpoint is excerpts only | Both | No model is running once the session ends |
 | Warm-cache learning needs 5 post-gap samples per model | Codex | Starts from blocking until data accumulates |
 | Fork cache renewal unmeasured | Codex | Needs a long-gap measurement |
-| Codex `SessionEnd` payload unverified | Codex | Without `transcript_path` the close-time excerpts are skipped |
+| Close-time transcript may be unavailable | Codex | `SessionEnd` documents nullable `transcript_path`; without a readable file the worker cannot save excerpts ([details](TOOLCHAIN.md#verified-behavior-and-remaining-limits-2026-10-25)) |
 | Pattern redaction | Both | Unknown secret formats still pass; directory is 0700 |
