@@ -22,81 +22,24 @@ Two local safeguards complement them, neither runs `/compact` automatically:
 
 ## 2. Mental model
 
-The same stack runs in personal and work profiles of both agents. Solid arrows show requests, results or saved data; dotted arrows show configuration, guidance or lifecycle signals. The agent chooses tools as needed and repeats the model/tool loop until the task is done.
-
 ```mermaid
 flowchart TB
-    user["You: task or question"] --> entry["CLI or VS Code<br/>codex / codex-work / claude / claude-work<br/>code / code-work; ?? uses codex exec"]
-    entry --> agent["Codex or Claude Code<br/>context + tool execution"]
-    agent <-->|"requests / responses and tool calls"| models["OpenAI / Anthropic models<br/>direct provider connection"]
+    user["You"] --> agent["Codex / Claude Code"]
+    agent <-->|"requests / responses"| models["Model providers"]
+    policy["AGENTS.md / CLAUDE.md<br/>Ponytail: scope · Superpowers: discipline"] -.-> agent
 
-    subgraph guidance["Policy and implementation discipline"]
-        policy["AGENTS.md / CLAUDE.md<br/>requirements and retrieval rules"]
-        ponytail["Ponytail<br/>smallest correct change + review"]
-        superpowers["Superpowers<br/>debugging, TDD, verification skills"]
-    end
-    policy -.-> agent
-    ponytail -.-> agent
-    superpowers -.-> agent
+    agent <-->|"repo navigation"| code["Serena + smart-read"]
+    agent <-->|"dependency docs"| docs["Context7"]
+    agent <-->|"edit, test, git"| shell["File tools + shell<br/>RTK compacts shell output"]
 
-    subgraph tools["Tool choices: retrieve, edit, validate"]
-        serena["Serena MCP<br/>activate → overview → symbol → callers → body"]
-        context7["Context7 MCP<br/>version-specific dependency docs"]
-        shell["Shell / built-in file tools"]
-        smart["smart-read<br/>behavior search + large-file outlines"]
-        rtk["RTK<br/>supported command rewriting + output filtering"]
-        repo["Repository<br/>source, config, edits, tests and git"]
-    end
-    agent <-->|"symbols, references, semantic edits"| serena
-    serena <--> repo
-    agent <-->|"docs and examples"| context7
-    agent <-->|"commands / results"| shell
-    shell <-->|"targeted retrieval"| smart
-    smart -->|"reads and indexes locally"| repo
-    shell <-->|"tests, builds, git / compact output"| rtk
-    rtk <--> repo
-    shell <-->|"narrow reads and file edits"| repo
+    session["Hooks + checkpoints + pitstop<br/>guard context, save and resume"] -.-> agent
+    agent -->|"session logs"| profiler["token-profiler<br/>measure usage and cache misses"]
 
-    subgraph guards["Hooks around tool calls"]
-        hints["read_hint.py + Serena reminders<br/>nudge narrow retrieval"]
-        version["context7_version_guard.py<br/>require the project's pinned version"]
-    end
-    hints -.-> shell
-    version -.-> context7
-
-    user -->|"text or pattern task"| fabric["Fabric<br/>standalone pattern CLI"]
-    fabric <-->|"prompt / generated text"| provider["Fabric's selected model provider"]
+    user --> fabric["Fabric: standalone text patterns"]
+    fabric <--> models
 ```
 
-Ponytail and Superpowers guide the whole task; they are not serial processing steps. Serena and Context7 are MCP tools; smart-read and RTK run through the shell. RTK reduces shell output before it returns to the agent. Fabric is a separate entry point with its own provider setup and no inherited agent tools.
-
-Session support runs alongside that loop:
-
-```mermaid
-flowchart TB
-    install["llm/ai-install.sh + agent_config.py<br/>install tools; merge profile configuration"]
-    install -.-> profiles["Personal + work profiles<br/>Codex and Claude Code"]
-    install -.-> smoke["llm/smoke-test.sh<br/>check commands, routing, MCPs, plugins and hooks"]
-    profiles --> session["Active agent session"]
-    session --> logs["Local session logs<br/>context, usage and cache signals"]
-
-    logs --> quota["Codex compact-warning hook<br/>Claude compact/cache status line"]
-    quota -.->|"recommend same-thread /compact"| user["You"]
-
-    session -.->|"Stop / SessionEnd / UserPromptSubmit / edits"| idle["idle_compact.py<br/>idle checkpoints + cache guards"]
-    idle -.->|"warm-cache checkpoint request"| writer["Claude: wake session<br/>Codex: ephemeral fork"]
-    writer --> checkpoints["Local checkpoint + digest + transcript<br/>manual checkpoint uses the same storage"]
-    idle -->|"fallback excerpts on close or failure"| checkpoints
-    user -->|"checkpoint command"| session
-    checkpoints --> resume["pitstop / clear handoff<br/>restore goal, state and next steps"]
-    resume -->|"resume context"| session
-    idle -.->|"idle rebuild / setting-change hints or one-time blocks"| user
-
-    logs --> profiler["token-profiler + tiktoken<br/>local usage, cost and cache-miss reports"]
-    profiler -->|"measure where context and tokens go"| user
-```
-
-The installer configures the stack; it does not run on each request. The smoke test and token-profiler make no model calls. Checkpoint generation does call a model; resuming from a checkpoint and same-thread compaction are user choices. Agents use smart-read search with `--lexical` by default; embedding indexing runs only when explicitly requested.
+Solid arrows show the working loop; dotted arrows show guidance and session support. Tools are chosen as needed. `ai-install.sh` wires the stack into personal and work profiles; `smoke-test.sh` checks the setup.
 
 ## 3. Ponytail
 
