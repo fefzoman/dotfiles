@@ -69,12 +69,13 @@ RULES = (
 )
 REQUEST = (
     "Idle checkpoint: the user is away and the prompt cache expires in about {left}. " + RULES
-    + 'End with: "After {until}, run {pitstop} and then /clear to continue from this checkpoint in this window."'
+    + 'End with: "After {until}, {restart} to continue from this checkpoint."'
 )
-MANUAL = re.compile(r"\s*[/$]checkpoint\s*")
+MANUAL = re.compile(r"\s*(?:[/$]checkpoint|\[\$checkpoint\]\([^\n)]+\))\s*")
+PITSTOP = re.compile(r"\s*(?:[/$]pitstop|\[\$pitstop\]\([^\n)]+\))(?:\s+([A-Za-z0-9_-]+))?\s*")
 MANUAL_REQUEST = (
     "Manual checkpoint: the user is compacting this session by hand. " + RULES
-    + 'End with: "Run /clear to continue from this checkpoint in this window, or {pitstop} in a new one."'
+    + 'End with: "{restart}."'
 )
 PROTOCOL = (
     "Resume protocol: before any tool call, state the goal and the first next step in two lines and ask the "
@@ -104,8 +105,9 @@ def lifetime(client: str = "claude", recs: list[dict[str, Any]] | None = None) -
     return CODEX_CACHE_TTL if client == "codex" else cache_ttl(recs or [])
 
 
-def pitstop(client: str) -> str:
-    return "$pitstop" if client == "codex" else "/pitstop"
+def restart(client: str, session: str) -> str:
+    return (f"open a new chat in this workspace and run $pitstop {session}" if client == "codex"
+            else "run /pitstop and then /clear")
 
 
 def min_tokens(client: str = "claude") -> int:
@@ -485,7 +487,8 @@ def fresh(folder: Path, recs: list[dict[str, Any]]) -> bool:
     found = re.search(r"(?m)^last_prompt: ([\d.]+)$", read(checkpoint))
     if not found and not checkpoint.exists():
         return False
-    return last_prompt(recs) <= (float(found[1]) if found else checkpoint.stat().st_mtime)
+    prompts = [r for r in recs if not PITSTOP.fullmatch(text_of(r)) and text_of(r).strip() != "/clear"]
+    return last_prompt(prompts) <= (float(found[1]) if found else checkpoint.stat().st_mtime)
 
 
 def excerpts(items: list[dict[str, Any]]) -> str:
@@ -616,7 +619,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         store_checkpoint(folder, session, excerpts(items), cwd, transcript, client, last_prompt(full))
         return 0
     request = REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
-                             pitstop=pitstop(client)) + "\n\n" + render_digest(digest)
+                             restart=restart(client, session)) + "\n\n" + render_digest(digest)
     if client == "claude":
         write(marker(session, "fired"), str(now))
         print(request, file=sys.stderr)
@@ -757,13 +760,16 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         digest = build_digest(full, cwd, items)
         save_snapshot(folder, items, digest)
         write(marker(session, "manual"), str(time.time()))
-        context = MANUAL_REQUEST.format(pitstop=pitstop(client)) + "\n\n" + render_digest(digest)
+        next_step = (restart(client, session) if client == "codex" else
+                     "Run /clear to continue from this checkpoint in this window, or /pitstop in a new one")
+        context = MANUAL_REQUEST.format(restart=next_step) + "\n\n" + render_digest(digest)
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}))
         return 0
-    if re.fullmatch(r"\s*[/$]pitstop\s*", str(hook.get("prompt", ""))):
-        if folder and resume(cwd, session).startswith("Continuing"):
+    if command := PITSTOP.fullmatch(str(hook.get("prompt", ""))):
+        if command[1] in (None, session) and folder and resume(cwd, session).startswith("Continuing"):
             write(handoff(cwd), session)
-            print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off. Run /clear to continue from it in this window."}))
+            next_step = restart(client, session) if client == "codex" else "run /clear"
+            print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off; {next_step}."}))
         return 0
     call = last_call(recs)
     if switched(hook, client, recs, call) or not unguarded(session, call, lifetime(client, recs), client):
@@ -779,12 +785,12 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     written = clock((folder / "checkpoint.md").stat().st_mtime)
     if warm or client == "claude" and cache_ttl(recs) < 3600:
         print(json.dumps({"systemMessage": f"An idle checkpoint from {written} is ready. To continue from it in "
-                                           f"this window, run {pitstop(client)} and then /clear."}))
+                                           f"a fresh context, {restart(client, session)}."}))
         return 0
     prompt = str(hook.get("prompt", ""))
     reason = (
         f"This thread has about {size}K tokens after a long pause. An idle checkpoint is ready. "
-        "Run $pitstop and then /clear, then paste your prompt; or send this prompt again to keep "
+        f"To continue, {restart(client, session)}, then paste your prompt; or send this prompt again to keep "
         f"the full session.\n\nYour prompt:\n{prompt[:1500]}"
     ) if client == "codex" else (
         f"Idle checkpoint: the prompt cache expired {pause} ago, so continuing "
@@ -827,7 +833,8 @@ def goal_line(body: str) -> str:
 
 
 def resume(cwd: str, only: str | None = None) -> str:
-    handoff(cwd).unlink(missing_ok=True)
+    current = os.environ.get("CODEX_THREAD_ID")
+    only = only or (current if current and folder_for(current) else read(handoff(cwd)) or None)
     found = []
     for folder in sorted(state_dir().glob(f"checkpoints/{project_of(cwd)}/*"), key=lambda f: f.stat().st_mtime, reverse=True):
         session = folder.name[11:]
@@ -869,6 +876,7 @@ def clear(hook: dict[str, Any]) -> int:
     cwd = hook.get("cwd") or os.getcwd()
     name = read(handoff(cwd))
     text = resume(cwd, name) if name else ""
+    handoff(cwd).unlink(missing_ok=True)
     if text.startswith("Continuing"):
         body = read(folder_for(name) / "checkpoint.md").partition("\n---\n")[2]
         print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name} into session {hook['session_id']}."

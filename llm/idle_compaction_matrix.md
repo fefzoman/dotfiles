@@ -23,8 +23,8 @@
 | **Guard, checkpoint ready** | 1h cache: blocks once, repeats prompt. 5m cache: hint | Blocks once; hint when the model's cache is usually warm |
 | **Guard, no or stale checkpoint** | ✓ `/compact` hint | ✓ `/compact` hint, silent when the cache is usually warm |
 | **Staleness** | `last_prompt` stored in the checkpoint header | Same |
-| **Resume** | `/pitstop`; lists other valid checkpoints with goals | `$pitstop`; same |
-| **Handoff to `/clear`** | Until used or the old chat moves on | Same |
+| **Resume** | `/pitstop`; pending handoff before newest project checkpoint | `$pitstop <session>` in a new chat; bare resume prefers the current session, then handoff, then newest |
+| **Handoff to `/clear`** | Until used or the old chat moves on | Use New Chat and the explicit session ID; IDE `/clear` text does not reset context |
 | **Redaction** | Common key/token formats, JWTs, URL credentials, password assignments | Same |
 | **Kill switch** | `IDLE_COMPACT=off` | Same |
 
@@ -35,7 +35,7 @@
 | 0 | `arm` sleeps | `arm` sleeps | `arm` sleeps |
 | 0.9 × TTL | Wake: model writes checkpoint, cache renewed | Same at 4.5 min | Fork writes checkpoint at 27 min |
 | ≥ TTL, next prompt | Guard blocks once | Non-blocking hint | Block, or hint if the model's cache is usually warm |
-| User choice | `/pitstop` + `/clear`, or resend to keep the full session | Same | Same |
+| User choice | `/pitstop` + `/clear`, or resend to keep the full session | Same | New Chat + `$pitstop <session>`, or resend to keep the full session |
 
 ## 3. Drawbacks: resolution
 
@@ -49,7 +49,7 @@
 | 6 | No floor | 2× fresh-chat floor per client |
 | 7 | 5-minute cache noisy | Non-blocking hint instead of a block |
 | 8 | Codex TTL assumed | Learned per-model hit rate turns the block into a hint |
-| 9 | Fresh-chat `/pitstop` could take another session | Lists other checkpoints and the command to load one |
+| 9 | `/pitstop` could take another session or invalidate its own checkpoint | Prefer the current Codex session or handoff; explicit session IDs for new chats; resume-only prompts stay fresh |
 | 10 | Worker dies with the session | `SessionEnd` saves excerpts for both clients |
 | 11 | 10-minute handoff window | Removed; staleness invalidates instead |
 | 12 | Narrow redaction | More formats covered |

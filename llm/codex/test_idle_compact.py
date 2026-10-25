@@ -88,7 +88,9 @@ class CodexIdleCompactTest(unittest.TestCase):
 
     def test_manual_checkpoint_writes_in_thread_without_a_fork(self):
         out = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "$checkpoint"}, "codex"))
-        self.assertIn("or $pitstop in a new one", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("open a new chat in this workspace and run $pitstop codex-session",
+                      out["hookSpecificOutput"]["additionalContext"])
+        self.assertNotIn("/clear", out["hookSpecificOutput"]["additionalContext"])
         self.rows.append(self.row("response_item", {"type": "message", "role": "assistant", "content": [
             {"type": "output_text", "text": "## Idle checkpoint\n### Goal\nShip the parser fix"}]}, time.time() + 1))
         self.save()
@@ -104,6 +106,31 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.save()
         self.assertEqual(ic.resume(str(self.home)), "No idle checkpoint for this project.")
         self.assertNotIn("decision", json.loads(self.run_hook(ic.guard, self.hook, "codex")))
+
+    def test_linked_pitstop_hands_off_its_own_checkpoint(self):
+        self.run_hook(ic.arm, self.hook, "codex")
+        command = "[$pitstop](/Users/test/.agents/skills/pitstop/SKILL.md)"
+        self.rows.append(self.row("response_item", {"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": command}
+        ]}, time.time()))
+        self.save()
+        output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": command}, "codex"))
+        self.assertEqual(output["decision"], "block")
+        self.assertIn("$pitstop codex-session", output["reason"])
+        self.assertNotIn("/clear", output["reason"])
+        self.assertEqual(ic.read(ic.handoff(str(self.home))), "codex-session")
+
+    def test_cold_guard_names_the_checkpoint_for_a_new_chat(self):
+        self.run_hook(ic.arm, self.hook, "codex")
+        output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "continue"}, "codex"))
+        self.assertIn("$pitstop codex-session", output["reason"])
+        self.assertNotIn("/clear", output["reason"])
+
+    def test_linked_checkpoint_requests_a_manual_summary(self):
+        command = "[$checkpoint](/Users/test/.agents/skills/checkpoint/SKILL.md)"
+        output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": command}, "codex"))
+        self.assertIn("Manual checkpoint:", output["hookSpecificOutput"]["additionalContext"])
+        self.assertTrue(ic.marker("codex-session", "manual").exists())
 
     def test_65k_session_checkpoints_before_the_30_minute_cache_boundary(self):
         os.environ.pop("IDLE_COMPACT_TEST_SECONDS")
@@ -208,7 +235,8 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertEqual(command[1:6], ["exec", "fork", "codex-session", "--ephemeral", "--skip-git-repo-check"])
         self.assertEqual(command[command.index("-m") + 1], "gpt-test")
         self.assertEqual(kwargs["env"]["IDLE_COMPACT"], "off")
-        self.assertIn("run $pitstop and then /clear", kwargs["input"])
+        self.assertIn("run $pitstop codex-session", kwargs["input"])
+        self.assertNotIn("/clear", kwargs["input"])
         self.assertIn("### Dead ends\nRegex", ic.resume(str(self.home)))
 
     def test_learned_warm_cache_turns_the_block_into_a_hint(self):
@@ -221,7 +249,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.run_hook(ic.arm, self.hook, "codex")
         self.assertEqual(len(json.loads(ic.read(ic.cache_log()))), ic.WARM_SAMPLES)
         hint = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "next"}, "codex"))
-        self.assertIn("$pitstop and then /clear", hint["systemMessage"])
+        self.assertIn("$pitstop codex-session", hint["systemMessage"])
         self.assertNotIn("decision", hint)
 
     def test_warm_switch_blocks_once_and_an_upgrade_hints(self):
@@ -292,7 +320,8 @@ class CodexIdleCompactTest(unittest.TestCase):
         result = subprocess.run([sys.executable, ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
                                 text=True, capture_output=True, check=True)
         self.assertEqual(json.loads(result.stdout)["reason"],
-                         "Idle checkpoint codex-session handed off. Run /clear to continue from it in this window.")
+                         "Idle checkpoint codex-session handed off; open a new chat in this workspace "
+                         "and run $pitstop codex-session.")
         result = subprocess.run([sys.executable, ic.__file__, "clear"], input=json.dumps(self.hook | {"session_id": "codex-new"}),
                                 text=True, capture_output=True, check=True)
         loaded = json.loads(result.stdout)

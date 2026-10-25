@@ -196,6 +196,42 @@ class IdleCompactTest(unittest.TestCase):
         self.save([prompt("x", old), reply("y", old)])
         self.assertIn("### Goal\nship", ic.resume(self.cwd))
 
+    def test_resume_commands_do_not_make_a_checkpoint_stale(self) -> None:
+        old = int(time.time()) - 60
+        folder = ic.folder_for("s1", self.cwd)
+        ic.store_checkpoint(folder, "s1", "## Idle checkpoint\n### Goal\nship", self.cwd,
+                            self.transcript, prompted=old)
+        for command in ("/pitstop", "$pitstop", "$pitstop s1", "[$pitstop](/skills/pitstop/SKILL.md)", "/clear"):
+            with self.subTest(command=command):
+                self.save([prompt("fix it", old), prompt(command, time.time())])
+                self.assertIn("### Goal\nship", ic.resume(self.cwd, "s1"))
+        self.save([prompt("fix it", old), prompt("$pitstop then change the design", time.time())])
+        self.assertEqual(ic.resume(self.cwd, "s1"), "No idle checkpoint for this project.")
+
+    def test_resume_uses_handoff_without_consuming_it(self) -> None:
+        self.save([prompt("fix it", time.time() - 60)])
+        for session in ("s1", "s2"):
+            ic.store_checkpoint(ic.folder_for(session, self.cwd), session,
+                                f"## Idle checkpoint\n### Goal\n{session}", self.cwd, self.transcript)
+        ic.write(ic.handoff(self.cwd), "s1")
+        self.assertIn("Continuing from idle checkpoint s1", ic.resume(self.cwd))
+        self.assertEqual(ic.read(ic.handoff(self.cwd)), "s1")
+        self.run_hook(ic.clear, {"cwd": self.cwd, "session_id": "s3"})
+        self.assertFalse(ic.handoff(self.cwd).exists())
+
+    def test_resume_prefers_current_codex_session_without_falling_back_when_stale(self) -> None:
+        old = int(time.time()) - 60
+        self.save([prompt("fix it", old)])
+        for session in ("s1", "s2"):
+            ic.store_checkpoint(ic.folder_for(session, self.cwd), session,
+                                f"## Idle checkpoint\n### Goal\n{session}", self.cwd, self.transcript,
+                                prompted=old if session == "s1" else time.time() + 60)
+        with mock.patch.dict(os.environ, {"CODEX_THREAD_ID": "s1"}):
+            self.assertIn("Continuing from idle checkpoint s1", ic.resume(self.cwd))
+            self.assertIn("Continuing from idle checkpoint s2", ic.resume(self.cwd, "s2"))
+            self.save([prompt("fix it", old), prompt("change it", time.time())])
+            self.assertEqual(ic.resume(self.cwd), "No idle checkpoint for this project.")
+
     def test_guard_without_checkpoint_hints_once_after_the_cache_expires(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "3600"
