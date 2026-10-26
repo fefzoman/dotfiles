@@ -41,6 +41,10 @@ class AgentInstallationTests(unittest.TestCase):
                     (home / profile / filename).read_text(),
                     (SCRIPT_DIR / agent / "__AGENTS.md").read_text(),
                 )
+                self.assertEqual(
+                    (home / profile / "skills/natural-article/SKILL.md").read_text(),
+                    (SCRIPT_DIR / "skills/natural-article/SKILL.md").read_text(),
+                )
 
     def test_superpowers_installation_and_reuse(self):
         for mode in ("installed", "upstream", "failure"):

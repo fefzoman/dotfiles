@@ -107,6 +107,11 @@ done
 check "Codex pitstop skill matches the repository" "Codex pitstop skill is missing or stale" \
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
 
+for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
+  check "Natural article skill matches the repository in $profile" "Natural article skill is missing or stale in $profile" \
+    cmp -s "$SCRIPT_DIR/skills/natural-article/SKILL.md" "$profile/skills/natural-article/SKILL.md"
+done
+
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
   bash --noprofile --norc -c \

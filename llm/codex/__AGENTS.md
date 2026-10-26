@@ -19,6 +19,7 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 ## Delivery
 
 - Apply relevant skills within these rules; load only the current step's context.
+- Use the natural-article skill when creating or revising lessons, guides, documentation, or articles.
 - Run Superpowers brainstorming, writing-plans, worktrees, and subagent orchestration only when the user asks; keep designs and plans to a short inline outline, with no document file unless asked.
 - Priority: explicit user requirements → agent policy → Superpowers defaults.
 
