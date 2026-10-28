@@ -106,10 +106,14 @@ Optimization measurements retain their original scopes and are never summed:
   fresh-input total/average
 - Ponytail plugin/policy state
 
-Serena and Context7 calls made through Codex's programmatic `exec` wrapper are
-reported as lower bounds because loop multiplicity is not stored separately in
-the rollout. A `0` means no matching direct call or programmatic invocation was
-recorded; it does not mean that the tool is unavailable.
+For Codex's programmatic `exec` wrapper, counts identify source call sites rather
+than proven executions: loops and branches are not evaluated. Literal calls and
+simple `ALL_TOOLS.find` lookups with exact tool names or MCP suffixes are recognized.
+Other dynamic calls are reported as unresolved, so zero observed calls does not
+establish that a tool was unused. Combined output stays with its `exec batch`;
+per-tool payload is `null` in JSON when it cannot be attributed. Multi-file output
+is not divided among filenames. Exact usage totals remain independent of these
+estimates. Direct Claude tool records retain their native names and attribution.
 Ponytail savings are not calculated because avoided work is not observable in
 session telemetry.
 

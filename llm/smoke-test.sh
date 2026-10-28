@@ -108,9 +108,15 @@ check "Codex pitstop skill matches the repository" "Codex pitstop skill is missi
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
 
 for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-  check "Natural article skill matches the repository in $profile" "Natural article skill is missing or stale in $profile" \
-    cmp -s "$SCRIPT_DIR/skills/natural-article/SKILL.md" "$profile/skills/natural-article/SKILL.md"
+  for skill in natural-article investigation; do
+    check "$skill skill matches the repository in $profile" "$skill skill is missing or stale in $profile" \
+      cmp -s "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
+  done
 done
+check "Platform plugins are scoped out of personal Codex" "Platform plugins are enabled in personal Codex" \
+  agent_config plugins-scoped codex "$HOME/.codex"
+check "Platform plugins are scoped out of personal Claude" "Platform plugins are enabled in personal Claude" \
+  agent_config plugins-scoped claude "$HOME/.claude"
 
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
@@ -139,6 +145,8 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
 done
 
 for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+  check "Claude hook entries are unique in $profile" "Duplicate Claude hooks in $profile" \
+    agent_config hooks-unique "$profile/settings.json"
   if agent_config statusline-enabled "$profile/settings.json"; then
     pass "Claude compact-warning status line is enabled in $profile"
   else

@@ -16,6 +16,86 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class AgentInstallationTests(unittest.TestCase):
+    def test_platform_plugins_are_scoped_without_touching_work_or_custom_settings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for agent, filename in (("codex", "config.toml"), ("claude", "settings.json")):
+                for suffix in ("", "-work"):
+                    profile = Path(directory) / f".{agent}{suffix}"
+                    profile.mkdir()
+                    path = profile / filename
+                    initial = ('# keep this comment\nmodel = "keep"\n'
+                               '[plugins."dlm@dlm-user"]\nenabled = true\nother = 1\n'
+                               '[plugins."custom@mine"]\nenabled = true\n' if agent == "codex" else
+                               json.dumps({"enabledPlugins": {"dlm@dlm-user": True, "custom@mine": True}, "custom": 1}))
+                    path.write_text(initial)
+                    self.assertEqual(agent_config.plugins_scoped(agent, str(profile)), bool(suffix))
+                    for _ in range(2):
+                        agent_config.scope_plugins(agent, str(profile))
+                    self.assertTrue(agent_config.plugins_scoped(agent, str(profile)))
+                    data = agent_config.load_toml(str(path)) if agent == "codex" else agent_config.load(str(path))
+                    plugins = data["plugins"] if agent == "codex" else data["enabledPlugins"]
+                    active = plugins["dlm@dlm-user"]["enabled"] if agent == "codex" else plugins["dlm@dlm-user"]
+                    self.assertEqual(active, bool(suffix))
+                    if suffix:
+                        self.assertEqual(path.read_text(), initial)
+                    if agent == "codex":
+                        self.assertIn("# keep this comment", path.read_text())
+                        self.assertEqual(plugins["custom@mine"], {"enabled": True})
+                        self.assertEqual(plugins["dlm@dlm-user"]["other"], 1)
+                    else:
+                        self.assertTrue(plugins["custom@mine"])
+                        self.assertEqual(data["custom"], 1)
+
+    def test_pre_tool_hook_keeps_unrelated_hooks_in_same_group(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "settings.json")
+            custom = {"type": "command", "command": "custom-check"}
+            agent_config.save(path, {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+                {"type": "command", "command": agent_config.READ_HINT}, custom]}]}})
+            for _ in range(2):
+                agent_config.read_hint(path)
+            entries = list(agent_config.hook_entries(agent_config.load(path)))
+            self.assertEqual(sum(e[3] == "custom-check" for e in entries), 1)
+            self.assertEqual(sum(e[3] == agent_config.READ_HINT for e in entries), 1)
+
+    def test_idle_hook_install_keeps_unrelated_commands(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "settings.json")
+            agent_config.save(path, {"hooks": {"Stop": [{"hooks": [
+                {"type": "command", "command": f"{agent_config.IDLE_COMPACT} arm"},
+                {"type": "command", "command": "custom-check"}]}]}})
+            agent_config.idle_compact(path)
+            entries = list(agent_config.hook_entries(agent_config.load(path)))
+            self.assertEqual(sum(e[3] == "custom-check" for e in entries), 1)
+
+    def test_plugin_scope_rejects_unsupported_toml_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / ".codex"
+            profile.mkdir()
+            path = profile / "config.toml"
+            original = 'plugins = { "dlm@dlm-user" = { enabled = true } }\n'
+            path.write_text(original)
+            with self.assertRaises((SystemExit, tomllib.TOMLDecodeError)):
+                agent_config.scope_plugins("codex", str(profile))
+            self.assertEqual(path.read_text(), original)
+
+    def test_duplicate_codex_hooks_are_repaired_and_custom_hooks_survive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            required = SCRIPT_DIR / "codex/codex-hooks.json"
+            path = str(Path(directory) / "hooks.json")
+            data = agent_config.load(str(required))
+            event = next(iter(data["hooks"]))
+            group = json.loads(json.dumps(data["hooks"][event][0]))
+            group["hooks"].append({"type": "command", "command": "custom-check"})
+            data["hooks"][event].append(group)
+            agent_config.save(path, data)
+            self.assertFalse(agent_config.hooks_unique(path))
+            self.assertFalse(agent_config.codex_hooks_valid(str(required), path))
+            agent_config.codex_hooks(path, str(required))
+            self.assertTrue(agent_config.codex_hooks_valid(str(required), path))
+            self.assertTrue(agent_config.hooks_unique(path))
+            self.assertEqual(sum(e[3] == "custom-check" for e in agent_config.hook_entries(agent_config.load(path))), 1)
+
     def run_installer_function(self, name, home, extra=""):
         source = (SCRIPT_DIR / "ai-install.sh").read_text()
         functions = "\n".join(
@@ -41,10 +121,11 @@ class AgentInstallationTests(unittest.TestCase):
                     (home / profile / filename).read_text(),
                     (SCRIPT_DIR / agent / "__AGENTS.md").read_text(),
                 )
-                self.assertEqual(
-                    (home / profile / "skills/natural-article/SKILL.md").read_text(),
-                    (SCRIPT_DIR / "skills/natural-article/SKILL.md").read_text(),
-                )
+                for skill in ("natural-article", "investigation"):
+                    self.assertEqual(
+                        (home / profile / f"skills/{skill}/SKILL.md").read_text(),
+                        (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text(),
+                    )
 
     def test_superpowers_installation_and_reuse(self):
         for mode in ("installed", "upstream", "failure"):

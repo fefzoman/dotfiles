@@ -28,6 +28,10 @@ def bash_targets(command: str) -> list[str]:
             words = shlex.split(segment)
         except ValueError:
             continue
+        if words and words[0] == "rtk":
+            words = words[1:]
+            if words and words[0] == "proxy":
+                words = words[1:]
         if words and words[0] in WHOLE_READ:
             targets += [w for w in words[1:] if not w.startswith("-")]
     return targets
@@ -65,11 +69,11 @@ def main() -> int:
         path = cwd / name
         lines = line_count(path)
         if lines >= MIN_LINES:
+            quoted = shlex.quote(name)
             notes.append(
-                f"{name} has {lines} lines. To read only what the task needs: `smart-read outline {name}` lists its "
-                f'symbols with line ranges; inside the target Git repository, `smart-read search "<what you need>" '
-                f'--lexical --path {name}` returns the relevant parts; then read just that line range. '
-                "Embedding indexing requires an explicit user request; never start it in the background."
+                f"{name} has {lines} lines. Use `smart-read outline {quoted}` for ranges, or inside the target Git "
+                f'repository `smart-read search "<question>" --lexical --path {quoted}`; read only the needed ranges. '
+                "Do not create embeddings unless explicitly requested."
             )
         if seen and lines >= BLOCK_LINES and str(path.resolve()) not in denied:
             blocked.append(str(path.resolve()))

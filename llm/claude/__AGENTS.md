@@ -5,6 +5,7 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 ## Coding
 
 - Ponytail supplies coding guidance; do not duplicate its full rules here.
+- Reuse active Ponytail policy and skill instructions already supplied in this conversation; load additional procedures only when needed.
 - Comments explain only a constraint the code cannot show, in one line (two at most). Fix violating comments in touched lines.
 - Before committing changes to more than about 30 lines of code, use the ponytail:ponytail-review skill; config and generated files are excluded.
 
@@ -15,6 +16,7 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 - Embedding indexing: run `smart-read index` only when the user explicitly requests it, inside the target repository, in the foreground. Never detach it (`&`, `nohup`) or leave its tool session unmonitored; poll until it exits and stop it on cancellation. Search never creates embeddings; omit `--lexical` only when semantic retrieval is needed.
 - Non-code, generated content, unsupported languages, exact-text searches, and tiny known files: plain file tools. Do not reread known content or rediscover available tools.
 - External API/library behavior that is unfamiliar or version-sensitive: Context7, at the version pinned in the project environment or lockfile. Stable language behavior needs neither tool.
+- For disputed facts, uncertain compatibility or repeated failures needing a new hypothesis, use the investigation skill. Distinguish an upgrade target from installed versions and verify the returned source version.
 
 ## Delivery
 
@@ -28,6 +30,8 @@ Make the smallest complete change after tracing the code path and callers. Reuse
 - Use RTK for supported noisy commands when compact output suffices. Use automatic rewriting only with a verified active hook; otherwise prefix manually. Keep exact-output and unsupported commands native.
 - Keep searches and logs narrow; use rg's own count, sorting, and exclusion flags instead of pipelines that bypass RTK. Prefer pgrep, diff stats before targeted diffs, and bounded failure logs.
 - Recover details RTK hid with RTK_DISABLED=1; verify recovered source before relying on it.
+- Discover tool names first; retrieve only needed schemas. Project shell results to status and relevant output, and equivalent MCP results to one representation; preserve distinct content, errors, warnings and resource links. Save large logs locally, return bounded diagnostics and a recovery path; do not summarize them with another model.
+- For running commands, retain the process/session ID and use native waits. Increase unchanged-progress intervals within the user-update cadence; report changed progress, completion or failure. Preserve cancellation and final exit status; avoid separate sleeps and repeated log tails.
 - Never suggest /model, /effort or /fast mid-session: each rewrites the cached context. Delegate work that needs another model or effort to a subagent with that setting.
 
 ## Finish

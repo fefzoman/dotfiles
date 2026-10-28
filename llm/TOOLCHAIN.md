@@ -86,7 +86,7 @@ Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-re
 - `outline FILE` lists symbols with line ranges.
 - One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. `index` embeds pending chunks in the foreground, with batch progress and Ctrl-C cancellation, only on explicit user request. An OS lock prevents overlapping commands in that repository.
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
-- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a note pointing at `smart-read` before a whole-file read of 80 or more lines; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through.
+- `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a short note pointing at `smart-read` before a whole-file read of 80 or more lines, including `rtk cat`, `rtk proxy cat` and large skill files; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through. Ranged and piped reads pass through.
 
 ## 5. Context7
 
@@ -96,7 +96,7 @@ Install via `npx ctx7 setup --codex`, or `codex plugin marketplace add upstash/c
 
 **Use when** the work depends on third-party APIs, version-specific behavior, recently changed frameworks, SDK/provider config, or unfamiliar dependencies already in the repo. Not on every task.
 
-**Version guard:** in Claude Code and Codex, `llm/context7_version_guard.py` (`PreToolUse`) denies `query-docs` when the project's `.venv`, `venv`, `uv.lock`, `poetry.lock`, `requirements*.txt` or `node_modules` pins the library and neither `libraryId` nor the query names that version.
+**Version guard:** in Claude Code and Codex, `llm/context7_version_guard.py` (`PreToolUse`) denies `query-docs` when the project's `.venv`, `venv`, `uv.lock`, `poetry.lock`, `requirements*.txt` or `node_modules` pins the library and neither `libraryId` nor the query names that version. Upgrade research can use an explicit versioned library ID or `target version: X.Y.Z` in the query. This checks the request; the agent must still verify the returned source covers the target.
 
 **Decision rule:** about this repo → Serena; about an external library/API → Context7; stable, known language/runtime behavior → neither.
 
@@ -223,9 +223,19 @@ The global policy tells both agents never to suggest `/model`, `/effort` or `/fa
 
 The installer sets `effortLevel = "medium"` in both Claude profiles and a top-level `model_reasoning_effort = "medium"` in both Codex homes; profile tables keep their own. Claude keeps thinking in context for the whole session and Codex until the next user message, so every thinking token is re-read on each later call. In the matched coding benchmarks Medium was the cheapest setting passing every trial for both clients: Opus 5.5 / Medium cost 7–21% less than High ([Claude](../benchmarks/claude_matrix/README.md)), and GPT-6.1 Sol / Medium 26% less than High ([Codex](../benchmarks/codex_matrix/README.md)). Start a session with `claude --effort high` (or `codex -c model_reasoning_effort=high`) when Medium stalls on hard design or debugging; switching mid-session rewrites the cache.
 
+### Investigation, output and waiting
+
+The shared `investigation` skill activates for disputed facts, uncertain compatibility and repeated failures needing a new hypothesis. It establishes the question, target version/environment and stopping evidence, then asks what new evidence another attempt would provide. It does not impose a retry count or replace debugging and validation. Both clients receive the same skill through `install_global_agents`; active Ponytail policy and already-loaded skill instructions are reused.
+
+The agent selects what to retrieve; tools keep unnecessary text out of context. Use Serena and smart-read for code and passages, RTK for supported shell output, and explicit field selection for shell envelopes and equivalent MCP representations. Preserve distinct content, errors, warnings and resource links. Large logs stay local with bounded diagnostics and a recovery path. There is no model-based summarizer or universal tool-result rewrite hook.
+
+Running commands retain their native process/session IDs. Use the client's wait mechanism, increasing intervals when progress is unchanged while maintaining user updates; avoid separate sleeps and repeated log tails. Cancellation and final exit status remain part of verification. A new wait daemon is unnecessary.
+
 ### Token-profiler
 
 `token-profiler codex | codex-work | claude | claude-work`. Model-call windows split after gaps > 30 min and report: context size on the first resumed call; first-call fresh input and its share of the window's fresh input; later-call fresh total and average; cold-start, idle-resume, post-compaction, setting-change and unexplained-miss attribution where the transcript shows enough. Claude records add exact cache-read and cache-creation counts. Reads local session files only; no model/API requests.
+
+Programmatic tool counts identify source call sites, not proven executions. The profiler resolves literal calls and simple `ALL_TOOLS.find` lookups using exact names or MCP suffixes; other dynamic calls remain unresolved. Combined output stays with its `exec batch`, and multi-file output is not divided among filenames. Unknown per-tool payload is `null` in JSON. Exact provider usage is unchanged; attribution cannot establish an unexplained cache miss's cause.
 
 ## 8. How the tools reinforce each other
 
@@ -250,10 +260,14 @@ Each piece has exactly one owner:
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
+| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `investigation` into all four profiles |
+| Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
 | Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
 
 Two Serena servers on one project mean duplicate tools, duplicate indexing/LSP processes, more memory, confused activation/state, and uncertain tool choice.
+
+Plugin scope is applied at installation for future sessions, not switched inside a live conversation. Platform plugin installation remains externally managed: the installer does not install missing plugins or enable disabled work selections. Use `codex-work` or `claude-work` for platform tasks once the plugin is installed there. Orca-managed account homes are not modified. Smoke checks verify personal scope, unique hook entries, policy imports and skill copies; reinstalling managed hooks preserves unrelated commands even when they share a hook group.
 
 ## 10. Hook coexistence
 

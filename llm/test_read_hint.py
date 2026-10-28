@@ -30,6 +30,16 @@ class ReadHintTest(unittest.TestCase):
         self.assertIn("big.py has 80 lines", self.run_hook("Read", {"file_path": str(self.dir / "big.py")}))
         self.assertIn("smart-read outline big.py", self.run_hook("Bash", {"command": "cd x && cat big.py"}))
 
+    def test_rtk_reads_of_large_skills_get_a_hint(self):
+        skill = self.dir / "a skill/SKILL.md"
+        skill.parent.mkdir()
+        skill.write_text("instruction\n" * 80)
+        for prefix in ("rtk", "rtk proxy"):
+            hint = self.run_hook("Bash", {"command": f"{prefix} cat 'a skill/SKILL.md'"})
+            self.assertIn("has 80 lines", hint)
+            self.assertIn("smart-read outline 'a skill/SKILL.md'", hint)
+        self.assertEqual(self.run_hook("Bash", {"command": "rtk cat big.py | head -5"}), "")
+
     def test_first_whole_read_of_a_huge_file_is_denied_once_per_session(self):
         (self.dir / "huge.py").write_text("x = 1\n" * 300)
         hook = {"cwd": str(self.dir), "session_id": f"t{os.getpid()}", "tool_name": "Read",

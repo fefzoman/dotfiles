@@ -330,6 +330,7 @@ class CodexProgrammaticToolTest(unittest.TestCase):
         }
         self.assertIn("mcp__serena__find_symbol", stats)
         self.assertIn("mcp__context7__query_docs", stats)
+        self.assertIsNone(stats["mcp__context7__query_docs"]["result_tokens"])
         self.assertNotIn("exec", stats)
 
     def test_unresolved_call_reports_incomplete_coverage(self) -> None:
@@ -364,6 +365,13 @@ class CodexProgrammaticToolTest(unittest.TestCase):
             report = token_profiler.analyze_session(path)
         self.assertEqual(report.file_payloads, {})
         self.assertGreater(report.tool_payloads["exec batch"], 0)
+
+    def test_shell_batch_does_not_assign_all_output_to_one_file(self) -> None:
+        report = token_profiler.SessionReport(Path("rollout.jsonl"))
+        token_profiler.record_source(report, token_profiler.SourceItem(
+            "Shell command output", "batch", 100, "external", "command output", 1,
+            command="cat config.txt; echo other"), text="config contents\nother")
+        self.assertEqual(report.file_payloads, {})
 
     def test_payload_lifecycle_and_instruction_sources_survive_compaction(self) -> None:
         records = [

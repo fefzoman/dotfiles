@@ -438,7 +438,7 @@ def record_source(report: SessionReport, item: SourceItem, generator: bool = Fal
         report.file_payloads[item.file] += item.tokens
     if text and item.command:
         files = extract_files_from_command(item.command, text)
-        if len(files) == 1:
+        if len(files) == 1 and not re.search(r"[;&|\n]", item.command):
             report.file_payloads[files[0]] += item.tokens
 
 
@@ -1712,18 +1712,19 @@ def tool_statistics(report: SessionReport) -> list[dict[str, Any]]:
     for name in report.tool_calls.keys() | report.tool_payloads.keys():
         sizes = sizes_by_tool[name]
         tokens = report.tool_payloads.get(name, 0)
+        unknown = not sizes and report.tool_calls.get(name, 0) > 0
         rows.append(
             {
                 "name": name,
                 "calls": report.tool_calls.get(name, 0),
                 "calls_are_lower_bound": name in report.programmatic_tool_calls,
-                "result_tokens": tokens,
-                "average_result_tokens": round(tokens / len(sizes)) if sizes else 0,
-                "max_result_tokens": max(sizes, default=0),
-                "payload_ratio": tokens / total_payload if total_payload else 0.0,
+                "result_tokens": None if unknown else tokens,
+                "average_result_tokens": round(tokens / len(sizes)) if sizes else None,
+                "max_result_tokens": max(sizes) if sizes else None,
+                "payload_ratio": None if unknown else (tokens / total_payload if total_payload else 0.0),
             }
         )
-    return sorted(rows, key=lambda row: row["result_tokens"], reverse=True)
+    return sorted(rows, key=lambda row: row["result_tokens"] or 0, reverse=True)
 
 
 def normalized_tool_arguments(result: ToolResult) -> str:
@@ -2174,12 +2175,13 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
         print(f"{'tool':<44} {'calls':>7} {'total':>9} {'avg':>8} {'max':>8} {'share':>7}")
         for row in stats[:top_n]:
             calls = f"{'≥' if row['calls_are_lower_bound'] else ''}{row['calls']}"
+            share = "unknown" if row["payload_ratio"] is None else f"{row['payload_ratio'] * 100:6.1f}%"
             print(
                 f"{truncate(row['name'], 43):<44} {calls:>7} "
                 f"{human_int(row['result_tokens']):>9} "
                 f"{human_int(row['average_result_tokens']):>8} "
                 f"{human_int(row['max_result_tokens']):>8} "
-                f"{row['payload_ratio'] * 100:>6.1f}%"
+                f"{share:>7}"
             )
 
     outliers = tool_result_outliers(report)

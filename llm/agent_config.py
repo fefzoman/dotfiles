@@ -23,6 +23,7 @@ CONTEXT_TRIM_SKILLS = {
 }
 # Cheapest setting passing every trial in benchmarks/claude_matrix and benchmarks/codex_matrix.
 EFFORT = "medium"
+WORK_PLUGINS = ("dlm@dlm-user",)
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
 SHELL_END = "# END AI TOOLING SHELL ENVIRONMENT"
 
@@ -89,8 +90,11 @@ def codex_hooks(target: str, required: str) -> None:
                 installed = {"hooks": []} if matcher is None else {"hooks": [], "matcher": matcher}
                 installed_groups.append(installed)
             commands = {h["command"] for h in required_group["hooks"]}
-            installed["hooks"] = [h for h in installed["hooks"] if h.get("command") not in commands]
+            for group in installed_groups:
+                if group.get("matcher") == matcher:
+                    group["hooks"] = [h for h in group["hooks"] if h.get("command") not in commands]
             installed["hooks"] += required_group["hooks"]
+        events[event] = [group for group in installed_groups if group.get("hooks")]
     save(target, data)
 
 
@@ -157,11 +161,44 @@ def statusline(settings: str) -> None:
 def pre_tool_hook(settings: str, matcher: str, command: str) -> None:
     data = load(settings)
     hooks = data.setdefault("hooks", {})
-    hooks["PreToolUse"] = [
-        entry for entry in hooks.get("PreToolUse", [])
-        if all(hook.get("command") != command for hook in entry.get("hooks", []))
-    ] + [{"matcher": matcher, "hooks": [{"type": "command", "command": command, "timeout": 5}]}]
+    groups = hooks.setdefault("PreToolUse", [])
+    for entry in groups:
+        entry["hooks"] = [hook for hook in entry.get("hooks", []) if hook.get("command") != command]
+    hooks["PreToolUse"] = [entry for entry in groups if entry["hooks"]] + [
+        {"matcher": matcher, "hooks": [{"type": "command", "command": command, "timeout": 5}]}]
     save(settings, data)
+
+
+def scope_plugins(agent: str, profile: str) -> None:
+    if agent not in {"codex", "claude"}:
+        raise ValueError(f"Unknown agent: {agent}")
+    profile = Path(profile)
+    if profile.name != f".{agent}":
+        return
+    if agent == "claude":
+        path = str(profile / "settings.json")
+        data = load(path)
+        data.setdefault("enabledPlugins", {}).update(dict.fromkeys(WORK_PLUGINS, False))
+        save(path, data)
+        return
+    path = profile / "config.toml"
+    text = path.read_text() if path.exists() else ""
+    expected = tomllib.loads(text)
+    for plugin in WORK_PLUGINS:
+        table = expected.setdefault("plugins", {}).setdefault(plugin, {})
+        if table.get("enabled") is False:
+            continue
+        table["enabled"] = False
+        pattern = rf'(?ms)^(\[plugins\.(?:"{re.escape(plugin)}"|\'{re.escape(plugin)}\')\][^\n]*\n)(.*?)(?=^\[|\Z)'
+        section = re.search(pattern, text)
+        if section:
+            body, count = re.subn(r"(?m)^[ \t]*enabled[ \t]*=.*$", "enabled = false", section[2])
+            text = text[:section.start()] + section[1] + (body if count else "enabled = false\n" + body) + text[section.end():]
+        else:
+            text = text.rstrip() + f"\n\n[plugins.{json.dumps(plugin)}]\nenabled = false\n"
+    if tomllib.loads(text) != expected:
+        raise SystemExit(f"{path}: scope platform plugins manually; unsupported TOML layout")
+    path.write_text(text)
 
 
 def context7_guard(settings: str) -> None:
@@ -185,11 +222,10 @@ def idle_compact(settings: str) -> None:
     hooks = data.setdefault("hooks", {})
     # Sweeping every event also drops hooks this installer no longer wants.
     for event in list(hooks):
-        hooks[event] = [
-            entry
-            for entry in hooks[event]
-            if all(not str(h.get("command", "")).startswith(IDLE_COMPACT) for h in entry.get("hooks", []))
-        ]
+        for entry in hooks[event]:
+            entry["hooks"] = [h for h in entry.get("hooks", [])
+                              if not str(h.get("command", "")).startswith(IDLE_COMPACT)]
+        hooks[event] = [entry for entry in hooks[event] if entry["hooks"]]
     for event, entry in wanted.items():
         hooks.setdefault(event, []).append(entry)
     save(settings, data)
@@ -300,18 +336,35 @@ def codex_rtk_path(config: str, rtk_dir: str) -> bool:
 
 
 def codex_hooks_valid(required: str, installed: str) -> bool:
-    installed = set(hook_entries(load(installed)))
+    entries = list(hook_entries(load(installed)))
+    installed = set(entries)
     obsolete = any(command and "serena-hooks reset" in command for *_, command in installed)
-    return set(hook_entries(load(required))) <= installed and not obsolete
+    return len(entries) == len(installed) and set(hook_entries(load(required))) <= installed and not obsolete
+
+
+def hooks_unique(settings: str) -> bool:
+    entries = list(hook_entries(load(settings)))
+    return len(entries) == len(set(entries))
+
+
+def plugins_scoped(agent: str, profile: str) -> bool:
+    profile = Path(profile)
+    if profile.name != f".{agent}":
+        return True
+    if agent == "codex":
+        plugins = load_toml(str(profile / "config.toml")).get("plugins", {})
+        return all(plugins.get(plugin, {}).get("enabled") is False for plugin in WORK_PLUGINS)
+    plugins = load(str(profile / "settings.json")).get("enabledPlugins", {})
+    return all(plugins.get(plugin) is False for plugin in WORK_PLUGINS)
 
 
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, read_hint, statusline, context7_guard, idle_compact, attribution,
+        codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
         connectors, context_trim, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
-        context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid,
+        context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
     )
 }
 

@@ -61,6 +61,11 @@ def mentions(text: str, version: str) -> bool:
 
 def check(tool_input: dict, cwd: Path) -> str | None:
     library_id = tool_input.get("libraryId", "")
+    query = str(tool_input.get("query") or "")
+    if re.search(r"/(?:v|release[-_])?\d+\.\d+(?:\.\d+)?$", library_id) or re.search(
+        r"\btarget version:\s*v?\d+\.\d+(?:\.\d+)?\b", query, re.IGNORECASE
+    ):
+        return None
     names = package_names(library_id)
     if not names:
         return None
@@ -68,13 +73,14 @@ def check(tool_input: dict, cwd: Path) -> str | None:
     for root in project_roots(cwd):
         for version, source in pinned_versions(root, names).items():
             found.setdefault(version, source)
-    text = f"{library_id} {tool_input.get('query', '')}"
+    text = f"{library_id} {query}"
     if not found or any(mentions(text, version) for version in found):
         return None
     pins = ", ".join(f"{version} ({source})" for version, source in found.items())
     return (
         f"The project pins {library_id.rsplit('/', 1)[-1]} {pins}. Query that version: use "
-        f"'{library_id}/<version>' if resolve-library-id listed it, otherwise name the version in the query."
+        f"'{library_id}/<version>' if resolve-library-id listed it, otherwise name the version in the query. "
+        "For upgrade research, write 'target version: X.Y.Z' and verify the returned source covers that target."
     )
 
 

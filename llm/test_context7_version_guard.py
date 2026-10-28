@@ -23,6 +23,17 @@ class Context7VersionGuardTest(unittest.TestCase):
         self.assertIsNone(guard.check({"libraryId": "/boto/boto3/v1.43.56", "query": "s3"}, self.repo))
         self.assertIsNone(guard.check({"libraryId": "/pallets/flask", "query": "routing"}, self.repo))
 
+    def test_explicit_upgrade_target_can_differ_from_installed_version(self) -> None:
+        self.assertIsNone(guard.check({"libraryId": "/apache/airflow",
+                                      "query": "target version: 3.2.0; Python compatibility"}, self.workspace))
+        self.assertIsNone(guard.check({"libraryId": "/apache/airflow/3.2.0",
+                                      "query": "Python compatibility"}, self.workspace))
+        self.assertIsNotNone(guard.check({"libraryId": "/apache/airflow",
+                                         "query": "Python 3.13 compatibility"}, self.workspace))
+
+    def test_missing_query_is_still_checked_against_project_pin(self) -> None:
+        self.assertIsNotNone(guard.check({"libraryId": "/apache/airflow", "query": None}, self.workspace))
+
 
 if __name__ == "__main__":
     unittest.main()

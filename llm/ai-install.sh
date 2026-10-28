@@ -271,7 +271,7 @@ remove_speckit() {
 }
 
 install_global_agents() {
-  local profile
+  local profile skill
 
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
@@ -282,9 +282,16 @@ install_global_agents() {
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
   done
   for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-    mkdir -p "$profile/skills/natural-article"
-    install -m 0644 "$SCRIPT_DIR/skills/natural-article/SKILL.md" "$profile/skills/natural-article/SKILL.md"
+    for skill in natural-article investigation; do
+      mkdir -p "$profile/skills/$skill"
+      install -m 0644 "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
+    done
   done
+}
+
+scope_platform_plugins() {
+  agent_config scope-plugins codex "$HOME/.codex"
+  agent_config scope-plugins claude "$HOME/.claude"
 }
 
 install_codex_hooks() {
@@ -381,6 +388,8 @@ echo "==> Installing Ponytail for Codex and Claude profiles..."
 install_ponytail
 echo "==> Installing Superpowers for Codex and Claude profiles..."
 install_superpowers
+echo "==> Keeping platform plugins in work profiles; preserving work plugin selections..."
+scope_platform_plugins
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
 configure_agent_mcps
 echo "==> Installing Codex and Claude token profiler..."
