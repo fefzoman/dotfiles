@@ -37,7 +37,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 INNER_SESSION_GAP = dt.timedelta(minutes=30)
 
 import tiktoken  # type: ignore
@@ -438,8 +438,8 @@ def record_source(report: SessionReport, item: SourceItem, generator: bool = Fal
         report.file_payloads[item.file] += item.tokens
     if text and item.command:
         files = extract_files_from_command(item.command, text)
-        for file_name in files:
-            report.file_payloads[file_name] += max(1, item.tokens // len(files))
+        if len(files) == 1:
+            report.file_payloads[files[0]] += item.tokens
 
 
 def attribute(
@@ -475,11 +475,9 @@ def record_tool_result(
     if not names:
         return
     argument_text = obj_text(arguments)
-    share, remainder = divmod(tokens, len(names))
-    for index, name in enumerate(names):
-        size = share + (index < remainder)
-        report.tool_payloads[name] += size
-        report.tool_results.append(ToolResult(timestamp, name, size, argument_text))
+    name = names[0] if len(names) == 1 else "exec batch"
+    report.tool_payloads[name] += tokens
+    report.tool_results.append(ToolResult(timestamp, name, tokens, argument_text))
 
 
 def call_diagnostics(
@@ -587,9 +585,28 @@ def extract_command(args: Any) -> str | None:
 
 
 def extract_programmatic_tool_names(args: Any) -> list[str]:
-    """Find nested tools invoked through Codex's programmatic exec wrapper."""
+    """Identify call sites without executing transcript JavaScript."""
     text = args if isinstance(args, str) else obj_text(args)
-    return re.findall(r"\btools\.([A-Za-z][A-Za-z0-9_]*)\s*\(", text)
+    names = re.findall(r"\btools\.([A-Za-z][A-Za-z0-9_]*)\s*\(", text)
+    for call in re.finditer(r"\btools\[([^\]\n]+)\]\s*\(", text):
+        name = "unresolved_tool"
+        variable = re.fullmatch(r"([A-Za-z_$][\w$]*)\.name", call[1].strip())
+        if variable:
+            prefix = text[:call.start()]
+            binding = re.search(
+                rf"\bconst\s+{re.escape(variable[1])}\s*=\s*ALL_TOOLS\.find\("
+                r"\s*(\w+)\s*=>\s*(.*?)\);", prefix, re.DOTALL,
+            )
+            if binding:
+                predicate = binding[2].strip()
+                literal = re.fullmatch(rf'{binding[1]}\.name\s*===\s*"([\w]+)"', predicate)
+                suffix = re.fullmatch(rf"/([\w]+)\$/\.test\({binding[1]}\.name\)", predicate)
+                if literal:
+                    name = literal[1]
+                elif suffix and "__" in suffix[1]:
+                    name = suffix[1] if suffix[1].startswith("mcp__") else f"mcp__{suffix[1]}"
+        names.append(name)
+    return names
 
 
 def shell_category(command: str | None) -> str:
@@ -622,18 +639,34 @@ def extract_files_from_command(command: str | None, output: str = "") -> list[st
         return []
     files: list[str] = []
 
-    # Common direct file readers.
-    operand = r"(?:'([^']+)'|\"([^\"]+)\"|([^\s;&|]+))"
-    patterns = [
-        rf"\bcat\s+(?:--\s+)?{operand}",
-        rf"\b(?:head|tail|less|more|bat)\s+(?:-[^\s]+\s+)*{operand}",
-        rf"\bsed\s+-n\s+['\"][^'\"]+['\"]\s+{operand}",
-    ]
-    for pat in patterns:
-        for match in re.findall(pat, command):
-            candidate = next((part for part in match if part), "")
-            if candidate and not candidate.startswith("-"):
-                files.append(candidate)
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        words = list(lexer)
+    except ValueError:
+        words = []
+    segments: list[list[str]] = [[]]
+    for word in words:
+        if word in {";", "&&", "||", "|"}:
+            segments.append([])
+        else:
+            segments[-1].append(word)
+    for words in segments:
+        while words and words[0] in {"rtk", "proxy"}:
+            words = words[1:]
+        if not words or words[0] not in {"cat", "head", "tail", "less", "more", "bat", "sed"}:
+            continue
+        reader, operands = words[0], iter(words[1:])
+        expression = reader == "sed"
+        for word in operands:
+            if reader in {"head", "tail"} and word in {"-n", "-c", "--lines", "--bytes"}:
+                next(operands, None)
+            elif word.startswith("-"):
+                continue
+            elif expression:
+                expression = False
+            else:
+                files.append(word)
 
     # git diff output can identify exact files even when command cannot.
     for match in re.findall(r"^\+\+\+\s+(?:b/)?(.+)$", output, flags=re.MULTILINE):
@@ -1033,13 +1066,13 @@ def analyze_session(path: Path, keep_calls: bool = True) -> SessionReport:
             call_id = str(payload.get("call_id") or payload.get("id") or "")
             meta = calls_by_id.get(call_id, {})
             name = str(payload.get("name") or meta.get("name") or ptype)
-            command = meta.get("command")
+            effective_tools = meta.get("effective_tools") or [name]
+            command = meta.get("command") if len(effective_tools) == 1 else None
             output = payload.get("output")
             text = obj_text(output)
             tok = estimate_tokens(text)
             is_mcp = bool(meta.get("is_mcp"))
             category = classify_tool(name, command, is_mcp=is_mcp)
-            effective_tools = meta.get("effective_tools") or [name]
             record_tool_result(
                 report,
                 effective_tools,
@@ -1861,13 +1894,14 @@ def observed_tool(report: SessionReport, name: str) -> dict[str, Any]:
     needle = name.lower()
     calls = sum(count for tool, count in report.tool_calls.items() if needle in tool.lower())
     payload_tokens = sum(tokens for tool, tokens in report.tool_payloads.items() if needle in tool.lower())
-    lower_bound = any(
+    incomplete = bool(report.tool_calls["unresolved_tool"])
+    lower_bound = incomplete or any(
         needle in tool.lower() for tool in report.programmatic_tool_calls
     )
     return {
         "calls_observed": calls,
         "calls_are_lower_bound": lower_bound,
-        "result_tokens_estimate": payload_tokens,
+        "result_tokens_estimate": payload_tokens if payload_tokens else (None if calls or incomplete else 0),
         "saved_tokens": None,
     }
 
@@ -1883,6 +1917,7 @@ def collect_optimization(report: SessionReport) -> dict[str, Any]:
         "rtk_savings_estimate": read_rtk_savings(report.cwd),
         "serena_activity": observed_tool(report, "serena"),
         "context7_activity": observed_tool(report, "context7"),
+        "unresolved_programmatic_call_sites": report.tool_calls["unresolved_tool"],
         "ponytail": read_ponytail_status(
             report.agent,
             profile_home_for_session(report.path, report.agent),
@@ -1915,12 +1950,15 @@ def render_optimization(report: SessionReport) -> None:
         )
     for label, key in (("Serena observed", "serena_activity"), ("Context7 observed", "context7_activity")):
         activity = optimization[key]
+        payload = activity["result_tokens_estimate"]
         print_kv(
             label,
             f"{'≥' if activity['calls_are_lower_bound'] else ''}{activity['calls_observed']} calls, "
-            f"{human_int(activity['result_tokens_estimate'])} result tokens (estimated)",
+            + ("result attribution unknown" if payload is None else f"{human_int(payload)} result tokens (estimated)"),
         )
     print_kv("Ponytail", f"{ponytail_status(optimization['ponytail'])}; savings not measurable from rollout data")
+    if optimization["unresolved_programmatic_call_sites"]:
+        print_kv("Tool coverage", f"{optimization['unresolved_programmatic_call_sites']} unresolved call sites")
 
 
 def render_payload_breakdown(title: str, note: str, payload: dict[str, int]) -> None:
@@ -2131,7 +2169,7 @@ def render_report(report: SessionReport, top_n: int = 8, show_calls: int = 10) -
     if stats:
         print()
         print(style("TOOL RESULT BREAKDOWN — estimated", "bold"))
-        print(style("Programmatic loop call counts are lower bounds; payload is split across nested tool sites.", "dim"))
+        print(style("Programmatic counts describe source call sites, not proven executions; combined output stays with its batch.", "dim"))
         print("─" * 96)
         print(f"{'tool':<44} {'calls':>7} {'total':>9} {'avg':>8} {'max':>8} {'share':>7}")
         for row in stats[:top_n]:
@@ -2259,8 +2297,11 @@ def render_short_report(report: SessionReport) -> None:
         )
     print_kv(
         "Tools observed",
-        f"Serena {optimization['serena_activity']['calls_observed']}, "
-        f"Context7 {optimization['context7_activity']['calls_observed']}",
+        ", ".join(
+            f"{label} {'≥' if optimization[key]['calls_are_lower_bound'] else ''}"
+            f"{optimization[key]['calls_observed']}"
+            for label, key in (("Serena", "serena_activity"), ("Context7", "context7_activity"))
+        ) + ("; unresolved calls" if optimization["unresolved_programmatic_call_sites"] else ""),
     )
     print_kv("Ponytail", f"{ponytail_status(optimization['ponytail'])}; savings not measurable")
     if report.parse_errors:

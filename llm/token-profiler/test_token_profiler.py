@@ -208,6 +208,28 @@ class InnerSessionTest(unittest.TestCase):
 
 
 class CodexProgrammaticToolTest(unittest.TestCase):
+    def test_dynamic_tool_lookup_is_resolved_without_executing_script(self) -> None:
+        script = (
+            'const t = ALL_TOOLS.find(x => /serena__find_symbol$/.test(x.name));'
+            'await tools[t.name]({});'
+        )
+        self.assertEqual(token_profiler.extract_programmatic_tool_names(script),
+                         ["mcp__serena__find_symbol"])
+        self.assertEqual(token_profiler.extract_programmatic_tool_names(
+            'const t = ALL_TOOLS.find(x => x.name === "mcp__context7__query_docs");'
+            'await tools[t.name]({});'), ["mcp__context7__query_docs"])
+        self.assertEqual(token_profiler.extract_programmatic_tool_names(
+            'const t = ALL_TOOLS.find(x => /serena.*symbol/.test(x.name));'
+            'await tools[t.name]({});'), ["unresolved_tool"])
+        self.assertEqual(token_profiler.extract_programmatic_tool_names(
+            'await tools[load("tool")]({});'), ["unresolved_tool"])
+
+    def test_file_arguments_exclude_tail_counts(self) -> None:
+        self.assertEqual(token_profiler.extract_files_from_command(
+            "rtk proxy tail -n 6 /tmp/build.log"), ["/tmp/build.log"])
+        self.assertEqual(token_profiler.extract_files_from_command(
+            "rtk cat 'Phase 3.md' requirements.txt"), ["Phase 3.md", "requirements.txt"])
+
     def test_tool_outliers_include_arguments_and_duplicate_occurrence(self) -> None:
         report = token_profiler.SessionReport(Path("rollout.jsonl"))
         arguments = '{"query":"same query"}'
@@ -295,10 +317,12 @@ class CodexProgrammaticToolTest(unittest.TestCase):
         context7 = token_profiler.observed_tool(report, "context7")
         self.assertEqual(serena["calls_observed"], 1)
         self.assertTrue(serena["calls_are_lower_bound"])
-        self.assertGreater(serena["result_tokens_estimate"], 0)
+        self.assertIsNone(serena["result_tokens_estimate"])
         self.assertEqual(context7["calls_observed"], 1)
         self.assertTrue(context7["calls_are_lower_bound"])
-        self.assertGreater(context7["result_tokens_estimate"], 0)
+        self.assertIsNone(context7["result_tokens_estimate"])
+        self.assertEqual(report.tool_payloads["exec batch"],
+                         sum(report.tool_payloads.values()))
         self.assertGreater(report.observed_payload["MCP/tool results"], 0)
         self.assertNotIn("Shell command output", report.observed_payload)
         stats = {
@@ -307,6 +331,39 @@ class CodexProgrammaticToolTest(unittest.TestCase):
         self.assertIn("mcp__serena__find_symbol", stats)
         self.assertIn("mcp__context7__query_docs", stats)
         self.assertNotIn("exec", stats)
+
+    def test_unresolved_call_reports_incomplete_coverage(self) -> None:
+        records = [
+            {"type": "response_item", "payload": {
+                "type": "custom_tool_call", "call_id": "one", "name": "exec",
+                "input": 'await tools[load("tool")]({});'}},
+            {"type": "response_item", "payload": {
+                "type": "custom_tool_call_output", "call_id": "one", "output": "result"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout-test.jsonl"
+            path.write_text("".join(json.dumps(r) + "\n" for r in records))
+            report = token_profiler.analyze_session(path)
+        activity = token_profiler.observed_tool(report, "serena")
+        self.assertTrue(activity["calls_are_lower_bound"])
+        self.assertIsNone(activity["result_tokens_estimate"])
+        self.assertEqual(report.tool_calls["unresolved_tool"], 1)
+
+    def test_mixed_batch_does_not_assign_all_output_to_first_command(self) -> None:
+        records = [
+            {"type": "response_item", "payload": {
+                "type": "custom_tool_call", "call_id": "one", "name": "exec",
+                "input": 'await tools.exec_command({cmd:"cat config.txt"});'
+                         'await tools.mcp__context7__query_docs({});'}},
+            {"type": "response_item", "payload": {
+                "type": "custom_tool_call_output", "call_id": "one", "output": "combined result"}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout-test.jsonl"
+            path.write_text("".join(json.dumps(r) + "\n" for r in records))
+            report = token_profiler.analyze_session(path)
+        self.assertEqual(report.file_payloads, {})
+        self.assertGreater(report.tool_payloads["exec batch"], 0)
 
     def test_payload_lifecycle_and_instruction_sources_survive_compaction(self) -> None:
         records = [
