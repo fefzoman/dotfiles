@@ -23,7 +23,7 @@ terminal:
     - '#ebdbb2'
   customColorSchemes: []
   font: JetBrainsMono Nerd Font
-  fontSize: 16
+  fontSize: 14
   fontWeight: 100
   fontWeightBold: 500
   cursor: beam
