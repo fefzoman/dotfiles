@@ -91,7 +91,7 @@ install_macos() {
   echo "==> Installing CLI tools..."
   brew tap hashicorp/tap
   brew trust --formula hashicorp/tap/terraform
-  brew install bash tmux neovim git curl btop kubectl lazygit ripgrep fd broot fzf navi node \
+  brew install bash bash-completion@2 tmux neovim git curl btop kubectl lazygit ripgrep fd broot fzf navi node \
     basedpyright llvm tree-sitter-cli hashicorp/tap/terraform
   if brew list --formula tlrc >/dev/null 2>&1; then brew uninstall tlrc; fi
   brew upgrade bash || true
