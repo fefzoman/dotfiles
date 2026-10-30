@@ -309,7 +309,7 @@ def learn(session: str, recs: list[dict[str, Any]]) -> None:
 
 
 def session_model(recs: list[dict[str, Any]]) -> str | None:
-    return next((found.get("model") for r in reversed(recs) if (found := usage(r))), None)
+    return next((found.get("model") or r["message"].get("model") for r in reversed(recs) if (found := usage(r))), None)
 
 
 def likely_warm(recs: list[dict[str, Any]]) -> bool:
@@ -551,21 +551,23 @@ def native_idle_compact() -> bool:
     return isinstance(flag, dict) and flag.get("mode") == "compact"
 
 
-def codex_summary(session: str, cwd: str, recs: list[dict[str, Any]], request: str) -> str:
-    codex, model = shutil.which("codex"), session_model(recs)
-    if not codex:
+def fork_summary(client: str, session: str, cwd: str, recs: list[dict[str, Any]], request: str) -> str:
+    binary, model = shutil.which(client), session_model(recs)
+    if not binary:
         return ""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "checkpoint.md"
         # A fork shares the thread's cached prefix, so the model sees full context at cache-read price.
-        command = [codex, "exec", "fork", session, "--ephemeral", "--skip-git-repo-check", "-o", str(out),
-                   *(["-m", model] if model else []), "-"]
+        command = ([binary, "-p", "--resume", session, "--fork-session", "--no-session-persistence",
+                    *(["--model", model] if model else [])] if client == "claude" else
+                   [binary, "exec", "fork", session, "--ephemeral", "--skip-git-repo-check", "-o", str(out),
+                    *(["-m", model] if model else []), "-"])
         try:
-            subprocess.run(command, input=request, text=True, capture_output=True, cwd=cwd, check=True,
-                           timeout=SUMMARY_SECONDS, env=os.environ | {"IDLE_COMPACT": "off"})
+            done = subprocess.run(command, input=request, text=True, capture_output=True, cwd=cwd, check=True,
+                                  timeout=SUMMARY_SECONDS, env=os.environ | {"IDLE_COMPACT": "off"})
         except (OSError, subprocess.SubprocessError):
             return ""
-        return read(out)
+        return done.stdout if client == "claude" else read(out)
 
 
 def arm(hook: dict[str, Any], client: str = "claude") -> int:
@@ -580,14 +582,6 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         if reply and folder:
             store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
             write(handoff(cwd), session)
-        return 0
-    fired = float(read(marker(session, "fired")) or 0)
-    if client == "claude" and fired and fired > last_prompt(recs):
-        reply = replies_since(recs, fired)
-        folder = folder_for(session)
-        if reply and folder and read(marker(session, "stored")) != str(fired):
-            store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
-            write(marker(session, "stored"), str(fired))
         return 0
     if client == "codex":
         learn(session, recs)
@@ -620,11 +614,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         return 0
     request = REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
                              restart=restart(client, session)) + "\n\n" + render_digest(digest)
-    if client == "claude":
-        write(marker(session, "fired"), str(now))
-        print(request, file=sys.stderr)
-        return 2
-    summary = codex_summary(session, cwd, full, request)
+    summary = fork_summary(client, session, cwd, full, request)
     store_checkpoint(folder, session, summary if HEADER in summary else excerpts(items), cwd, transcript, client,
                      last_prompt(full))
     return 0
@@ -788,15 +778,12 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
                                            f"a fresh context, {restart(client, session)}."}))
         return 0
     prompt = str(hook.get("prompt", ""))
+    # Claude Code echoes the blocked prompt itself; Codex does not.
+    echo = f"\n\nYour prompt:\n{prompt[:1500]}" if client == "codex" else ""
     reason = (
         f"This thread has about {size}K tokens after a long pause. An idle checkpoint is ready. "
         f"To continue, {restart(client, session)}, then paste your prompt; or send this prompt again to keep "
-        f"the full session.\n\nYour prompt:\n{prompt[:1500]}"
-    ) if client == "codex" else (
-        f"Idle checkpoint: the prompt cache expired {pause} ago, so continuing "
-        f"this session re-sends about {size}K tokens at the cache-write price. A checkpoint was written "
-        f"at {written}. To continue from it in this window, run /pitstop and then /clear, then paste your prompt; or "
-        f"send the prompt again to continue the full session.\n\nYour prompt:\n{prompt[:1500]}"
+        f"the full session.{echo}"
     )
     print(json.dumps({"decision": "block", "reason": reason}))
     return 0

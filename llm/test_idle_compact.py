@@ -85,25 +85,38 @@ class IdleCompactTest(unittest.TestCase):
         self.assertEqual(ic.lifetime("claude", [reply("a", now, ttl="5m"), reply("b", now)]), 3600.0)
         self.assertEqual(ic.lifetime("claude", [reply("a", now), reply("b", now, ttl="5m")]), 300.0)
 
-    def test_arm_wakes_with_digest_then_stores_the_reply(self) -> None:
+    def test_arm_forks_a_silent_summary_with_the_digest(self) -> None:
         old = time.time() - 30
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.01"
+        done = reply("done", old)
+        done["message"]["model"] = "claude-opus-5-5"
         recs = [prompt("<ide_opened_file>a.py opened</ide_opened_file>Fix the token refresh race", old), tool("Edit", {"file_path": f"{self.cwd}/a.py"}, old),
-                result("Traceback: boom", old, error=True), prompt("yes", old), reply("done", old)]
-        code, _, err = self.run_hook(ic.arm, self.save(recs))
-        self.assertEqual(code, 2)
-        self.assertIn("Idle checkpoint:", err)
-        self.assertIn("Goal, Done, Decisions, Dead ends", err)
-        self.assertIn("run /pitstop and then /clear", err)
-        self.assertIn("Fix the token refresh race", err)
-        self.assertNotIn("a.py opened", err)
-        self.assertNotIn("- T4", err)
-        self.assertIn(f"{self.cwd}/a.py (1)", err)
-        self.assertIn("Last error, T3: Traceback: boom", err)
+                result("Traceback: boom", old, error=True), prompt("yes", old), done]
+        run, calls = subprocess.run, []
 
-        later = time.time() + 1
-        hook = self.save(recs + [reply("## Idle checkpoint\n### Goal\nFix race\n### Decisions\nlock\n### Dead ends\nretry", later)])
-        self.assertEqual(self.run_hook(ic.arm, hook)[0], 0)
+        def fake(command, **kwargs):
+            if command[0] != "/bin/claude":
+                return run(command, **kwargs)
+            calls.append((command, kwargs))
+            return subprocess.CompletedProcess(command, 0, "## Idle checkpoint\n### Goal\nFix race\n### Decisions\nlock\n### Dead ends\nretry", "")
+
+        hook = self.save(recs)
+        with mock.patch.object(ic.shutil, "which", return_value="/bin/claude"), \
+                mock.patch.object(ic.subprocess, "run", side_effect=fake):
+            self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
+        command, kwargs = calls[0]
+        self.assertEqual(command, ["/bin/claude", "-p", "--resume", "s1", "--fork-session", "--no-session-persistence",
+                                   "--model", "claude-opus-5-5"])
+        self.assertEqual(kwargs["env"]["IDLE_COMPACT"], "off")
+        request = kwargs["input"]
+        self.assertIn("Idle checkpoint:", request)
+        self.assertIn("Goal, Done, Decisions, Dead ends", request)
+        self.assertIn("run /pitstop and then /clear", request)
+        self.assertIn("Fix the token refresh race", request)
+        self.assertNotIn("a.py opened", request)
+        self.assertNotIn("- T4", request)
+        self.assertIn(f"{self.cwd}/a.py (1)", request)
+        self.assertIn("Last error, T3: Traceback: boom", request)
         folder = ic.folder_for("s1")
         self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
@@ -154,7 +167,6 @@ class IdleCompactTest(unittest.TestCase):
         hook = self.save([prompt("Fix the race", now), reply("patched", now)])
         with mock.patch.object(ic.time, "sleep", lambda s: nap(s + 0.5)):
             self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
-        self.assertFalse(ic.marker("s1", "fired").exists())
         self.assertIn("Local transcript excerpts", (ic.folder_for("s1") / "checkpoint.md").read_text())
 
     def test_newer_activity_or_token_cancels_the_sleeper(self) -> None:
@@ -177,7 +189,8 @@ class IdleCompactTest(unittest.TestCase):
         _, out, _ = self.run_hook(ic.guard, hook)
         decision = json.loads(out)
         self.assertEqual(decision["decision"], "block")
-        self.assertIn("continue the fix", decision["reason"])
+        self.assertTrue(decision["reason"].startswith("This thread has about 250K tokens after a long pause."))
+        self.assertNotIn("continue the fix", decision["reason"])
         self.assertIn("/pitstop and then /clear", decision["reason"])
         self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
 
@@ -385,8 +398,10 @@ raise SystemExit(1)
         now = time.time()
         waits = []
         with mock.patch.object(ic.time, "sleep", side_effect=waits.append), \
-                mock.patch.object(ic.time, "time", side_effect=lambda: now + sum(waits)):
-            self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", now), reply("y", now)]))[0], 2)
+                mock.patch.object(ic.time, "time", side_effect=lambda: now + sum(waits)), \
+                mock.patch.object(ic, "fork_summary", return_value="## Idle checkpoint\n### Goal\nx") as fork:
+            self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", now), reply("y", now)]))[0], 0)
+        fork.assert_called_once()
         self.assertAlmostEqual(sum(waits), 100 * ic.NATIVE_FIRE_FRACTION, delta=0.01)
 
 

@@ -12,11 +12,11 @@
 | **Token floor** | 85K (2× a fresh chat's median 42K) | 45K (2× the median 22K) |
 | **Cache TTL source** | Latest call's `cache_creation`: 1h or 5m | 30 min documented minimum, plus learned per-model hit rate |
 | **Checkpoint fires at** | 0.9 × TTL: 54 min / 4.5 min (0.93 when the native compactor flag is on) | 27 min |
-| **Who writes it** | ✓ Same model, in place: `asyncRewake` wakes the session | ✓ Same model, headless: `codex exec fork --ephemeral` |
-| **Context it sees** | Full session, from cache | Full thread; the original prefix is read from cache (measured 12.7K of 12.9K) |
+| **Who writes it** | ✓ Same model, headless: `claude -p --resume --fork-session` | ✓ Same model, headless: `codex exec fork --ephemeral` |
+| **Context it sees** | Full session; prefix read from cache (measured 52.7K read, 1.9K written) | Full thread; the original prefix is read from cache (measured 12.7K of 12.9K) |
 | **Sections** | Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps, Pointers | Same |
-| **Renews the session cache** | ✓ One more TTL | △ The fork reads the shared prefix; renewal not measured |
-| **Visible to the user** | ✓ Checkpoint turn in the session | — Silent; the guard reports it |
+| **Renews the session cache** | △ The fork reads the shared prefix; renewal not measured | Same |
+| **Visible to the user** | — Silent; the guard reports it | Same |
 | **Native compactor** | Coexists: fires after it, cancels if it ran | No equivalent |
 | **Session closed before firing** | `SessionEnd` saves excerpts (not on `/clear`) | Same |
 | **Fallback content** | Excerpts: first request, latest reply, latest request | Same, also when the fork fails |
@@ -33,7 +33,7 @@
 | Time after last call | Claude (1h cache) | Claude (5m cache) | Codex |
 |---|---|---|---|
 | 0 | `arm` sleeps | `arm` sleeps | `arm` sleeps |
-| 0.9 × TTL | Wake: model writes checkpoint, cache renewed | Same at 4.5 min | Fork writes checkpoint at 27 min |
+| 0.9 × TTL | Fork writes checkpoint | Same at 4.5 min | Fork writes checkpoint at 27 min |
 | ≥ TTL, next prompt | Guard blocks once | Non-blocking hint | Block, or hint if the model's cache is usually warm |
 | User choice | `/pitstop` + `/clear`, or resend to keep the full session | Same | New Chat + `$pitstop <session>`, or resend to keep the full session |
 
@@ -45,7 +45,7 @@
 | 2 | Claude guard silent without a checkpoint | Shared `/compact` hint for both clients |
 | 3 | Excerpts, not a summary | Model-written sections for both clients |
 | 4 | Resume wording named missing sections | Sections are back; wording says "any" for excerpt fallbacks |
-| 5 | No cache renewal | Claude wake renews it; Codex fork reads the shared prefix |
+| 5 | No cache renewal | Both forks read the shared prefix |
 | 6 | No floor | 2× fresh-chat floor per client |
 | 7 | 5-minute cache noisy | Non-blocking hint instead of a block |
 | 8 | Codex TTL assumed | Learned per-model hit rate turns the block into a hint |
@@ -53,7 +53,7 @@
 | 10 | Worker dies with the session | `SessionEnd` saves excerpts for both clients |
 | 11 | 10-minute handoff window | Removed; staleness invalidates instead |
 | 12 | Narrow redaction | More formats covered |
-| 13 | No save notice on Claude | The checkpoint turn is visible in the session |
+| 13 | No save notice on Claude | Both clients save silently; the guard reports the checkpoint |
 
 ## 4. Remaining limits
 
