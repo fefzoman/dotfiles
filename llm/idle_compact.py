@@ -615,7 +615,8 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     request = REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
                              restart=restart(client, session)) + "\n\n" + render_digest(digest)
     summary = fork_summary(client, session, cwd, full, request)
-    if HEADER in summary:
+    # Measured for Claude only: its fork reads the session's cached prefix.
+    if client == "claude" and HEADER in summary:
         write(marker(session, "renewed"), str(now))
     store_checkpoint(folder, session, summary if HEADER in summary else excerpts(items), cwd, transcript, client,
                      last_prompt(full))

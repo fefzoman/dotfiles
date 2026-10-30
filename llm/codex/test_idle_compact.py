@@ -238,6 +238,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertIn("run $pitstop codex-session", kwargs["input"])
         self.assertNotIn("/clear", kwargs["input"])
         self.assertIn("### Dead ends\nRegex", ic.resume(str(self.home)))
+        self.assertFalse(ic.marker("codex-session", "renewed").exists())
 
     def test_learned_warm_cache_turns_the_block_into_a_hint(self):
         self.rows[-1]["payload"]["info"]["last_token_usage"]["cached_input_tokens"] = 140_000
