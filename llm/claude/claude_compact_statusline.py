@@ -18,7 +18,7 @@ def color(text: str, hex_rgb: str) -> str:
 
 
 def percent(value: float) -> str:
-    return color(f"{value:.0f}%", "21C23E" if value < 40 else "F0ED24" if value <= 75 else "E53B12")
+    return color(f"{value:.0f}%", "3E8F4E" if value < 40 else "B3A93A" if value <= 75 else "B04A30")
 
 
 def render(data: dict[str, Any]) -> str:
