@@ -1,0 +1,1304 @@
+{
+  "date": "2026-10-30",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "cli_version": "0.165.0",
+  "prompts": [
+    "Create uv for this project",
+    "Create uv for this project",
+    ".venv was not created"
+  ],
+  "baseline_commit": "d46a23d",
+  "verified_startup_probes": 28,
+  "task_replays": 14,
+  "task_checks_passed": 13,
+  "artifact_root": "/private/tmp/codex-ablation-so6mdt30",
+  "startup_probe_prompt": "Reply with exactly READY. Do not use tools.",
+  "startup_cumulative_decomposition": [
+    {
+      "change": "Full updated toolchain",
+      "input_tokens": 18072,
+      "incremental_saving": null
+    },
+    {
+      "change": "Disable native web search",
+      "input_tokens": 15616,
+      "incremental_saving": 2456
+    },
+    {
+      "change": "Remove skills catalog",
+      "input_tokens": 13529,
+      "incremental_saving": 2087
+    },
+    {
+      "change": "Remove global AGENTS.md",
+      "input_tokens": 12513,
+      "incremental_saving": 1016
+    },
+    {
+      "change": "Disable Ponytail startup",
+      "input_tokens": 11802,
+      "incremental_saving": 711
+    },
+    {
+      "change": "Disable DLM startup",
+      "input_tokens": 11492,
+      "incremental_saving": 310
+    },
+    {
+      "change": "Disable app recommendations",
+      "input_tokens": 11044,
+      "incremental_saving": 448
+    },
+    {
+      "change": "Disable remaining plugins",
+      "input_tokens": 11044,
+      "incremental_saving": 0
+    },
+    {
+      "change": "Disable Serena, Context7 and code-index",
+      "input_tokens": 11044,
+      "incremental_saving": 0
+    },
+    {
+      "change": "Disable remaining hooks",
+      "input_tokens": 11044,
+      "incremental_saving": 0
+    },
+    {
+      "change": "Disable remaining pure-baseline features",
+      "input_tokens": 11044,
+      "incremental_saving": 0
+    }
+  ],
+  "startup_gap_tokens": 7028,
+  "matched_web_startup": {
+    "pure": 13500,
+    "lean_with_mcp_rtk_and_read_hints": 13500
+  },
+  "matched_web_task_comparison": {
+    "pure_case": "repeat-pure_web",
+    "lean_case": "lean_web",
+    "pure_uncached_plus_output": 19701,
+    "lean_uncached_plus_output": 20774,
+    "lean_uncached_increase_percent": 5.45,
+    "pure_all_tokens": 322549,
+    "lean_all_tokens": 277542,
+    "both_model_requests": 13,
+    "both_validation_passed": true
+  },
+  "probes": [
+    {
+      "case": "cumulative-c01_web",
+      "variant": "c01_web",
+      "input_tokens": 15616,
+      "cached_input_tokens": 9856,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0016/sessions/2026/10/30/rollout-2026-10-30T18-34-19-01a18da9-81ba-79d0-b958-d8ffddb9465a.jsonl"
+    },
+    {
+      "case": "cumulative-c02_catalog",
+      "variant": "c02_catalog",
+      "input_tokens": 13529,
+      "cached_input_tokens": 9856,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0017/sessions/2026/10/30/rollout-2026-10-30T18-34-27-01a18da9-9ff4-7790-bd22-83c9a0bd3fb1.jsonl"
+    },
+    {
+      "case": "cumulative-c03_policy",
+      "variant": "c03_policy",
+      "input_tokens": 12513,
+      "cached_input_tokens": 9856,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0018/sessions/2026/10/30/rollout-2026-10-30T18-34-35-01a18da9-c02b-7f92-a87d-e30950368cd6.jsonl"
+    },
+    {
+      "case": "cumulative-c04_ponytail",
+      "variant": "c04_ponytail",
+      "input_tokens": 11802,
+      "cached_input_tokens": 9856,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0019/sessions/2026/10/30/rollout-2026-10-30T18-34-44-01a18da9-e510-7d73-bfbc-4d7112f997e6.jsonl"
+    },
+    {
+      "case": "cumulative-c05_dlm",
+      "variant": "c05_dlm",
+      "input_tokens": 11492,
+      "cached_input_tokens": 9856,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0020/sessions/2026/10/30/rollout-2026-10-30T18-34-51-01a18da9-fffd-7e21-adb3-39a4c9b745e1.jsonl"
+    },
+    {
+      "case": "cumulative-c06_apps",
+      "variant": "c06_apps",
+      "input_tokens": 11044,
+      "cached_input_tokens": 9600,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0021/sessions/2026/10/30/rollout-2026-10-30T18-34-58-01a18daa-1af9-7972-8c86-511b2f794c6a.jsonl"
+    },
+    {
+      "case": "cumulative-c07_plugins",
+      "variant": "c07_plugins",
+      "input_tokens": 11044,
+      "cached_input_tokens": 10880,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0022/sessions/2026/10/30/rollout-2026-10-30T18-35-24-01a18daa-7f69-7f80-bba3-c245722b1283.jsonl"
+    },
+    {
+      "case": "cumulative-c08_mcps",
+      "variant": "c08_mcps",
+      "input_tokens": 11044,
+      "cached_input_tokens": 9600,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0023/sessions/2026/10/30/rollout-2026-10-30T18-35-37-01a18daa-b137-7192-a9e8-3b7649f03006.jsonl"
+    },
+    {
+      "case": "cumulative-c09_hooks",
+      "variant": "c09_hooks",
+      "input_tokens": 11044,
+      "cached_input_tokens": 9600,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0024/sessions/2026/10/30/rollout-2026-10-30T18-35-50-01a18daa-e592-73a1-9b2f-9d0c48920908.jsonl"
+    },
+    {
+      "case": "cumulative-c10_remaining",
+      "variant": "c10_remaining",
+      "input_tokens": 11044,
+      "cached_input_tokens": 9600,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0025/sessions/2026/10/30/rollout-2026-10-30T18-35-56-01a18daa-fa75-7ee3-a6af-70315a20688a.jsonl"
+    },
+    {
+      "case": "verified-full",
+      "variant": "full",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0000/sessions/2026/10/30/rollout-2026-10-30T18-25-53-01a18da1-ca7d-7a40-843b-1078dfd90aa5.jsonl"
+    },
+    {
+      "case": "verified-full-repeat",
+      "variant": "full",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0000/sessions/2026/10/30/rollout-2026-10-30T18-27-26-01a18da3-384d-7ac0-a5fe-82a5719b018f.jsonl"
+    },
+    {
+      "case": "verified-lean_web",
+      "variant": "lean_web",
+      "input_tokens": 13500,
+      "cached_input_tokens": 12032,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0027/sessions/2026/10/30/rollout-2026-10-30T18-52-05-01a18db9-c80e-74b1-8745-78b541de7831.jsonl"
+    },
+    {
+      "case": "verified-no_apps",
+      "variant": "no_apps",
+      "input_tokens": 17624,
+      "cached_input_tokens": 12032,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0011/sessions/2026/10/30/rollout-2026-10-30T18-27-07-01a18da2-ed1b-7a10-a5a7-8443f584dcdc.jsonl"
+    },
+    {
+      "case": "verified-no_catalog",
+      "variant": "no_catalog",
+      "input_tokens": 15985,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0006/sessions/2026/10/30/rollout-2026-10-30T18-26-34-01a18da2-6cde-7cc2-a4f2-4818c9c44c81.jsonl"
+    },
+    {
+      "case": "verified-no_code_index",
+      "variant": "no_code_index",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0003/sessions/2026/10/30/rollout-2026-10-30T18-26-14-01a18da2-1cb8-7450-8b08-2e2d38ac8a16.jsonl"
+    },
+    {
+      "case": "verified-no_context7",
+      "variant": "no_context7",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0002/sessions/2026/10/30/rollout-2026-10-30T18-26-07-01a18da2-03b3-7c91-8b8d-fa54ac2445b8.jsonl"
+    },
+    {
+      "case": "verified-no_dlm",
+      "variant": "no_dlm",
+      "input_tokens": 17564,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0005/sessions/2026/10/30/rollout-2026-10-30T18-26-26-01a18da2-4e59-78d2-bddb-4af7a1610a95.jsonl"
+    },
+    {
+      "case": "verified-no_hooks",
+      "variant": "no_hooks",
+      "input_tokens": 16469,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0010/sessions/2026/10/30/rollout-2026-10-30T18-27-02-01a18da2-da03-7db0-ac39-43580d00bdc6.jsonl"
+    },
+    {
+      "case": "verified-no_policy",
+      "variant": "no_policy",
+      "input_tokens": 17056,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0007/sessions/2026/10/30/rollout-2026-10-30T18-26-41-01a18da2-87a2-76b3-a19c-8c4943be4579.jsonl"
+    },
+    {
+      "case": "verified-no_ponytail",
+      "variant": "no_ponytail",
+      "input_tokens": 16773,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0004/sessions/2026/10/30/rollout-2026-10-30T18-26-20-01a18da2-370e-7a60-85e2-717f9e4c825c.jsonl"
+    },
+    {
+      "case": "verified-no_read_hint_hook",
+      "variant": "no_read_hint_hook",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0009/sessions/2026/10/30/rollout-2026-10-30T18-26-55-01a18da2-bdc1-7de0-9bb9-5bfeb3139c0a.jsonl"
+    },
+    {
+      "case": "verified-no_remote_plugins",
+      "variant": "no_remote_plugins",
+      "input_tokens": 17974,
+      "cached_input_tokens": 12416,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0012/sessions/2026/10/30/rollout-2026-10-30T18-27-14-01a18da3-06ff-7bd0-ab89-d48131d84b80.jsonl"
+    },
+    {
+      "case": "verified-no_rtk_hook",
+      "variant": "no_rtk_hook",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0008/sessions/2026/10/30/rollout-2026-10-30T18-26-48-01a18da2-a303-74f0-92c4-42cb8103d02f.jsonl"
+    },
+    {
+      "case": "verified-no_serena",
+      "variant": "no_serena",
+      "input_tokens": 18072,
+      "cached_input_tokens": 12288,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0001/sessions/2026/10/30/rollout-2026-10-30T18-25-59-01a18da1-e47a-72e2-8ec0-0f2a66274c0a.jsonl"
+    },
+    {
+      "case": "verified-no_web_search",
+      "variant": "no_web_search",
+      "input_tokens": 15616,
+      "cached_input_tokens": 9856,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0014/sessions/2026/10/30/rollout-2026-10-30T18-31-45-01a18da7-28f2-7bc2-8861-fb73ddd63bc6.jsonl"
+    },
+    {
+      "case": "verified-pure",
+      "variant": "pure",
+      "input_tokens": 11044,
+      "cached_input_tokens": 9600,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0013/sessions/2026/10/30/rollout-2026-10-30T18-27-22-01a18da3-2749-7ab3-be3d-71fa4c6ec26f.jsonl"
+    },
+    {
+      "case": "verified-pure_web",
+      "variant": "pure_web",
+      "input_tokens": 13500,
+      "cached_input_tokens": 12032,
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0015/sessions/2026/10/30/rollout-2026-10-30T18-31-52-01a18da7-45fc-7182-a99b-09aef9ea1d53.jsonl"
+    }
+  ],
+  "task_cases": [
+    {
+      "case": "repeat-pure_web",
+      "variant": "pure_web",
+      "input_tokens": 320787,
+      "cached_input_tokens": 302848,
+      "output_tokens": 1762,
+      "uncached_plus_output": 19701,
+      "all_tokens": 322549,
+      "model_requests": 13,
+      "first_input_tokens": 13527,
+      "seconds": 72.42,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/repeat/tasks/0000/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 12,
+        "apply_patch": 2,
+        "write_stdin": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000
+      ],
+      "model_visible_tool_output_characters": 42522,
+      "large_cache_reuse_drops": [],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/repeat/profiles/0015/sessions/2026/10/30/rollout-2026-10-30T18-47-26-01a18db5-8365-72f3-8d35-c1b9dcb159fd.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/repeat/tasks/0000/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/repeat/tasks/0000/summary.json"
+    },
+    {
+      "case": "pure",
+      "variant": "pure",
+      "input_tokens": 459022,
+      "cached_input_tokens": 441088,
+      "output_tokens": 3768,
+      "uncached_plus_output": 21702,
+      "all_tokens": 462790,
+      "model_requests": 21,
+      "first_input_tokens": 11055,
+      "seconds": 145.72,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0000/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 18,
+        "apply_patch": 5,
+        "write_stdin": 8
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 40062,
+      "large_cache_reuse_drops": [],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0013/sessions/2026/10/30/rollout-2026-10-30T18-28-47-01a18da4-74cd-7322-b30a-85c9f2aa82c9.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0000/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0000/summary.json"
+    },
+    {
+      "case": "full",
+      "variant": "full",
+      "input_tokens": 706402,
+      "cached_input_tokens": 680448,
+      "output_tokens": 2521,
+      "uncached_plus_output": 28475,
+      "all_tokens": 708923,
+      "model_requests": 24,
+      "first_input_tokens": 18083,
+      "seconds": 146.35,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0001/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 13,
+        "apply_patch": 2,
+        "write_stdin": 7,
+        "mcp__context7__resolve_library_id": 1,
+        "mcp__context7__query_docs": 1,
+        "web__run": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        30000
+      ],
+      "model_visible_tool_output_characters": 52836,
+      "large_cache_reuse_drops": [],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0000/sessions/2026/10/30/rollout-2026-10-30T18-31-13-01a18da6-afa7-73d1-a9b6-42a72af2a617.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0001/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0001/summary.json"
+    },
+    {
+      "case": "no_catalog",
+      "variant": "no_catalog",
+      "input_tokens": 741080,
+      "cached_input_tokens": 702720,
+      "output_tokens": 3178,
+      "uncached_plus_output": 41538,
+      "all_tokens": 744258,
+      "model_requests": 22,
+      "first_input_tokens": 15996,
+      "seconds": 167.6,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0002/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 14,
+        "mcp__context7__resolve_library_id": 1,
+        "mcp__context7__query_docs": 2,
+        "apply_patch": 2,
+        "write_stdin": 9,
+        "web__run": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 80290,
+      "large_cache_reuse_drops": [
+        {
+          "line": 34,
+          "input_tokens": 21658,
+          "cached_input_tokens": 12288,
+          "reuse_shortfall_from_previous_input": 4991
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0006/sessions/2026/10/30/rollout-2026-10-30T18-33-41-01a18da8-ecd1-72e3-bb3e-e3a005d4aff8.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0002/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0002/summary.json"
+    },
+    {
+      "case": "no_ponytail",
+      "variant": "no_ponytail",
+      "input_tokens": 701065,
+      "cached_input_tokens": 649088,
+      "output_tokens": 2805,
+      "uncached_plus_output": 54782,
+      "all_tokens": 703870,
+      "model_requests": 23,
+      "first_input_tokens": 16784,
+      "seconds": 160.24,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0003/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 14,
+        "apply_patch": 2,
+        "write_stdin": 7,
+        "web__run": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        30000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 65381,
+      "large_cache_reuse_drops": [
+        {
+          "line": 31,
+          "input_tokens": 20215,
+          "cached_input_tokens": 12288,
+          "reuse_shortfall_from_previous_input": 5087
+        },
+        {
+          "line": 103,
+          "input_tokens": 34660,
+          "cached_input_tokens": 29184,
+          "reuse_shortfall_from_previous_input": 5238
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0004/sessions/2026/10/30/rollout-2026-10-30T18-36-29-01a18dab-7d1b-7a12-b87f-199a8b432a33.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0003/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0003/summary.json"
+    },
+    {
+      "case": "no_policy",
+      "variant": "no_policy",
+      "input_tokens": 776546,
+      "cached_input_tokens": 746368,
+      "output_tokens": 2828,
+      "uncached_plus_output": 33006,
+      "all_tokens": 779374,
+      "model_requests": 23,
+      "first_input_tokens": 17067,
+      "seconds": 151.98,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0004/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 13,
+        "web__run": 2,
+        "apply_patch": 2,
+        "write_stdin": 8
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 66101,
+      "large_cache_reuse_drops": [],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0007/sessions/2026/10/30/rollout-2026-10-30T18-39-09-01a18dad-f085-7c11-9ceb-d4a8c5a28fd1.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0004/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0004/summary.json"
+    },
+    {
+      "case": "no_context7",
+      "variant": "no_context7",
+      "input_tokens": 671249,
+      "cached_input_tokens": 624512,
+      "output_tokens": 3204,
+      "uncached_plus_output": 49941,
+      "all_tokens": 674453,
+      "model_requests": 23,
+      "first_input_tokens": 18083,
+      "seconds": 156.89,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0005/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 14,
+        "apply_patch": 2,
+        "write_stdin": 8,
+        "web__run": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 46371,
+      "large_cache_reuse_drops": [
+        {
+          "line": 24,
+          "input_tokens": 18597,
+          "cached_input_tokens": 12288,
+          "reuse_shortfall_from_previous_input": 5795
+        },
+        {
+          "line": 162,
+          "input_tokens": 34825,
+          "cached_input_tokens": 18560,
+          "reuse_shortfall_from_previous_input": 15873
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0002/sessions/2026/10/30/rollout-2026-10-30T18-41-42-01a18db0-43dc-7762-ad0e-f10f1d0b22f8.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0005/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0005/summary.json"
+    },
+    {
+      "case": "no_dlm",
+      "variant": "no_dlm",
+      "input_tokens": 787248,
+      "cached_input_tokens": 734848,
+      "output_tokens": 3423,
+      "uncached_plus_output": 55823,
+      "all_tokens": 790671,
+      "model_requests": 25,
+      "first_input_tokens": 17575,
+      "seconds": 162.04,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0006/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 22,
+        "mcp__context7__resolve_library_id": 1,
+        "mcp__context7__query_docs": 1,
+        "apply_patch": 2,
+        "write_stdin": 8
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 52251,
+      "large_cache_reuse_drops": [
+        {
+          "line": 41,
+          "input_tokens": 25112,
+          "cached_input_tokens": 12288,
+          "reuse_shortfall_from_previous_input": 10715
+        },
+        {
+          "line": 114,
+          "input_tokens": 33581,
+          "cached_input_tokens": 22912,
+          "reuse_shortfall_from_previous_input": 10547
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0005/sessions/2026/10/30/rollout-2026-10-30T18-44-19-01a18db2-a9fc-7ef3-8527-6b64146b1d03.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0006/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0006/summary.json"
+    },
+    {
+      "case": "no_read_hint_hook",
+      "variant": "no_read_hint_hook",
+      "input_tokens": 694517,
+      "cached_input_tokens": 666112,
+      "output_tokens": 2599,
+      "uncached_plus_output": 31004,
+      "all_tokens": 697116,
+      "model_requests": 23,
+      "first_input_tokens": 18083,
+      "seconds": 154.85,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0007/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 14,
+        "apply_patch": 2,
+        "write_stdin": 7,
+        "mcp__context7__resolve_library_id": 1,
+        "mcp__context7__query_docs": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        30000,
+        30000
+      ],
+      "model_visible_tool_output_characters": 54503,
+      "large_cache_reuse_drops": [],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0009/sessions/2026/10/30/rollout-2026-10-30T18-47-01-01a18db5-244b-7553-9263-41324d77a6f9.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0007/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0007/summary.json"
+    },
+    {
+      "case": "no_web_search",
+      "variant": "no_web_search",
+      "input_tokens": 584990,
+      "cached_input_tokens": 523136,
+      "output_tokens": 2990,
+      "uncached_plus_output": 64844,
+      "all_tokens": 587980,
+      "model_requests": 21,
+      "first_input_tokens": 15627,
+      "seconds": 152.03,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0008/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 23,
+        "apply_patch": 3,
+        "write_stdin": 7
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 43181,
+      "large_cache_reuse_drops": [
+        {
+          "line": 58,
+          "input_tokens": 23950,
+          "cached_input_tokens": 0,
+          "reuse_shortfall_from_previous_input": 23844
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0014/sessions/2026/10/30/rollout-2026-10-30T18-38-20-01a18dad-2daf-7663-a58e-3515cc91fd32.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0008/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0008/summary.json"
+    },
+    {
+      "case": "pure_web",
+      "variant": "pure_web",
+      "input_tokens": 374659,
+      "cached_input_tokens": 341760,
+      "output_tokens": 3140,
+      "uncached_plus_output": 36039,
+      "all_tokens": 377799,
+      "model_requests": 15,
+      "first_input_tokens": 13511,
+      "seconds": 123.41,
+      "validation_passed": false,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 1
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0009/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 14,
+        "web__run": 1,
+        "apply_patch": 3,
+        "write_stdin": 2
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000
+      ],
+      "model_visible_tool_output_characters": 47546,
+      "large_cache_reuse_drops": [
+        {
+          "line": 71,
+          "input_tokens": 27376,
+          "cached_input_tokens": 12032,
+          "reuse_shortfall_from_previous_input": 13216
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0015/sessions/2026/10/30/rollout-2026-10-30T18-40-52-01a18daf-80e6-7042-b6bc-9ec3d2ee441d.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0009/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0009/summary.json"
+    },
+    {
+      "case": "no_rtk",
+      "variant": "no_rtk",
+      "input_tokens": 729989,
+      "cached_input_tokens": 671488,
+      "output_tokens": 3209,
+      "uncached_plus_output": 61710,
+      "all_tokens": 733198,
+      "model_requests": 25,
+      "first_input_tokens": 17969,
+      "seconds": 175.87,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0010/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 14,
+        "apply_patch": 3,
+        "write_stdin": 8,
+        "mcp__context7__resolve_library_id": 1,
+        "mcp__context7__query_docs": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        30000,
+        30000
+      ],
+      "model_visible_tool_output_characters": 42464,
+      "large_cache_reuse_drops": [
+        {
+          "line": 32,
+          "input_tokens": 22627,
+          "cached_input_tokens": 12288,
+          "reuse_shortfall_from_previous_input": 6489
+        },
+        {
+          "line": 168,
+          "input_tokens": 34050,
+          "cached_input_tokens": 12288,
+          "reuse_shortfall_from_previous_input": 20976
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0026/sessions/2026/10/30/rollout-2026-10-30T18-42-56-01a18db1-6476-7f11-a450-5622f382ccf9.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0010/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0010/summary.json"
+    },
+    {
+      "case": "c06_apps",
+      "variant": "c06_apps",
+      "input_tokens": 229620,
+      "cached_input_tokens": 202752,
+      "output_tokens": 2194,
+      "uncached_plus_output": 29062,
+      "all_tokens": 231814,
+      "model_requests": 12,
+      "first_input_tokens": 11055,
+      "seconds": 95.03,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0011/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 11,
+        "apply_patch": 2
+      },
+      "wait_values_from_literal_call_sites": [],
+      "model_visible_tool_output_characters": 29643,
+      "large_cache_reuse_drops": [
+        {
+          "line": 97,
+          "input_tokens": 22732,
+          "cached_input_tokens": 9600,
+          "reuse_shortfall_from_previous_input": 13026
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0021/sessions/2026/10/30/rollout-2026-10-30T18-45-52-01a18db4-1484-7092-b850-f33b2ccf372c.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0011/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0011/summary.json"
+    },
+    {
+      "case": "lean_web",
+      "variant": "lean_web",
+      "input_tokens": 275669,
+      "cached_input_tokens": 256768,
+      "output_tokens": 1873,
+      "uncached_plus_output": 20774,
+      "all_tokens": 277542,
+      "model_requests": 13,
+      "first_input_tokens": 13511,
+      "seconds": 77.74,
+      "validation_passed": true,
+      "validation": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked",
+            "--offline"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "run",
+            "--locked",
+            "--offline",
+            "python",
+            "-c",
+            "import sys, kafka, psycopg2, requests; from pyflink.table import TableEnvironment; assert sys.version_info[:2] == (3,12); print(\"Python and dependency imports passed\")"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "uv",
+            "pip",
+            "check",
+            "--python",
+            "/private/tmp/codex-ablation-so6mdt30/tasks/0012/repo/.venv/bin/python"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "literal_call_sites_not_execution_counts": {
+        "exec_command": 15,
+        "apply_patch": 1,
+        "write_stdin": 1
+      },
+      "wait_values_from_literal_call_sites": [
+        1000
+      ],
+      "model_visible_tool_output_characters": 29824,
+      "large_cache_reuse_drops": [
+        {
+          "line": 39,
+          "input_tokens": 19978,
+          "cached_input_tokens": 13440,
+          "reuse_shortfall_from_previous_input": 4358
+        }
+      ],
+      "transcript": "/private/tmp/codex-ablation-so6mdt30/profiles/0027/sessions/2026/10/30/rollout-2026-10-30T18-48-20-01a18db6-5744-77e2-b8c4-892f62395f18.jsonl",
+      "repo": "/private/tmp/codex-ablation-so6mdt30/tasks/0012/repo",
+      "summary_file": "/private/tmp/codex-ablation-so6mdt30/tasks/0012/summary.json"
+    }
+  ],
+  "methodology": [
+    "Snapshot of post-fix profile; disposable checkouts of d46a23d plus the same Docker Compose patch; separate uv caches.",
+    "Single-response startup probes used the same working directory and prompt; full startup control repeated with identical 18072-token input.",
+    "CLI-only interventions were discarded when the emitted prompt still contained removed components. Component files were edited in isolated profiles and prompt markers verified.",
+    "Cumulative changes isolate startup tokens additively; independent plugin removals also remove catalog entries, so their effects must not be added to the catalog saving again.",
+    "Full task runs used exact original three prompts, completing each sequentially. Original interrupted timing was not replayed.",
+    "Per-response token_usage_record sums were reconciled with final cumulative CLI totals; turn totals were not added together.",
+    "All completed checkouts independently ran uv sync --locked --offline, imports of all original dependency packages including PyFlink, and uv pip check.",
+    "First pure-web task failed the default dependency check because PyFlink became optional; it is retained as a failed trial and a repeated control passed.",
+    "Task runs are stochastic single observations per variant, except repeated controls. Two sequential replay batches overlapped; wall-clock differences are not causal findings.",
+    "Uncached-plus-output varies with cache reuse; large drops are recorded as observations, not attributed to server eviction or client mutation without evidence.",
+    "Raw command logs may exceed model-visible output; payload measurements use response_item tool outputs rather than full execution logs.",
+    "No global toolchain settings changed during this investigation. Lean profile omits global AGENTS.md and disables Ponytail/DLM startup, skill catalog and app integrations; native web and configured MCPs plus RTK/read-hint hooks remain enabled."
+  ]
+}
