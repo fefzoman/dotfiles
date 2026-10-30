@@ -15,7 +15,7 @@
 | **Who writes it** | ✓ Same model, headless: `claude -p --resume --fork-session` | ✓ Same model, headless: `codex exec fork --ephemeral` |
 | **Context it sees** | Full session; prefix read from cache (measured 52.7K read, 1.9K written) | Full thread; the original prefix is read from cache (measured 12.7K of 12.9K) |
 | **Sections** | Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps, Pointers | Same |
-| **Renews the session cache** | △ The fork reads the shared prefix; renewal not measured | Same |
+| **Renews the session cache** | ✓ The fork reads the shared prefix; the guard counts the gap from the fork | Same |
 | **Visible to the user** | — Silent; the guard reports it | Same |
 | **Native compactor** | Coexists: fires after it, cancels if it ran | No equivalent |
 | **Session closed before firing** | `SessionEnd` saves excerpts (not on `/clear`) | Same |
@@ -34,7 +34,7 @@
 |---|---|---|---|
 | 0 | `arm` sleeps | `arm` sleeps | `arm` sleeps |
 | 0.9 × TTL | Fork writes checkpoint | Same at 4.5 min | Fork writes checkpoint at 27 min |
-| ≥ TTL, next prompt | Guard blocks once | Non-blocking hint | Block, or hint if the model's cache is usually warm |
+| ≥ TTL after the fork, next prompt | Guard blocks once | Non-blocking hint | Block, or hint if the model's cache is usually warm |
 | User choice | `/pitstop` + `/clear`, or resend to keep the full session | Same | New Chat + `$pitstop <session>`, or resend to keep the full session |
 
 ## 3. Drawbacks: resolution

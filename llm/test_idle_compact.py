@@ -117,6 +117,7 @@ class IdleCompactTest(unittest.TestCase):
         self.assertNotIn("- T4", request)
         self.assertIn(f"{self.cwd}/a.py (1)", request)
         self.assertIn("Last error, T3: Traceback: boom", request)
+        self.assertTrue(ic.marker("s1", "renewed").exists())
         folder = ic.folder_for("s1")
         self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
@@ -192,6 +193,10 @@ class IdleCompactTest(unittest.TestCase):
         self.assertTrue(decision["reason"].startswith("This thread has about 250K tokens after a long pause."))
         self.assertNotIn("continue the fix", decision["reason"])
         self.assertIn("/pitstop and then /clear", decision["reason"])
+        self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
+
+        ic.marker("s1", "guard").unlink()
+        ic.write(ic.marker("s1", "renewed"), str(time.time()))
         self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
 
         text = ic.resume(self.cwd)
@@ -371,7 +376,7 @@ raise SystemExit(1)
         hook = self.save([prompt("go", now - 70), call, same]) | {"prompt": "next", "effort": {"level": "low"}}
         reason = json.loads(self.run_hook(ic.guard, hook)[1])["reason"]
         self.assertIn("Changing the effort mid-session", reason)
-        self.assertTrue(reason.endswith("Your prompt:\nnext"))
+        self.assertNotIn("Your prompt", reason)
         self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
 
         call["timestamp"] = iso(now - 50)

@@ -615,6 +615,8 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     request = REQUEST.format(left=minutes(call[0] + gap - now), until=clock(now + gap),
                              restart=restart(client, session)) + "\n\n" + render_digest(digest)
     summary = fork_summary(client, session, cwd, full, request)
+    if HEADER in summary:
+        write(marker(session, "renewed"), str(now))
     store_checkpoint(folder, session, summary if HEADER in summary else excerpts(items), cwd, transcript, client,
                      last_prompt(full))
     return 0
@@ -731,8 +733,13 @@ def switched(hook: dict[str, Any], client: str, recs: list[dict[str, Any]], call
     print(json.dumps({"decision": "block", "reason": (
         f"Changing the {' and '.join(changed)} mid-session makes the next call rewrite about {size}K tokens of "
         f"still-warm cached context. For a one-off task, ask for {helper} with that setting instead. To switch "
-        f"anyway, send the prompt again.\n\nYour prompt:\n{str(hook.get('prompt', ''))[:1500]}")}))
+        f"anyway, send the prompt again.{echo(client, hook)}")}))
     return True
+
+
+def echo(client: str, hook: dict[str, Any]) -> str:
+    # Claude Code echoes the blocked prompt itself; Codex does not.
+    return f"\n\nYour prompt:\n{str(hook.get('prompt', ''))[:1500]}" if client == "codex" else ""
 
 
 def unguarded(session: str, call: tuple[float, int] | None, gap: float, client: str = "claude") -> bool:
@@ -762,6 +769,10 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
             print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off; {next_step}."}))
         return 0
     call = last_call(recs)
+    renewed = float(read(marker(session, "renewed")) or 0)
+    if call and renewed > call[0]:
+        # The checkpoint fork read the session's cached prefix, which restarts its TTL.
+        call = (renewed, call[1])
     if switched(hook, client, recs, call) or not unguarded(session, call, lifetime(client, recs), client):
         return 0
     write(marker(session, "guard"), str(call[0]))
@@ -777,13 +788,10 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         print(json.dumps({"systemMessage": f"An idle checkpoint from {written} is ready. To continue from it in "
                                            f"a fresh context, {restart(client, session)}."}))
         return 0
-    prompt = str(hook.get("prompt", ""))
-    # Claude Code echoes the blocked prompt itself; Codex does not.
-    echo = f"\n\nYour prompt:\n{prompt[:1500]}" if client == "codex" else ""
     reason = (
         f"This thread has about {size}K tokens after a long pause. An idle checkpoint is ready. "
         f"To continue, {restart(client, session)}, then paste your prompt; or send this prompt again to keep "
-        f"the full session.{echo}"
+        f"the full session.{echo(client, hook)}"
     )
     print(json.dumps({"decision": "block", "reason": reason}))
     return 0
