@@ -68,7 +68,7 @@ codex mcp add serena -- serena start-mcp-server --context=codex --project-from-c
 claude mcp add --scope user serena -- serena start-mcp-server --context=claude-code --project-from-cwd --open-web-dashboard false
 ```
 
-Upstream's `serena setup codex` writes the equivalent Codex entry. Verify with `/mcp`. Codex App sessions not started in the project dir: say "Activate the current dir as project using serena." Serena also documents Codex lifecycle hooks that nudge the agent back to symbolic retrieval when it drifts into repeated grep/full-file reads.
+Upstream's `serena setup codex` writes the equivalent Codex entry. Verify with `/mcp`. Codex App sessions not started in the project dir: say "Activate the current dir as project using serena." Serena activation and reminder hooks are removed from both clients: configuration-only tasks should not load the manual or activate a language server. For symbol work, read the manual once and pass its session ID to activation; session-end cleanup remains enabled.
 
 **Retrieval order:** activate project if needed → overview → target symbol → references/callers when siblings may be affected → bodies only when needed → smallest correct edit. Use raw file/search tools for non-code files, generated artifacts, exact-text search, unsupported languages, and tiny known files.
 
@@ -84,7 +84,7 @@ Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-re
   - Fuses BM25, trigram, and existing local code embeddings (`jina-embeddings-v2-base-code`); pending chunks use lexical retrieval. Search never creates embeddings or starts workers. Agents default to `--lexical` to avoid loading models.
   - It prints the best line ranges with line numbers.
 - `outline FILE` lists symbols with line ranges.
-- One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. `index` embeds pending chunks in the foreground, with batch progress and Ctrl-C cancellation, only on explicit user request. An OS lock prevents overlapping commands in that repository.
+- One SQLite index per repository lives under `~/.cache/smart-read` and refreshes incrementally. If sandbox permissions block cache writes, `search --lexical` uses an in-memory index for that call, without escalation or embeddings. `index` embeds pending chunks in the foreground, with batch progress and Ctrl-C cancellation, only on explicit user request. An OS lock prevents overlapping commands in that repository.
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
 - `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a short note pointing at `smart-read` before a whole-file read of 80 or more lines, including `rtk cat`, `rtk proxy cat` and large skill files; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through. Ranged and piped reads pass through.
 
@@ -215,7 +215,7 @@ Settings that change the prompt prefix discard a still-warm cache. Each guard co
 | Model, effort or fast-mode switch while the cache is warm and context ≥ the idle floor | Claude: hook `effort`, `/model` and `/fast` output after the last call. Codex: hook `model`, `thread_settings_applied` | `UserPromptSubmit` blocks once and suggests a subagent (Claude) or `codex exec` (Codex); resending switches |
 | Client upgraded since the last call (also on resume) | Claude: `CLAUDE_CODE_EXECPATH` vs the transcript's `version`. Codex: the parent `codex --version` vs the version stored at the previous prompt | Non-blocking hint with the rebuild size |
 | `CLAUDE.md`/`AGENTS.md` edited by the agent | `PostToolUse` on Edit/Write or `apply_patch` | Note to batch instruction edits |
-| Installer run with live sessions | `pgrep` | Asks to continue when interactive |
+| Installer run with live sessions | `pgrep` | Asks to continue when interactive; refuses unattended installs |
 
 The global policy tells both agents never to suggest `/model`, `/effort` or `/fast` mid-session. `token-profiler … top --by cause` totals misses by cause. A model switch from the VS Code picker writes no transcript note, so only the profiler sees it. Codex rollouts don't record upgrades, so the profiler counts them as unexplained. A Claude model alias resolves inside the client and moves only on an upgrade, so the model isn't pinned.
 
@@ -229,7 +229,7 @@ The shared `investigation` skill activates for disputed facts, uncertain compati
 
 The agent selects what to retrieve; tools keep unnecessary text out of context. Use Serena and smart-read for code and passages, RTK for supported shell output, and explicit field selection for shell envelopes and equivalent MCP representations. Preserve distinct content, errors, warnings and resource links. Large logs stay local with bounded diagnostics and a recovery path. There is no model-based summarizer or universal tool-result rewrite hook.
 
-Running commands retain their native process/session IDs. Use the client's wait mechanism, increasing intervals when progress is unchanged while maintaining user updates; avoid separate sleeps and repeated log tails. Cancellation and final exit status remain part of verification. A new wait daemon is unnecessary.
+Running commands retain their native process/session IDs. Wait about 30 seconds with the client's native mechanism, increasing to 60 seconds when progress is unchanged while maintaining user updates; avoid separate sleeps and repeated log tails. Cancellation and final exit status remain part of verification. A new wait daemon is unnecessary.
 
 ### Token-profiler
 
@@ -263,7 +263,7 @@ Each piece has exactly one owner:
 | Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `investigation` into all four profiles |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
-| Superpowers | `llm/ai-install.sh` `install_superpowers` | Reuses an enabled curated/upstream plugin; otherwise installs the upstream plugin in both Codex homes and `superpowers@claude-plugins-official` in both Claude homes |
+| Superpowers | `llm/ai-install.sh` `install_superpowers`, then `agent_config.py context-efficiency` | Installs the plugin but disables automatic activation in all four profiles; enable before a new session when requested |
 
 Two Serena servers on one project mean duplicate tools, duplicate indexing/LSP processes, more memory, confused activation/state, and uncertain tool choice.
 
@@ -271,7 +271,7 @@ Plugin scope is applied at installation for future sessions, not switched inside
 
 ## 10. Hook coexistence
 
-All three can use Codex lifecycle hooks with distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → activation/reminders/cleanup; Ponytail → session activation, mode tracking, subagent rules. RTK 0.49.0 `init --codex` manages instructions; this repo separately merges the RTK adapter into user-level `hooks.json`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are active. New or changed hooks require review in `/hooks`.
+Codex lifecycle hooks have distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → session-end cleanup; Ponytail → session activation, mode tracking, subagent rules. `context-efficiency` removes old Serena activation/reminder/reset hooks from both clients while preserving unrelated hooks. RTK 0.49.0 `init --codex` manages instructions; this repo separately merges the RTK adapter into user-level `hooks.json`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are active. New or changed hooks require review in `/hooks`.
 
 ## 11. `AGENTS.md`
 
@@ -288,13 +288,17 @@ Both agent templates include delivery routing: Superpowers supplies implementati
 5. Run the narrowest useful validation (RTK compacts output).
 6. Inspect the final diff; `@ponytail-review` for non-trivial changes when available.
 
+### Startup context
+
+`agent_config.py context-efficiency` caps the Codex skills catalog at 2,000 tokens and sets Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` to 8,000 characters. Skills stay installed; use skill discovery or an explicit skill path for entries omitted from the startup catalog. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
+
 ### Superpowers in Codex and Claude
 
 `llm/ai-install.sh` installs Superpowers. Superpowers uses the upstream `obra/superpowers` Codex marketplace, whose current name is `superpowers-dev`. An already enabled `superpowers@openai-curated` or `superpowers@superpowers-dev` is reused, avoiding a second installation. The curated marketplace could not be registered in the work profile on this host, so the upstream plugin path was verified in both profiles. Claude installs `superpowers@claude-plugins-official` from the official marketplace and reuses an enabled `superpowers@superpowers-dev`. Do not also expose a manual Superpowers skill symlink.
 
-During implementation, load applicable Superpowers TDD, systematic debugging, and verification skills. Keep `@ponytail-review` before commits changing more than about 30 lines of code. Superpowers brainstorming, writing-plans, worktrees, and subagent orchestration run only on request and produce a short inline outline rather than a document. Existing idle checkpoints and pitstop supply session context. The `code` shell function selects the personal Codex home; other IDE launchers need their profile checked separately.
+Superpowers is installed but disabled by default in all four profiles, so its startup hook and catalog do not impose a workflow on a small task. Enable the installed plugin before a new session when its procedures are requested; do not toggle it in a running conversation. Keep `@ponytail-review` before commits changing more than about 30 lines of code. Superpowers brainstorming, writing-plans, worktrees, and subagent orchestration run only on request and produce a short inline outline rather than a document. Existing idle checkpoints and pitstop supply session context. The `code` shell function selects the personal Codex home; other IDE launchers need their profile checked separately.
 
-Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026) were installed and enabled in both profiles; a second installer run reused them. Restart Codex or Claude Code to load the plugin. See [Superpowers upstream](https://github.com/obra/superpowers).
+Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026) were installed and enabled in both profiles; a second installer run reused them. Those installation checks predate the opt-in defaults above. See [Superpowers upstream](https://github.com/obra/superpowers).
 
 ## 13. When to bypass a layer
 

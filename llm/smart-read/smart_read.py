@@ -170,9 +170,10 @@ def cache_key(root: Path) -> str:
     return hashlib.sha1(str(root).encode()).hexdigest()[:16]
 
 
-def connect(root: Path) -> sqlite3.Connection:
-    CACHE.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(CACHE / f"{cache_key(root)}.db")
+def connect(root: Path, memory: bool = False) -> sqlite3.Connection:
+    if not memory:
+        CACHE.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(":memory:" if memory else CACHE / f"{cache_key(root)}.db")
     db.executescript("""
         PRAGMA journal_mode=WAL;
         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
@@ -349,8 +350,8 @@ def main() -> int:
         root = repo_root(Path(getattr(args, "root", None) or os.getcwd()))
     except ValueError as exc:
         parser.error(str(exc))
-    CACHE.mkdir(parents=True, exist_ok=True)
     try:
+        CACHE.mkdir(parents=True, exist_ok=True)
         with (CACHE / f"{cache_key(root)}.indexing").open("a") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -368,6 +369,13 @@ def main() -> int:
                         path = os.path.relpath(path, root)
                     hits, note = search(db, root, args.query, path, args.k, use_dense=not args.lexical)
                     print(render(db, hits, note))
+    except PermissionError:
+        if args.command != "search" or not args.lexical:
+            raise
+        with closing(connect(root, memory=True)) as db:
+            path = os.path.relpath(args.path, root) if args.path and Path(args.path).is_absolute() else args.path
+            hits, note = search(db, root, args.query, path, args.k, use_dense=False)
+            print(render(db, hits, note))
     except KeyboardInterrupt:
         print("Index/search interrupted; completed embedding batches are saved.", file=sys.stderr)
         return 130

@@ -259,6 +259,62 @@ def context_trim(settings: str) -> None:
     save(settings, data)
 
 
+def context_efficiency(agent: str, profile: str) -> None:
+    if agent not in {"codex", "claude"}:
+        raise ValueError(f"Unknown agent: {agent}")
+    profile = Path(profile)
+    plugins = ("superpowers@openai-curated", "superpowers@superpowers-dev", "superpowers@claude-plugins-official")
+    if agent == "codex":
+        path = profile / "config.toml"
+        text = path.read_text() if path.exists() else ""
+        expected = tomllib.loads(text)
+        changes = [("skills", "max_context_tokens", 2000)] + [
+            (f"plugins.{json.dumps(plugin)}", "enabled", False) for plugin in plugins[:2]]
+        for section, key, value in changes:
+            if section == "skills":
+                table = expected.setdefault("skills", {})
+            else:
+                table = expected.setdefault("plugins", {}).setdefault(json.loads(section[8:]), {})
+            table[key] = value
+            line = f"{key} = {json.dumps(value)}\n"
+            match = re.search(rf"(?ms)^\[{re.escape(section)}\][^\n]*\n(.*?)(?=^\[|\Z)", text)
+            if match:
+                body, count = re.subn(rf"(?m)^[ \t]*{key}[ \t]*=.*\n?", line, match[1])
+                text = text[:match.start(1)] + (body if count else line + body) + text[match.end(1):]
+            else:
+                text = text.rstrip() + f"\n\n[{section}]\n{line}"
+        if tomllib.loads(text) != expected:
+            raise SystemExit(f"{path}: unsupported TOML layout; no changes written")
+        path.write_text(text)
+    else:
+        path = profile / "settings.json"
+        data = load(str(path))
+        data.setdefault("env", {})["SLASH_COMMAND_TOOL_CHAR_BUDGET"] = "8000"
+        data.setdefault("enabledPlugins", {}).update(dict.fromkeys(plugins[1:], False))
+        save(str(path), data)
+    path = profile / ("hooks.json" if agent == "codex" else "settings.json")
+    data = load(str(path))
+    for event, groups in list(data.get("hooks", {}).items()):
+        for group in groups:
+            group["hooks"] = [h for h in group.get("hooks", []) if not re.search(
+                r"(?:^|/)serena-hooks\s+(?:activate|remind|reset)(?:\s|$)", h.get("command") or "")]
+        data["hooks"][event] = [g for g in groups if g.get("hooks")]
+    save(str(path), data)
+
+
+def context_efficient(agent: str, profile: str) -> bool:
+    profile = Path(profile)
+    if agent == "codex":
+        data = load_toml(str(profile / "config.toml"))
+        return data.get("skills", {}).get("max_context_tokens") == 2000 and all(
+            data.get("plugins", {}).get(plugin, {}).get("enabled") is False
+            for plugin in ("superpowers@openai-curated", "superpowers@superpowers-dev"))
+    data = load(str(profile / "settings.json"))
+    return data.get("env", {}).get("SLASH_COMMAND_TOOL_CHAR_BUDGET") == "8000" and all(
+        data.get("enabledPlugins", {}).get(plugin) is False
+        for plugin in ("superpowers@superpowers-dev", "superpowers@claude-plugins-official"))
+
+
 def headroom_unroute(claude_dir: str, codex_dir: str) -> None:
     # Runs under Headroom's interpreter: only its revert hands Codex threads back to the native provider.
     from headroom.install.models import ManagedMutation
@@ -362,7 +418,7 @@ COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
         codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
-        connectors, context_trim, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
+        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
     )

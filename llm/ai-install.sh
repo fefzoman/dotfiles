@@ -75,7 +75,7 @@ warn_live_sessions() {
   # Upgrades and hook, MCP or skill edits change the prompt prefix open sessions resume with.
   pgrep -f '(^|/)(claude|codex)( |$)' >/dev/null || return 0
   echo "Warning: Claude or Codex sessions are running; resuming them after this install rebuilds their prompt cache." >&2
-  [[ -t 0 ]] || return 0
+  [[ -t 0 ]] || { echo "Stop running agents before an unattended install." >&2; return 1; }
   read -r -p "Continue? [y/N] " answer || true
   [[ "$answer" == [yY]* ]] || exit 1
 }
@@ -349,6 +349,15 @@ configure_claude_settings() {
   done
 }
 
+configure_context_efficiency() {
+  local agent profile
+  for agent in codex claude; do
+    for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do
+      agent_config context-efficiency "$agent" "$profile" || return
+    done
+  done
+}
+
 install_shell_config() {
   local config_dir="$HOME/.config/dotfiles"
 
@@ -359,7 +368,7 @@ install_shell_config() {
   fi
 }
 
-warn_live_sessions
+warn_live_sessions || exit 1
 echo "==> Installing AI command-line tools..."
 install_ai_tools
 echo "==> Removing Headroom from Codex and Claude profiles..."
@@ -392,6 +401,8 @@ echo "==> Keeping platform plugins in work profiles; preserving work plugin sele
 scope_platform_plugins
 echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
 configure_agent_mcps
+echo "==> Limiting startup context and making Superpowers opt-in..."
+configure_context_efficiency || exit 1
 echo "==> Installing Codex and Claude token profiler..."
 bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."

@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-30",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "cli_version": "0.165.0",
+  "prompts": [
+    "Create uv for this project",
+    "Create uv for this project",
+    ".venv was not created"
+  ],
+  "baseline_commit": "d46a23d",
+  "original": {
+    "input_tokens": 1433036,
+    "cached_input_tokens": 1340800,
+    "output_tokens": 3847,
+    "model_requests": 27,
+    "uncached_input_plus_output": 96083,
+    "all_tokens": 1436883
+  },
+  "pure_codex": {
+    "input_tokens": 418770,
+    "cached_input_tokens": 392192,
+    "output_tokens": 2407,
+    "model_requests": 22,
+    "uncached_input_plus_output": 28985,
+    "all_tokens": 421177
+  },
+  "updated_toolchain": {
+    "input_tokens": 762705,
+    "cached_input_tokens": 710144,
+    "output_tokens": 3846,
+    "model_requests": 24,
+    "uncached_input_plus_output": 56407,
+    "all_tokens": 766551
+  },
+  "reduction_from_original_percent": 41.29,
+  "all_token_reduction_percent": 46.65,
+  "updated_elapsed_seconds": 196.6,
+  "final_prompt_cache_miss": {
+    "source_line": 193,
+    "input_tokens": 38615,
+    "cached_input_tokens": 12288,
+    "uncached_input_tokens": 26327,
+    "note": "No visible tool-schema or skills-catalog update at this boundary; cause not established."
+  },
+  "artifacts": {
+    "original_transcript": "/Users/odobrynin/.codex/sessions/2026/10/30/rollout-2026-10-30T17-38-03-01a18d76-0173-7cf3-b19b-26335ba766d3.jsonl",
+    "pure_transcript": "/private/tmp/codex-pure-replay-_0rea90c/codex-home/sessions/2026/10/30/rollout-2026-10-30T17-53-46-01a18d84-62d2-7101-9c0e-687a96354818.jsonl",
+    "updated_transcript": "/private/tmp/codex-toolchain-replay-6eii67ac/codex-home/sessions/2026/10/30/rollout-2026-10-30T18-11-09-01a18d94-4bd7-7c23-9bfd-8c4ba36e6b2e.jsonl",
+    "updated_runner": "/private/tmp/codex-toolchain-replay-6eii67ac/run.py",
+    "updated_logs": "/private/tmp/codex-toolchain-replay-6eii67ac"
+  },
+  "validation": {
+    "unit_tests_passed": 37,
+    "shell_syntax": "passed",
+    "diff_whitespace": "passed",
+    "replay_turns_completed": 3,
+    "venv_created": true,
+    "dependency_imports": "passed",
+    "uv_pip_check": "passed"
+  },
+  "limitations": [
+    "Single run per configuration; cache reuse varied.",
+    "Original first prompt was interrupted; both replays completed prompts sequentially.",
+    "Replays used a disposable pre-change checkout plus original Docker Compose changes and separate empty uv caches.",
+    "Updated replay retained installed toolchain and default external integrations; Superpowers disabled and catalog capped.",
+    "Hook trust bypassed only for the isolated snapshot so reviewed local hooks could execute; idle checkpoint scheduling disabled to prevent background model requests.",
+    "Sandbox and approval behavior differ from original interactive session: replay used approval never with network access for package installation, as in the pure replay.",
+    "Both replays also exported requirements.txt; original did not.",
+    "Updated replay could not commit inside its sandbox because .git was read-only.",
+    "Original displayed 93740 excludes one interrupted request; canonical per-response total is 96083.",
+    "Claude configuration and parity tested locally; no Claude model replay or full machine installer run."
+  ]
+}

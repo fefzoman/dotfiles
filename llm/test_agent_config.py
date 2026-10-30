@@ -16,6 +16,71 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class AgentInstallationTests(unittest.TestCase):
+    def test_context_efficiency_preserves_custom_settings_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory)
+            config = profile / "config.toml"
+            config.write_text('model = "custom"\n[skills]\ninclude_instructions = true\n'
+                              'max_context_tokens = 9000\n[plugins."superpowers@superpowers-dev"]\nenabled = true\n'
+                              '[plugins."custom@local"]\nenabled = true\n')
+            settings = profile / "settings.json"
+            settings.write_text('{"env":{"CUSTOM":"yes"},"enabledPlugins":{"custom@local":true}}')
+            for agent in ("codex", "claude"):
+                self.assertFalse(agent_config.context_efficient(agent, str(profile)))
+                agent_config.context_efficiency(agent, str(profile))
+                self.assertTrue(agent_config.context_efficient(agent, str(profile)))
+                first = (config if agent == "codex" else settings).read_text()
+                agent_config.context_efficiency(agent, str(profile))
+                self.assertEqual(first, (config if agent == "codex" else settings).read_text())
+            data = agent_config.load_toml(str(config))
+            self.assertEqual(data["model"], "custom")
+            self.assertEqual(data["skills"], {"include_instructions": True, "max_context_tokens": 2000})
+            self.assertFalse(data["plugins"]["superpowers@superpowers-dev"]["enabled"])
+            self.assertTrue(data["plugins"]["custom@local"]["enabled"])
+            data = agent_config.load(str(settings))
+            self.assertEqual(data["env"], {"CUSTOM": "yes", "SLASH_COMMAND_TOOL_CHAR_BUDGET": "8000"})
+            self.assertFalse(data["enabledPlugins"]["superpowers@claude-plugins-official"])
+            self.assertTrue(data["enabledPlugins"]["custom@local"])
+
+    def test_context_efficiency_removes_only_eager_serena_hooks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory)
+            for agent, filename in (("codex", "hooks.json"), ("claude", "settings.json")):
+                path = profile / filename
+                agent_config.save(str(path), {"hooks": {"SessionStart": [{"hooks": [
+                    {"type": "command", "command": "serena-hooks activate --client=" + agent},
+                    {"type": "command", "command": "custom-check"}]}], "SessionEnd": [{"hooks": [
+                    {"type": "command", "command": "serena-hooks cleanup --client=" + agent}]}]}})
+                agent_config.context_efficiency(agent, str(profile))
+                commands = [e[3] for e in agent_config.hook_entries(agent_config.load(str(path)))]
+                self.assertEqual(commands, ["custom-check", "serena-hooks cleanup --client=" + agent])
+
+    def test_context_efficiency_rejects_unsupported_toml_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "config.toml"
+            text = 'skills.max_context_tokens = 9000\n'
+            path.write_text(text)
+            with self.assertRaises((SystemExit, tomllib.TOMLDecodeError)):
+                agent_config.context_efficiency("codex", directory)
+            self.assertEqual(path.read_text(), text)
+
+    def test_unattended_install_refuses_running_agents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_installer_function("warn_live_sessions", Path(directory), 'pgrep() { return 0; }')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Stop running agents", result.stderr)
+
+    def test_context_defaults_reach_all_four_installed_profiles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            for name in (".codex", ".codex-work", ".claude", ".claude-work"):
+                (home / name).mkdir()
+            result = self.run_installer_function("configure_context_efficiency", home)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for agent in ("codex", "claude"):
+                for name in (f".{agent}", f".{agent}-work"):
+                    self.assertTrue(agent_config.context_efficient(agent, str(home / name)))
+
     def test_platform_plugins_are_scoped_without_touching_work_or_custom_settings(self):
         with tempfile.TemporaryDirectory() as directory:
             for agent, filename in (("codex", "config.toml"), ("claude", "settings.json")):

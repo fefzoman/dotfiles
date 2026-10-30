@@ -37,6 +37,15 @@ SQL = "with spend as (\n  select * from raw\n)\nselect * from spend\n\ncreate ta
 
 
 class SmartReadTest(unittest.TestCase):
+    def test_lexical_search_works_when_cache_is_not_writable(self):
+        with patch.object(sr, "CACHE", Path("/unwritable/cache")), \
+                patch.object(Path, "mkdir", side_effect=PermissionError("sandbox")), \
+                patch.object(sys, "argv", ["smart-read", "search", "renew token", "--lexical"]), \
+                patch.object(sr, "repo_root", return_value=self.root), \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(sr.main(), 0)
+        self.assertIn("auth.py", output.getvalue())
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
