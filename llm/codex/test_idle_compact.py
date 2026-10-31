@@ -116,7 +116,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         output = json.loads(self.run_hook(ic.guard, self.hook | {"session_id": "codex-new", "prompt": command}, "codex"))
         self.assertEqual(output["reason"], "Provide a session ID: $pitstop <session>.")
 
-    def test_linked_pitstop_in_original_chat_explains_the_block(self):
+    def test_linked_pitstop_in_original_chat_is_allowed(self):
         self.run_hook(ic.arm, self.hook, "codex")
         command = "[$pitstop](/Users/test/.agents/skills/pitstop/SKILL.md) codex-session"
         self.rows.append(self.row("response_item", {"type": "message", "role": "user", "content": [
@@ -124,12 +124,11 @@ class CodexIdleCompactTest(unittest.TestCase):
         ]}, time.time()))
         self.save()
         output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": command}, "codex"))
-        self.assertEqual(output["decision"], "block")
-        self.assertIn("$pitstop codex-session", output["reason"])
-        self.assertIn("This is still the original chat", output["reason"])
-        self.assertIn("resend your original prompt", output["reason"])
-        self.assertNotIn("handed off", output["reason"])
-        self.assertNotIn("/clear", output["reason"])
+        self.assertNotIn("decision", output)
+        self.assertIn("keeps the full context", output["systemMessage"])
+        self.assertNotIn("$pitstop", output["systemMessage"])
+        self.assertIn("Continuing from idle checkpoint codex-session", ic.resume(str(self.home), "codex-session"))
+        self.assertEqual(self.run_hook(ic.guard, self.hook | {"session_id": "new-chat", "prompt": command}, "codex"), "")
 
     def test_cold_guard_names_the_checkpoint_for_a_new_chat(self):
         self.run_hook(ic.arm, self.hook, "codex")

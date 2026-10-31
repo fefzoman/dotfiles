@@ -762,12 +762,12 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
             step = restart(client, session) if own else f"{'$' if client == 'codex' else '/'}pitstop <session>"
             print(json.dumps({"decision": "block", "reason": f"Provide a session ID: {step}."}))
         elif command[1] == session and own:
-            reason = (
-                "This is still the original chat. $pitstop cannot open a new chat or clear this chat's context. "
-                f"Idle checkpoint {session} is ready; {restart(client, session)}, then paste your original prompt. "
-                "To keep working here with the full session, resend your original prompt."
-            ) if client == "codex" else f"Idle checkpoint {session} is ready; {restart(client, session)}."
-            print(json.dumps({"decision": "block", "reason": reason}))
+            if client == "codex":
+                print(json.dumps({"systemMessage": "Resuming the checkpoint in this chat keeps the full context. "
+                                                   "A new chat is needed to reduce context."}))
+            else:
+                print(json.dumps({"decision": "block",
+                                  "reason": f"Idle checkpoint {session} is ready; {restart(client, session)}."}))
         return 0
     call = last_call(recs)
     renewed = float(read(marker(session, "renewed")) or 0)
