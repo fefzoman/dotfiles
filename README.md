@@ -173,6 +173,7 @@ Python, Vim, Vimdoc, and YAML.
 | Context7 | Retrieves current third-party library and API documentation through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `context7-mcp --help` |
 | token-profiler | Local usage, inner-session, context, and optimization reports for all four agent profiles | `token-profiler codex`, `token-profiler codex-work short`, `token-profiler claude current`, `token-profiler codex top --by command` |
 | tiktoken | Tokenizer used by token-profiler for diagnostic attribution estimates | `python -c 'import tiktoken; print(tiktoken.get_encoding("o200k_base"))'` |
+| ttok | Counts tokens in text files using an OpenAI tokenizer; approximate for other models | `ttok -i FILE`, `ttok -i FILE -m gpt-4o`, `ttok --help` |
 | LLM smoke test | Verifies commands, profile routing, policies, hooks, plugins, and MCPs without model calls | `bash ./llm/smoke-test.sh`, `bash ./llm/smoke-test.sh --strict` |
 
 ### Linux Support Packages
