@@ -73,7 +73,7 @@ claude_mcp_enabled() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk token-profiler ttok smart-read node uv serena context7-mcp code code-work; do
+for command_name in python codex claude fabric rtk token-profiler token-count smart-read node uv serena context7-mcp code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done

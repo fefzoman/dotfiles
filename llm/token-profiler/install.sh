@@ -23,6 +23,7 @@ env PIP_BREAK_SYSTEM_PACKAGES=1 "$PYTHON_BIN" -m pip install --upgrade tiktoken
 mkdir -p "${TARGET_DIR}"
 cp "${HERE}/token-profiler" "${TARGET}"
 chmod +x "${TARGET}"
+install -m 0755 "${HERE}/token-count" "${TARGET_DIR}/token-count"
 rm -f "${LEGACY_TARGET}"
 
 echo "Installed: ${TARGET}"

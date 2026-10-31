@@ -109,8 +109,6 @@ install_ai_tools() {
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --upgrade serena-agent
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
-    --python "$PYTHON_VERSION" --upgrade ttok
-  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/smart-read"
 }
 

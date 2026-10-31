@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+"""Count a UTF-8 file's tokens with the profiler's tokenizer."""
+
+import argparse
+from pathlib import Path
+
+import tiktoken
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("file", type=Path)
+    args = parser.parse_args()
+    try:
+        text = args.file.read_bytes().decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        parser.error(str(exc))
+    print(len(tiktoken.get_encoding("o200k_base").encode(text, disallowed_special=())))
+
+
+if __name__ == "__main__":
+    main()

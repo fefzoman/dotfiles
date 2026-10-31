@@ -21,6 +21,9 @@ The installer requires Python and pip, installs the mandatory `tiktoken`
 dependency, installs `~/.local/bin/token-profiler`, and removes the obsolete
 `~/.local/bin/codex-usage` command.
 
+It also installs `token-count FILE`, which prints the file's token count using
+`o200k_base`. Input must be UTF-8 text; counts are approximate for other tokenizers.
+
 ```bash
 cd llm/token-profiler
 ./install.sh
