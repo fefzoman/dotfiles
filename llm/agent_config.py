@@ -54,17 +54,27 @@ def hook_entries(data: dict):
 def codex_shell_path(config: str, path: str) -> None:
     config = Path(config)
     text = config.read_text(encoding="utf-8") if config.exists() else ""
-    # Codex inserts new tables before the trailing END marker; keep them.
-    text = re.sub(
-        rf"\n?{re.escape(SHELL_BEGIN)}\n\[shell_environment_policy\]\nset = [^\n]*\n(.*?){re.escape(SHELL_END)}\n?",
-        r"\n\1",
-        text,
-        flags=re.DOTALL,
-    )
-    if re.search(r"(?m)^\s*(?:\[shell_environment_policy(?:\.|\])|shell_environment_policy\.)", text):
-        raise SystemExit(f"{config} already defines shell_environment_policy; add {path!r} to its PATH")
-    block = f"{SHELL_BEGIN}\n[shell_environment_policy]\nset = {{ PATH = {json.dumps(path)} }}\n{SHELL_END}\n"
-    config.write_text(text.rstrip() + "\n\n" + block, encoding="utf-8")
+    expected = tomllib.loads(text)
+    env = expected.setdefault("shell_environment_policy", {}).setdefault("set", {})
+    env["PATH"] = path
+    # Codex can reorder tables and leave the old markers in reverse order.
+    text = re.sub(rf"(?m)^(?:{re.escape(SHELL_BEGIN)}|{re.escape(SHELL_END)})\n?", "", text)
+    subtable = re.search(r"(?m)^\[shell_environment_policy\.set\][^\n]*\n", text)
+    table = subtable or re.search(r"(?m)^\[shell_environment_policy\][^\n]*\n", text)
+    if table:
+        end = re.search(r"(?m)^\s*\[", text[table.end():])
+        stop = table.end() + end.start() if end else len(text)
+        key = "PATH" if subtable else "set"
+        value = json.dumps(path) if subtable else "{ " + ", ".join(
+            f"{json.dumps(k)} = {json.dumps(v)}" for k, v in env.items()) + " }"
+        line = f"{key} = {value}\n"
+        body, count = re.subn(rf"(?m)^[ \t]*{key}[ \t]*=[^\n]*\n?", lambda _: line, text[table.end():stop])
+        text = text[:table.end()] + (body if count else line + body) + text[stop:]
+    else:
+        text = text.rstrip() + f"\n\n[shell_environment_policy]\nset = {{ PATH = {json.dumps(path)} }}\n"
+    if tomllib.loads(text) != expected:
+        raise SystemExit(f"{config}: set shell_environment_policy.set.PATH manually; unsupported TOML layout")
+    config.write_text(text, encoding="utf-8")
 
 
 def codex_hooks(target: str, required: str) -> None:

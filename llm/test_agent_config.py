@@ -351,9 +351,8 @@ uv() {{
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "config.toml"
             agent_config.codex_shell_path(str(config), "/old")
-            text = config.read_text().replace(
-                agent_config.SHELL_END, '\n[marketplaces.superpowers-dev]\nsource = "x"\n' + agent_config.SHELL_END
-            )
+            text = (agent_config.SHELL_BEGIN + config.read_text()
+                    + '\n[marketplaces.superpowers-dev]\nsource = "x"\n' + agent_config.SHELL_END + "\n")
             config.write_text(text)
             agent_config.codex_shell_path(str(config), "/new")
             text = config.read_text()
@@ -361,6 +360,35 @@ uv() {{
             self.assertEqual(text.count("[shell_environment_policy]"), 1)
             self.assertIn('"/new"', text)
             self.assertNotIn('"/old"', text)
+
+    def test_codex_shell_path_preserves_existing_policy_and_reordered_markers(self):
+        for policy in (
+            '[shell_environment_policy]\ninherit = "none"\nset = { PATH = "/old", KEEP = "yes" }\n',
+            '[shell_environment_policy]\ninherit = "none"\n[shell_environment_policy.set]\nPATH = "/old"\nKEEP = "yes"\n',
+            '[shell_environment_policy]\ninherit = "none"\n',
+        ):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as directory:
+                config = Path(directory) / "config.toml"
+                config.write_text(
+                    agent_config.SHELL_END + '\n[projects."/keep"]\ntrust_level = "trusted"\n'
+                    + agent_config.SHELL_BEGIN + "\n" + policy
+                )
+                expected = tomllib.loads(config.read_text())
+                expected["shell_environment_policy"].setdefault("set", {})["PATH"] = "/new"
+                agent_config.codex_shell_path(str(config), "/new")
+                first = config.read_text()
+                self.assertEqual(tomllib.loads(first), expected)
+                agent_config.codex_shell_path(str(config), "/new")
+                self.assertEqual(config.read_text(), first)
+
+    def test_codex_shell_path_rejects_unsupported_layout_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.toml"
+            original = 'shell_environment_policy = { inherit = "none", set = { PATH = "/old" } }\n'
+            config.write_text(original)
+            with self.assertRaises((SystemExit, tomllib.TOMLDecodeError)):
+                agent_config.codex_shell_path(str(config), "/new")
+            self.assertEqual(config.read_text(), original)
 
     def test_effort_defaults_replace_only_the_top_level_codex_key(self):
         with tempfile.TemporaryDirectory() as tmp:
