@@ -232,48 +232,6 @@ fi
                     2 if mode == "upstream" else 0,
                 )
 
-    def test_headroom_removal_unroutes_all_profiles_then_uninstalls(self):
-        for mode in ("installed", "race", "failure", "absent"):
-            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
-                home = Path(directory)
-                manifest = home / ".headroom/deploy/default/manifest.json"
-                manifest.parent.mkdir(parents=True)
-                manifest.write_text("{}")
-                for profile in (".codex", ".codex-work"):
-                    config = home / profile / "config.toml"
-                    config.parent.mkdir()
-                    config.write_text('model = "keep"\n[mcp_servers.headroom]\ncommand = "missing-headroom"\n'
-                                      '[mcp_servers.headroom.tools.headroom_retrieve]\napproval_mode = "approve"\n'
-                                      '[mcp_servers.serena]\ncommand = "serena"\n')
-                if mode != "absent":
-                    (home / "headroom-ai/bin").mkdir(parents=True)
-                    python = home / "headroom-ai/bin/python"
-                    python.write_text('#!/usr/bin/env bash\necho "unroute $3 $4" >> "$HOME/log"\n')
-                    python.chmod(0o755)
-                result = self.run_installer_function("remove_headroom", home, f'''
-mode={mode}
-remove_attempts=0
-headroom() {{
-  [[ "$*" == "install remove --profile default" ]] || return 2
-  ((remove_attempts+=1))
-  echo remove >> "$HOME/log"
-  [[ "$mode" == installed || ( "$mode" == race && "$remove_attempts" -gt 1 ) ]]
-}}
-uv() {{
-  if [[ "$1 $2" == "tool dir" ]]; then printf '%s\\n' "$HOME"; else echo "uv $*" >> "$HOME/log"; fi
-}}
-''')
-                self.assertEqual(result.returncode == 0, mode != "failure", result.stderr)
-                log = (home / "log").read_text().splitlines() if mode != "absent" else []
-                unrouted = [f"unroute {home}/.claude {home}/.codex", f"unroute {home}/.claude-work {home}/.codex-work"]
-                expected = {"installed": [*unrouted, "remove", "uv tool uninstall headroom-ai"],
-                            "race": [*unrouted, "remove", "remove", "uv tool uninstall headroom-ai"],
-                            "failure": [*unrouted, "remove", "remove"], "absent": []}
-                self.assertEqual(log, expected[mode])
-                for profile in (".codex", ".codex-work"):
-                    config = agent_config.load_toml(str(home / profile / "config.toml"))
-                    self.assertEqual(config, {"model": "keep", "mcp_servers": {"serena": {"command": "serena"}}})
-
     def test_codex_hooks_updates_timeout_without_duplicates(self):
         with tempfile.TemporaryDirectory() as directory:
             target, required = Path(directory) / "hooks.json", SCRIPT_DIR / "codex/codex-hooks.json"

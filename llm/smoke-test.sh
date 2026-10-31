@@ -88,8 +88,6 @@ done
 
 check "Codex starts" "Codex failed to start" codex --version
 check "Claude Code starts" "Claude Code failed to start" claude --version
-check "Headroom is uninstalled" "Headroom is still installed; rerun ai-install.sh" \
-  bash -c '! command -v headroom'
 check "Token profiler starts with tiktoken" "Token profiler failed to start" \
   token-profiler --version
 

@@ -245,23 +245,6 @@ configure_agent_mcps() {
   done
 }
 
-remove_headroom() {
-  local python uv_bin
-
-  CODEX_HOME="$HOME/.codex" codex mcp remove headroom
-  CODEX_HOME="$HOME/.codex-work" codex mcp remove headroom
-  uv_bin="$(command -v uv)"
-  python="$("$uv_bin" tool dir)/headroom-ai/bin/python"
-  [[ -x "$python" ]] || return 0
-  # Headroom's revert also restores Codex threads to the native provider's history menu.
-  "$python" "$SCRIPT_DIR/agent_config.py" headroom-unroute "$HOME/.claude" "$HOME/.codex"
-  "$python" "$SCRIPT_DIR/agent_config.py" headroom-unroute "$HOME/.claude-work" "$HOME/.codex-work"
-  if [[ -f "$HOME/.headroom/deploy/default/manifest.json" ]]; then
-    headroom install remove --profile default || headroom install remove --profile default || return
-  fi
-  "$uv_bin" tool uninstall headroom-ai
-}
-
 remove_speckit() {
   rm -rf "$HOME/.agents/skills/speckit-init"
   rm -f "$HOME/.claude/commands/speckit-init.md" "$HOME/.claude-work/commands/speckit-init.md"
@@ -371,8 +354,6 @@ install_shell_config() {
 warn_live_sessions || exit 1
 echo "==> Installing AI command-line tools..."
 install_ai_tools
-echo "==> Removing Headroom from Codex and Claude profiles..."
-remove_headroom
 echo "==> Removing Spec Kit..."
 remove_speckit
 echo "==> Installing VS Code commands..."
