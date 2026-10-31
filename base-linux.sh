@@ -94,6 +94,16 @@ install_kubectl_linux() {
   install -m 0755 "$WORK/kubectl" "$BIN/kubectl"
 }
 
+install_yq_linux() {
+  local arch version
+  arch="$(linux_arch)"
+  [[ $arch == x86_64 ]] && arch=amd64
+  version="$(gh_latest mikefarah/yq)"
+  [[ -n $version ]] || die "Cannot determine the latest yq version."
+  curl -fsSL -o "$WORK/yq" "https://github.com/mikefarah/yq/releases/download/v$version/yq_linux_$arch"
+  install -m 0755 "$WORK/yq" "$BIN/yq"
+}
+
 install_terraform_linux() {
   local arch version url archive
   arch="$(linux_arch)"
@@ -161,6 +171,7 @@ install_linux() {
   ln -sfn "$(command -v fdfind)" "$BIN/fd"
   install_neovim_linux
   install_kubectl_linux
+  install_yq_linux
   install_terraform_linux
   install_lazygit_linux
   install_broot_linux

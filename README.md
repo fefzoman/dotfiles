@@ -84,6 +84,7 @@ tmux, shell, and Neovim keybindings.
 |---|---|---|
 | Git | Source control | `git status`, `git diff`, `git log --oneline`, `git add FILE`, `git commit`, `git pull --rebase`, `git push` |
 | curl | HTTP requests and downloads | `curl -I URL`, `curl -fsSL URL`, `curl -o FILE URL` |
+| yq (Mike Farah) | Query and edit YAML and JSON | `yq '.name' FILE.yaml`, `yq -i '.enabled = true' FILE.yaml`, `yq -o=json FILE.yaml` |
 | wget | Recursive or resumable downloads; installed directly on Linux and by the shell reset where available | `wget URL`, `wget -c URL`, `wget -O FILE URL` |
 | btop | Interactive CPU, memory, process, disk, and network monitor | `btop`; press `q` to quit and `?` for help |
 | LazyGit | Interactive Git interface | `lazygit`; in Neovim use `Space lg` |
@@ -199,7 +200,7 @@ attributes. Override both `ALACRITTY_VERSION` and `ALACRITTY_SHA256` together
 to install another release.
 
 On Debian and Ubuntu, system dependencies and Alacritty come from APT. Current
-Neovim, Node 22 LTS, kubectl, Terraform, LazyGit, Codex, Claude Code, Serena,
+Neovim, Node 22 LTS, kubectl, yq, Terraform, LazyGit, Codex, Claude Code, Serena,
 Context7, Treesitter CLI, Python 3.13, and the JetBrainsMono Nerd Font are
 installed under `~/.local`, so no Linuxbrew is required.
 
