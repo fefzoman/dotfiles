@@ -762,8 +762,12 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
             step = restart(client, session) if own else f"{'$' if client == 'codex' else '/'}pitstop <session>"
             print(json.dumps({"decision": "block", "reason": f"Provide a session ID: {step}."}))
         elif command[1] == session and own:
-            print(json.dumps({"decision": "block",
-                              "reason": f"Idle checkpoint {session} is ready; {restart(client, session)}."}))
+            reason = (
+                "This is still the original chat. $pitstop cannot open a new chat or clear this chat's context. "
+                f"Idle checkpoint {session} is ready; {restart(client, session)}, then paste your original prompt. "
+                "To keep working here with the full session, resend your original prompt."
+            ) if client == "codex" else f"Idle checkpoint {session} is ready; {restart(client, session)}."
+            print(json.dumps({"decision": "block", "reason": reason}))
         return 0
     call = last_call(recs)
     renewed = float(read(marker(session, "renewed")) or 0)
@@ -786,6 +790,11 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
                                            f"a fresh context, {restart(client, session)}."}))
         return 0
     reason = (
+        f"This thread has about {size}K tokens after a long pause. An idle checkpoint is ready. "
+        f"To continue with less context, {restart(client, session)} in that new chat, then paste your prompt. "
+        f"Running $pitstop here will not clear this chat's context. Or send this prompt again here to keep "
+        f"the full session.{echo(client, hook)}"
+    ) if client == "codex" else (
         f"This thread has about {size}K tokens after a long pause. An idle checkpoint is ready. "
         f"To continue, {restart(client, session)}, then paste your prompt; or send this prompt again to keep "
         f"the full session.{echo(client, hook)}"

@@ -110,21 +110,33 @@ class CodexIdleCompactTest(unittest.TestCase):
     def test_linked_pitstop_without_id_asks_for_it(self):
         self.run_hook(ic.arm, self.hook, "codex")
         command = "[$pitstop](/Users/test/.agents/skills/pitstop/SKILL.md)"
+        output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": command}, "codex"))
+        self.assertEqual(output["reason"], "Provide a session ID: open a new chat in this workspace "
+                                           "and run $pitstop codex-session.")
+        output = json.loads(self.run_hook(ic.guard, self.hook | {"session_id": "codex-new", "prompt": command}, "codex"))
+        self.assertEqual(output["reason"], "Provide a session ID: $pitstop <session>.")
+
+    def test_linked_pitstop_in_original_chat_explains_the_block(self):
+        self.run_hook(ic.arm, self.hook, "codex")
+        command = "[$pitstop](/Users/test/.agents/skills/pitstop/SKILL.md) codex-session"
         self.rows.append(self.row("response_item", {"type": "message", "role": "user", "content": [
             {"type": "input_text", "text": command}
         ]}, time.time()))
         self.save()
         output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": command}, "codex"))
         self.assertEqual(output["decision"], "block")
-        self.assertEqual(output["reason"], "Provide a session ID: open a new chat in this workspace "
-                                           "and run $pitstop codex-session.")
-        output = json.loads(self.run_hook(ic.guard, self.hook | {"session_id": "codex-new", "prompt": command}, "codex"))
-        self.assertEqual(output["reason"], "Provide a session ID: $pitstop <session>.")
+        self.assertIn("$pitstop codex-session", output["reason"])
+        self.assertIn("This is still the original chat", output["reason"])
+        self.assertIn("resend your original prompt", output["reason"])
+        self.assertNotIn("handed off", output["reason"])
+        self.assertNotIn("/clear", output["reason"])
 
     def test_cold_guard_names_the_checkpoint_for_a_new_chat(self):
         self.run_hook(ic.arm, self.hook, "codex")
         output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "continue"}, "codex"))
         self.assertIn("$pitstop codex-session", output["reason"])
+        self.assertIn("in that new chat", output["reason"])
+        self.assertIn("Running $pitstop here will not clear", output["reason"])
         self.assertNotIn("/clear", output["reason"])
 
     def test_linked_checkpoint_requests_a_manual_summary(self):
