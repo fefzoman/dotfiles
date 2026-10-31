@@ -271,13 +271,13 @@ Plugin scope is applied at installation for future sessions, not switched inside
 
 ## 10. Hook coexistence
 
-Codex lifecycle hooks have distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → session-end cleanup; Ponytail → session activation, mode tracking, subagent rules. `context-efficiency` removes old Serena activation/reminder/reset hooks from both clients while preserving unrelated hooks. RTK 0.49.0 `init --codex` manages instructions; this repo separately merges the RTK adapter into user-level `hooks.json`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are active. New or changed hooks require review in `/hooks`.
+Codex lifecycle hooks have distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → session-end cleanup; Ponytail → optional session activation, mode tracking, subagent rules. `context-efficiency` removes old Serena activation/reminder/reset hooks from both clients while preserving unrelated hooks. RTK 0.49.0 `init --codex` manages instructions; this repo separately merges the RTK adapter into user-level `hooks.json`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are active. New or changed hooks require review in `/hooks`.
 
 ## 11. `AGENTS.md`
 
-Describe behavior, not install manuals: prefer Serena for semantic exploration; Context7 conditionally for third-party APIs; let RTK's hook handle supported commands; apply Ponytail's minimum-correct discipline; minimize context at the source. `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
+Describe behavior, not install manuals: use Serena when symbol lookup helps; Context7 conditionally for third-party APIs; use RTK for supported commands; keep general plugin procedures opt-in; minimize context at the source. `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
 
-Both agent templates include delivery routing: Superpowers supplies implementation disciplines within the existing Ponytail and retrieval rules. Resolve conflicts in this order: explicit user requirements, applicable agent policy, then Superpowers defaults.
+Both agent templates keep retrieval and correctness requirements while making general plugin procedures opt-in. Resolve conflicts in this order: explicit user requirements, applicable agent policy, then Superpowers defaults.
 
 ## 12. Task workflow
 
@@ -290,7 +290,7 @@ Both agent templates include delivery routing: Superpowers supplies implementati
 
 ### Startup context
 
-`agent_config.py context-efficiency` caps the Codex skills catalog at 2,000 tokens and sets Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` to 8,000 characters. Skills stay installed; use skill discovery or an explicit skill path for entries omitted from the startup catalog. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
+`agent_config.py context-efficiency` disables the automatic Codex skills catalog (`skills.include_instructions = false`), retains a 2,000-token cap for explicit opt-in, and keeps Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` at 8,000 characters. Ponytail and Superpowers startup policies are disabled in both clients; enable a plugin before a new session when requested. Skills and deferred MCP tools stay installed; use an explicit skill path or skill discovery when needed. DLM remains scoped to work profiles. See [the Codex ablation](../benchmarks/codex_toolchain/ABLATION.md); Claude catalog removal was not measured. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
 
 ### Superpowers in Codex and Claude
 

@@ -229,8 +229,8 @@ rtk gain --all --format json     # machine-readable savings
 ## Ponytail
 
 [Ponytail](https://github.com/DietrichGebert/ponytail) is installed as a plugin
-in all personal and work Codex/Claude profiles. Its lifecycle hooks and skills
-load in every CLI. Node.js is installed because Ponytail's hooks require it.
+in all personal and work Codex/Claude profiles, disabled by default. Enable it
+before a new session when requested. Node.js is installed because Ponytail's hooks require it.
 
 Codex requires review of new or changed hooks in `/hooks` in both profiles.
 Claude user and enabled plugin hooks run by default; project hooks require trusting the folder.

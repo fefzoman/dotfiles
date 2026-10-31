@@ -62,16 +62,8 @@ with_claude_profile() {
   fi
 }
 
-codex_plugin_enabled() {
-  CODEX_HOME="$1" command codex plugin list --json | agent_config codex-plugin-enabled "${@:2}"
-}
-
 codex_mcp_enabled() {
   CODEX_HOME="$1" command codex mcp list --json | agent_config codex-mcp-enabled "$2"
-}
-
-claude_plugin_enabled() {
-  with_claude_profile "$1" claude plugin list --json | agent_config claude-plugin-enabled "${@:2}"
 }
 
 claude_mcp_enabled() {
@@ -132,9 +124,7 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
     agent_config policy-matches "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
-  check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \
-    codex_plugin_enabled "$profile"
-  check "Codex limits skills and keeps Superpowers opt-in in $profile" "Codex context defaults are stale in $profile" \
+  check "Codex keeps the skills catalog, Ponytail and Superpowers opt-in in $profile" "Codex context defaults are stale in $profile" \
     agent_config context-efficient codex "$profile"
   check "Codex reaches OpenAI directly in $profile" "Codex still routes through Headroom in $profile" \
     agent_config codex-direct "$profile/config.toml"
@@ -176,9 +166,7 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
   check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
-  check "Ponytail is installed and enabled in $profile" "Ponytail is missing or disabled in $profile" \
-    claude_plugin_enabled "$profile"
-  check "Claude limits skills and keeps Superpowers opt-in in $profile" "Claude context defaults are stale in $profile" \
+  check "Claude limits skills and keeps Ponytail and Superpowers opt-in in $profile" "Claude context defaults are stale in $profile" \
     agent_config context-efficient claude "$profile"
 done
 

@@ -273,13 +273,13 @@ def context_efficiency(agent: str, profile: str) -> None:
     if agent not in {"codex", "claude"}:
         raise ValueError(f"Unknown agent: {agent}")
     profile = Path(profile)
-    plugins = ("superpowers@openai-curated", "superpowers@superpowers-dev", "superpowers@claude-plugins-official")
+    plugins = ("superpowers@openai-curated", "superpowers@superpowers-dev", "ponytail@ponytail", "superpowers@claude-plugins-official")
     if agent == "codex":
         path = profile / "config.toml"
         text = path.read_text() if path.exists() else ""
         expected = tomllib.loads(text)
-        changes = [("skills", "max_context_tokens", 2000)] + [
-            (f"plugins.{json.dumps(plugin)}", "enabled", False) for plugin in plugins[:2]]
+        changes = [("skills", "max_context_tokens", 2000), ("skills", "include_instructions", False)] + [
+            (f"plugins.{json.dumps(plugin)}", "enabled", False) for plugin in plugins[:3]]
         for section, key, value in changes:
             if section == "skills":
                 table = expected.setdefault("skills", {})
@@ -316,13 +316,14 @@ def context_efficient(agent: str, profile: str) -> bool:
     profile = Path(profile)
     if agent == "codex":
         data = load_toml(str(profile / "config.toml"))
-        return data.get("skills", {}).get("max_context_tokens") == 2000 and all(
+        skills = data.get("skills", {})
+        return skills.get("max_context_tokens") == 2000 and skills.get("include_instructions") is False and all(
             data.get("plugins", {}).get(plugin, {}).get("enabled") is False
-            for plugin in ("superpowers@openai-curated", "superpowers@superpowers-dev"))
+            for plugin in ("superpowers@openai-curated", "superpowers@superpowers-dev", "ponytail@ponytail"))
     data = load(str(profile / "settings.json"))
     return data.get("env", {}).get("SLASH_COMMAND_TOOL_CHAR_BUDGET") == "8000" and all(
         data.get("enabledPlugins", {}).get(plugin) is False
-        for plugin in ("superpowers@superpowers-dev", "superpowers@claude-plugins-official"))
+        for plugin in ("superpowers@superpowers-dev", "superpowers@claude-plugins-official", "ponytail@ponytail"))
 
 
 def headroom_unroute(claude_dir: str, codex_dir: str) -> None:
