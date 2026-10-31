@@ -22,7 +22,9 @@ dependency, installs `~/.local/bin/token-profiler`, and removes the obsolete
 `~/.local/bin/codex-usage` command.
 
 It also installs `token-count FILE`, which prints the file's token count using
-`o200k_base`. Input must be UTF-8 text; counts are approximate for other tokenizers.
+`o200k_base` by default. Use `token-count FILE -m gpt-4o` (or `--model`) to select
+an OpenAI model's tokenizer. Input must be UTF-8 text; counts are approximate for
+other tokenizers.
 
 ```bash
 cd llm/token-profiler
