@@ -245,14 +245,6 @@ configure_agent_mcps() {
   done
 }
 
-remove_speckit() {
-  rm -rf "$HOME/.agents/skills/speckit-init"
-  rm -f "$HOME/.claude/commands/speckit-init.md" "$HOME/.claude-work/commands/speckit-init.md"
-  if "$(type -P uv)" tool list | grep -q '^specify-cli '; then
-    "$(type -P uv)" tool uninstall specify-cli
-  fi
-}
-
 install_global_agents() {
   local profile skill
 
@@ -354,8 +346,6 @@ install_shell_config() {
 warn_live_sessions || exit 1
 echo "==> Installing AI command-line tools..."
 install_ai_tools
-echo "==> Removing Spec Kit..."
-remove_speckit
 echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
