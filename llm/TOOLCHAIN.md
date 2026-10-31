@@ -45,6 +45,8 @@ Solid arrows show the working loop; dotted arrows show guidance and session supp
 
 Implementation-policy plugin: stop at the earliest rung that works — (1) needed at all? (2) already in the codebase? (3) stdlib? (4) native platform? (5) installed dependency? (6) one line? (7) minimum new code. Minimalism comes **after understanding the real flow**; trust-boundary validation, data-loss prevention, security, accessibility and explicit requirements are never cut.
 
+The installer keeps Ponytail installed but disables it by default in both clients. Enable it before a new session when requested; the commands below describe installation, not the managed startup default.
+
 ```bash
 codex plugin marketplace add DietrichGebert/ponytail && codex plugin add ponytail@ponytail
 claude plugin marketplace add DietrichGebert/ponytail && claude plugin install ponytail@ponytail
@@ -237,6 +239,8 @@ Running commands retain their native process/session IDs. Wait about 30 seconds 
 
 Programmatic tool counts identify source call sites, not proven executions. The profiler resolves literal calls and simple `ALL_TOOLS.find` lookups using exact names or MCP suffixes; other dynamic calls remain unresolved. Combined output stays with its `exec batch`, and multi-file output is not divided among filenames. Unknown per-tool payload is `null` in JSON. Exact provider usage is unchanged; attribution cannot establish an unexplained cache miss's cause.
 
+Nested-call attribution has regression coverage in [the profiler tests](token-profiler/test_token_profiler.py); [the measurement guide](token-profiler/README.md) explains the estimates separately from provider-reported totals.
+
 ## 8. How the tools reinforce each other
 
 Prevent waste as early as possible — earlier cuts remove downstream work entirely:
@@ -261,6 +265,7 @@ Each piece has exactly one owner:
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `investigation` into all four profiles |
+| Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Ponytail/Superpowers plugins in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
 | Superpowers | `llm/ai-install.sh` `install_superpowers`, then `agent_config.py context-efficiency` | Installs the plugin but disables automatic activation in all four profiles; enable before a new session when requested |
@@ -290,7 +295,7 @@ Both agent templates keep retrieval and correctness requirements while making ge
 
 ### Startup context
 
-`agent_config.py context-efficiency` disables the automatic Codex skills catalog (`skills.include_instructions = false`), retains a 2,000-token cap for explicit opt-in, and keeps Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` at 8,000 characters. Ponytail and Superpowers startup policies are disabled in both clients; enable a plugin before a new session when requested. Skills and deferred MCP tools stay installed; use an explicit skill path or skill discovery when needed. DLM remains scoped to work profiles. See [the Codex ablation](../benchmarks/codex_toolchain/ABLATION.md); Claude catalog removal was not measured. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
+`agent_config.py context-efficiency` disables the automatic Codex skills catalog (`skills.include_instructions = false`), retains `skills.max_context_tokens = 2000` for explicit opt-in, and keeps Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` at 8,000 characters. Ponytail and the managed Superpowers variants are disabled in both clients; enable a plugin before a new session when requested. Skills and deferred MCP tools stay installed; use an explicit skill path or skill discovery when needed. DLM remains scoped to work profiles. See [the Codex ablation](../benchmarks/codex_toolchain/ABLATION.md); Claude catalog removal was not measured. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
 
 ### Superpowers in Codex and Claude
 
@@ -328,6 +333,42 @@ Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026)
 | Main failure mode | Underbuilding | LSP/tool mismatch | Unnecessary/stale retrieval | Hidden raw detail |
 
 Not additive: if Serena avoids a whole-file read, RTK and the prompt cache have nothing left to save on it.
+
+### Measured overhead and the resulting defaults
+
+The work first made nested tool attribution explicit (`1ef9146`), then bounded investigation and repetitive context (`4b7a284`), and removed automatic startup work (`0af5b96`). The [initial replay results](../benchmarks/codex_toolchain/results.json) recorded:
+
+| Configuration | Uncached input + output tokens |
+|---|---:|
+| Original session | 96,083 |
+| Plain Codex replay | 28,985 |
+| Updated toolchain replay | 56,407 |
+
+The updated replay used 41.3% fewer uncached-input-plus-output tokens than the original. This was preliminary evidence: the original was interrupted, replay conditions differed, and cache reuse varied. Recorded validation included 37 passing unit tests, shell syntax and whitespace checks, all three replay prompts, virtual-environment creation, dependency imports and `uv pip check`.
+
+Controlled ablations (`b9bba60`) then used GPT-6.1 Sol at medium effort on Codex CLI 0.165.0. Twenty-eight verified single-response startup probes checked the emitted prompts to confirm each intended removal. Sequential removals measured the following additional startup input savings:
+
+| Component removed, in order | Additional startup input tokens removed |
+|---|---:|
+| Native web-search declaration | 2,456 |
+| Automatic skills catalog | 2,087 |
+| Global agent policy | 1,016 |
+| Ponytail startup instructions | 711 |
+| DLM startup instructions | 310 |
+| App-install recommendations and their tool | 448 |
+
+These are cumulative removals in that order, measuring input usually cached after startup. Independent removals can overlap with catalog savings and must not be added to them. The earlier plain baseline had web search disabled while the toolchain retained it. With web enabled on both sides, lean and plain startup probes each used 13,500 input tokens; Serena, Context7, code-index, RTK and read hints remained available in the lean profile.
+
+Full replays used disposable `flink-training` checkouts at `d46a23d`, the same Docker Compose patch, separate uv caches and three sequential prompts: “Create uv for this project”, the same prompt again, then “.venv was not created”. The matched successful comparison was:
+
+| Configuration | Model requests | Uncached input + output | Total tokens, including cached |
+|---|---:|---:|---:|
+| Plain Codex, web enabled, successful repeat | 13 | 19,701 | 322,549 |
+| Lean toolchain, web enabled | 13 | 20,774 | 277,542 |
+
+The lean run used 5.45% more uncached input plus output while processing fewer total tokens; both passed dependency checks. Across all 14 replays, 13 passed. The failed plain-Codex attempt moved PyFlink into an optional group and failed the default-environment import check; it remains recorded. Removing one component did not reliably lower whole-task consumption: agents could compensate with more retrieval, and cache variation could dominate uncached totals. The transcripts do not establish the cause of unexplained cache misses.
+
+The [ablation report](../benchmarks/codex_toolchain/ABLATION.md) and [machine-readable evidence](../benchmarks/codex_toolchain/ablation-results.json) preserve the variants and limitations. These local measurements support deferring tools and making general startup policies opt-in, rather than promising a universal saving. The diagnostic lean profile also omitted global policy and disabled app integrations; it was not a production replacement. The resulting managed defaults (`1ee11e6`) instead retain shortened Codex/Claude policies and apply the startup settings above. Claude model replays, Docker pipelines and a full machine installer run were not validated by these experiments.
 
 ## 15. What to measure
 
