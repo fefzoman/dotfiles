@@ -1,3 +1,6 @@
+# macOS terminals may provide LC_CTYPE without a default locale.
+export LANG="${LANG:-en_US.UTF-8}"
+
 # Load interactive Bash settings from ~/.bashrc.
 if [[ -f "$HOME/.bashrc" ]]; then
   source "$HOME/.bashrc"
