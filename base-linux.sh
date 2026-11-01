@@ -163,7 +163,7 @@ install_linux() {
   echo "==> Installing Debian/Ubuntu packages..."
   apt_get update -y
   apt_get install -y alacritty bash bash-completion build-essential ca-certificates clangd curl dconf-cli \
-    fd-find fontconfig fzf git libc-bin ripgrep tmux tree unzip wget xclip xz-utils
+    fd-find fontconfig fzf git libc-bin psmisc ripgrep tmux tree unzip wget xclip xz-utils
   apt_get install -y btop || true
 
   install_python_linux
