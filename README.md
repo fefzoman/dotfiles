@@ -90,6 +90,8 @@ tmux, shell, and Neovim keybindings.
 | LazyGit | Interactive Git interface | `lazygit`; in Neovim use `Space lg` |
 | ripgrep (`rg`) | Fast recursive text search that respects `.gitignore` | `rg PATTERN`, `rg PATTERN PATH`, `rg -g '*.py' PATTERN`, `rg --files` |
 | fd | Fast file and directory finder | `fd NAME`, `fd -e py`, `fd -t d NAME`; Linux maps `fd` to `fdfind` |
+| tree | Display directory contents as a tree | `tree`, `tree -L 2`, `tree -a` |
+| ldd (Linux, via libc-bin) | List shared library dependencies | `ldd /usr/bin/ls` |
 | broot | Interactive tree navigation with Git status | `broot`, `broot PATH`; use `br` to change the parent shell's directory on exit |
 | fzf | Fuzzy selection from files, history, or piped text | `fzf`, `fd -t f \| fzf`, `git branch --format='%(refname:short)' \| fzf` |
 | Navi | Interactive command cheatsheets backed by TLDR pages | `navi`, `navi --tldr kubectl`, `navi --tldr terraform` |
