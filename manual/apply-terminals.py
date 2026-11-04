@@ -12,7 +12,7 @@ import time
 import tomllib
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 PRESETS = ROOT / "config/terminal"
 
 
