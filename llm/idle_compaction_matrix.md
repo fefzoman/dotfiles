@@ -23,8 +23,8 @@
 | **Guard, checkpoint ready** | 1h cache: blocks once, repeats prompt. 5m cache: hint | Blocks once; hint when the model's cache is usually warm |
 | **Guard, no or stale checkpoint** | ✓ `/compact` hint | ✓ `/compact` hint, silent when the cache is usually warm |
 | **Staleness** | `last_prompt` stored in the checkpoint header | Same |
-| **Resume** | `/pitstop`; pending handoff before newest project checkpoint | `$pitstop <session>` in a new chat; bare resume prefers the current session, then handoff, then newest |
-| **Handoff to `/clear`** | Until used or the old chat moves on | Use New Chat and the explicit session ID; IDE `/clear` text does not reset context |
+| **Resume** | `/clear`, then `/pitstop <session>`; bare resume prefers the handoff, then newest | `$pitstop <session>` in a new chat; bare resume prefers the current session, then handoff, then newest |
+| **Handoff** | Until the old chat moves on; `/clear` loads nothing by itself | Use New Chat and the explicit session ID; IDE `/clear` text does not reset context |
 | **Redaction** | Common key/token formats, JWTs, URL credentials, password assignments | Same |
 | **Kill switch** | `IDLE_COMPACT=off` | Same |
 
@@ -35,7 +35,7 @@
 | 0 | `arm` sleeps | `arm` sleeps | `arm` sleeps |
 | 0.9 × TTL | Fork writes checkpoint | Same at 4.5 min | Fork writes checkpoint at 27 min |
 | ≥ TTL after the fork (Claude) or last call (Codex), next prompt | Guard blocks once | Non-blocking hint | Block, or hint if the model's cache is usually warm |
-| User choice | `/pitstop` + `/clear`, or resend to keep the full session | Same | New Chat + `$pitstop <session>`, or resend to keep the full session |
+| User choice | `/clear` + `/pitstop <session>`, or resend to keep the full session | Same | New Chat + `$pitstop <session>`, or resend to keep the full session |
 
 ## 3. Drawbacks: resolution
 

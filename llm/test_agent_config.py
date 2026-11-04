@@ -246,9 +246,14 @@ fi
             checkpoint["timeout"] = 30
             custom = {"type": "command", "command": "custom-cleanup", "timeout": 2}
             hooks.append(custom)
+            data["hooks"]["SessionStart"] = [{"matcher": "clear", "hooks": [
+                {"type": "command", "command": f"{agent_config.IDLE_COMPACT} clear", "timeout": 10}]}]
             agent_config.save(str(target), data)
+            self.assertFalse(agent_config.codex_hooks_valid(str(required), str(target)))
             for _ in range(2):
                 agent_config.codex_hooks(str(target), str(required))
+            self.assertNotIn("SessionStart", agent_config.load(str(target))["hooks"])
+            self.assertTrue(agent_config.codex_hooks_valid(str(required), str(target)))
             hooks = agent_config.load(str(target))["hooks"]["SessionEnd"][0]["hooks"]
             self.assertIn(custom, hooks)
             self.assertEqual([h["timeout"] for h in hooks if "idle_compact.py" in h["command"]], [3])

@@ -52,4 +52,4 @@ model = "gpt-6.1-sol"
 model_reasoning_effort = "medium"
 ```
 
-Claude: `/model` and `/effort` switch mid-session but rewrite the prompt cache, so in long sessions run `/checkpoint` and `/clear` first; `/usage` shows plan usage; subagents can set their own `model` and `effort`. Codex: use its model controls; `/status` shows the active model and usage. Controls vary by version.
+Claude: `/model` and `/effort` switch mid-session but rewrite the prompt cache, so in long sessions run `/checkpoint`, `/clear` and `/pitstop <session>` first; `/usage` shows plan usage; subagents can set their own `model` and `effort`. Codex: use its model controls; `/status` shows the active model and usage. Controls vary by version.

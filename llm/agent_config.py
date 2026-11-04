@@ -12,6 +12,7 @@ STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
 CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
+OBSOLETE_CODEX_HOOK = r"(?:^|/)serena-hooks\s+reset(?:\s|$)|idle_compact\.py\"?\s+clear$"
 READ_HINT = 'python3 "$HOME/.config/dotfiles/read_hint.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
 # ENABLE_TOOL_SEARCH was set by Headroom's install, whose revert drops it; keep tool loading unchanged.
@@ -85,7 +86,7 @@ def codex_hooks(target: str, required: str) -> None:
             group["hooks"] = [
                 hook
                 for hook in group.get("hooks", [])
-                if not re.search(r"(?:^|/)serena-hooks\s+reset(?:\s|$)", hook.get("command") or "")
+                if not re.search(OBSOLETE_CODEX_HOOK, hook.get("command") or "")
             ]
         events[event] = [group for group in groups if group.get("hooks")]
         if not events[event]:
@@ -224,7 +225,6 @@ def idle_compact(settings: str) -> None:
     wanted = {
         "Stop": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} arm", "async": True, "timeout": 4000}]},
         "UserPromptSubmit": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} guard", "timeout": 10}]},
-        "SessionStart": {"matcher": "clear", "hooks": [{"type": "command", "command": f"{IDLE_COMPACT} clear", "timeout": 10}]},
         "SessionEnd": {"hooks": [{"type": "command", "command": f"{IDLE_COMPACT} end", "timeout": 30}]},
         "PostToolUse": {"matcher": "Edit|MultiEdit|Write",
                         "hooks": [{"type": "command", "command": f"{IDLE_COMPACT} instructions", "timeout": 5}]},
@@ -405,7 +405,7 @@ def codex_rtk_path(config: str, rtk_dir: str) -> bool:
 def codex_hooks_valid(required: str, installed: str) -> bool:
     entries = list(hook_entries(load(installed)))
     installed = set(entries)
-    obsolete = any(command and "serena-hooks reset" in command for *_, command in installed)
+    obsolete = any(command and re.search(OBSOLETE_CODEX_HOOK, command) for *_, command in installed)
     return len(entries) == len(installed) and set(hook_entries(load(required))) <= installed and not obsolete
 
 

@@ -107,7 +107,7 @@ def lifetime(client: str = "claude", recs: list[dict[str, Any]] | None = None) -
 
 def restart(client: str, session: str) -> str:
     return (f"open a new chat in this workspace and run $pitstop {session}" if client == "codex"
-            else "run /pitstop and then /clear")
+            else f"run /clear and then /pitstop {session}")
 
 
 def min_tokens(client: str = "claude") -> int:
@@ -758,16 +758,14 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         digest = build_digest(full, cwd, items)
         save_snapshot(folder, items, digest)
         write(marker(session, "manual"), str(time.time()))
-        next_step = (restart(client, session) if client == "codex" else
-                     "Run /clear to continue from this checkpoint in this window, or /pitstop in a new one")
-        context = MANUAL_REQUEST.format(restart=next_step) + "\n\n" + render_digest(digest)
+        context = MANUAL_REQUEST.format(restart=restart(client, session)) + "\n\n" + render_digest(digest)
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}))
         return 0
     if command := PITSTOP.fullmatch(str(hook.get("prompt", ""))):
         if command[1] in (None, session) and folder and resume(cwd, session).startswith("Continuing"):
             write(handoff(cwd), session)
-            next_step = restart(client, session) if client == "codex" else "run /clear"
-            print(json.dumps({"decision": "block", "reason": f"Idle checkpoint {session} handed off; {next_step}."}))
+            print(json.dumps({"decision": "block",
+                              "reason": f"Idle checkpoint {session} handed off; {restart(client, session)}."}))
         return 0
     call = last_call(recs)
     renewed = float(read(marker(session, "renewed")) or 0)
@@ -868,19 +866,6 @@ def resume(cwd: str, only: str | None = None) -> str:
     )
 
 
-def clear(hook: dict[str, Any]) -> int:
-    cwd = hook.get("cwd") or os.getcwd()
-    name = read(handoff(cwd))
-    text = resume(cwd, name) if name else ""
-    handoff(cwd).unlink(missing_ok=True)
-    if text.startswith("Continuing"):
-        body = read(folder_for(name) / "checkpoint.md").partition("\n---\n")[2]
-        print(json.dumps({"systemMessage": f"Loaded idle checkpoint {name} into session {hook['session_id']}."
-                                           f"\n\n{ordered_sections(body)}",
-                          "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}))
-    return 0
-
-
 # Commands for the model
 
 
@@ -934,7 +919,6 @@ def main() -> int:
         commands.add_parser(name).add_argument("--client", choices=("claude", "codex"), default="claude")
     commands.choices["end"].add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)
     commands.add_parser("resume").add_argument("session", nargs="?")
-    commands.add_parser("clear")
     find = commands.add_parser("search")
     find.add_argument("query")
     find.add_argument("--all", action="store_true")
@@ -959,8 +943,6 @@ def main() -> int:
         hook = json.load(sys.stdin)
         if not re.fullmatch(r"[A-Za-z0-9_-]+", hook["session_id"]):
             return 0
-        if args.command == "clear":
-            return clear(hook)
         if args.command == "end" and args.client == "codex" and not args.foreground:
             return end_background(hook)
         return {"arm": arm, "end": end, "guard": guard, "instructions": instructions}[args.command](hook, args.client)

@@ -111,7 +111,7 @@ class IdleCompactTest(unittest.TestCase):
         request = kwargs["input"]
         self.assertIn("Idle checkpoint:", request)
         self.assertIn("Goal, Done, Decisions, Dead ends", request)
-        self.assertIn("run /pitstop and then /clear", request)
+        self.assertIn("run /clear and then /pitstop s1", request)
         self.assertIn("Fix the token refresh race", request)
         self.assertNotIn("a.py opened", request)
         self.assertNotIn("- T4", request)
@@ -121,16 +121,12 @@ class IdleCompactTest(unittest.TestCase):
         folder = ic.folder_for("s1")
         self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
-        self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
-        self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
-        loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2"})[1])
-        self.assertTrue(loaded["systemMessage"].startswith("Loaded idle checkpoint s1 into session s2.\n\n"))
-        self.assertIn("Fix race", loaded["systemMessage"])
-        context = loaded["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("### Dead ends\nretry", context)
-        self.assertEqual(self.run_hook(ic.clear, hook)[1], "")
+        self.assertEqual(json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"],
+                         "Idle checkpoint s1 handed off; run /clear and then /pitstop s1.")
+        self.assertEqual(self.run_hook(ic.guard, hook | {"session_id": "s2", "prompt": "/pitstop s1"})[1], "")
+        self.assertIn("### Dead ends\nretry", ic.resume(self.cwd, "s1"))
 
-    def test_manual_checkpoint_stores_the_reply_and_clear_loads_it(self) -> None:
+    def test_manual_checkpoint_stores_the_reply_and_pitstop_loads_it(self) -> None:
         now = time.time()
         recs = [prompt("Fix the token refresh race", now - 60), reply("patched a.py", now - 50, tokens=20_000)]
         hook = self.save(recs) | {"prompt": "/checkpoint"}
@@ -138,7 +134,7 @@ class IdleCompactTest(unittest.TestCase):
         context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Manual checkpoint:", context)
         self.assertIn("Fix the token refresh race", context)
-        self.assertIn("or /pitstop in a new one", context)
+        self.assertIn("run /clear and then /pitstop s1", context)
 
         command = {"type": "user", "timestamp": iso(now + 1),
                    "message": {"role": "user", "content": "<command-name>/checkpoint</command-name>"}}
@@ -146,8 +142,7 @@ class IdleCompactTest(unittest.TestCase):
         self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
         self.assertIn("### Goal\nFix race", (ic.folder_for("s1") / "checkpoint.md").read_text())
         self.assertNotIn("patched a.py", (ic.folder_for("s1") / "checkpoint.md").read_text())
-        loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2"})[1])
-        self.assertIn("### Next steps\nlock", loaded["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("### Next steps\nlock", ic.resume(self.cwd))
 
     def test_checkpoint_after_cd_into_a_subdir_loads_in_the_launch_dir(self) -> None:
         os.environ["CLAUDE_PROJECT_DIR"] = self.cwd
@@ -158,9 +153,8 @@ class IdleCompactTest(unittest.TestCase):
         self.run_hook(ic.guard, self.save(recs) | {"cwd": str(sub), "prompt": "/checkpoint"})
         hook = self.save(recs + [reply("## Idle checkpoint\n### Goal\nFix race", now + 2)]) | {"cwd": str(sub)}
         self.run_hook(ic.arm, hook)
-        self.assertIn("/clear", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
-        loaded = json.loads(self.run_hook(ic.clear, hook | {"session_id": "s2", "cwd": self.cwd})[1])
-        self.assertIn("### Goal\nFix race", loaded["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("/pitstop s1", json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"])
+        self.assertIn("### Goal\nFix race", ic.resume(self.cwd))
 
     def test_sleeper_waking_after_cache_expiry_stores_excerpts_instead(self) -> None:
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
@@ -192,7 +186,7 @@ class IdleCompactTest(unittest.TestCase):
         self.assertEqual(decision["decision"], "block")
         self.assertTrue(decision["reason"].startswith("This thread has about 250K tokens after a long pause."))
         self.assertNotIn("continue the fix", decision["reason"])
-        self.assertIn("/pitstop and then /clear", decision["reason"])
+        self.assertIn("/clear and then /pitstop s1", decision["reason"])
         self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
 
         ic.marker("s1", "guard").unlink()
@@ -234,8 +228,6 @@ class IdleCompactTest(unittest.TestCase):
         ic.write(ic.handoff(self.cwd), "s1")
         self.assertIn("Continuing from idle checkpoint s1", ic.resume(self.cwd))
         self.assertEqual(ic.read(ic.handoff(self.cwd)), "s1")
-        self.run_hook(ic.clear, {"cwd": self.cwd, "session_id": "s3"})
-        self.assertFalse(ic.handoff(self.cwd).exists())
 
     def test_resume_prefers_current_codex_session_without_falling_back_when_stale(self) -> None:
         old = int(time.time()) - 60
@@ -267,7 +259,7 @@ class IdleCompactTest(unittest.TestCase):
         ic.store_checkpoint(ic.folder_for("s1", self.cwd), "s1", "## Idle checkpoint\n### Goal\nship", self.cwd,
                             self.transcript, prompted=old - 60)
         hint = json.loads(self.run_hook(ic.guard, hook)[1])
-        self.assertIn("run /pitstop and then /clear", hint["systemMessage"])
+        self.assertIn("run /clear and then /pitstop s1", hint["systemMessage"])
         self.assertNotIn("decision", hint)
 
     def test_session_end_saves_excerpts_unless_cleared_or_fresh(self) -> None:

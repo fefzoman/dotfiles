@@ -323,12 +323,8 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["reason"],
                          "Idle checkpoint codex-session handed off; open a new chat in this workspace "
                          "and run $pitstop codex-session.")
-        result = subprocess.run([sys.executable, ic.__file__, "clear"], input=json.dumps(self.hook | {"session_id": "codex-new"}),
-                                text=True, capture_output=True, check=True)
-        loaded = json.loads(result.stdout)
-        self.assertTrue(loaded["systemMessage"].startswith("Loaded idle checkpoint codex-session into session codex-new.\n\n"))
         self.assertIn("client: codex", ic.read(ic.folder_for("codex-session") / "checkpoint.md"))
-        self.assertIn("Continuing from idle checkpoint codex-session", loaded["hookSpecificOutput"]["additionalContext"])
+        self.assertTrue(ic.resume(self.hook["cwd"], "codex-session").startswith("Continuing from idle checkpoint codex-session"))
 
 
 if __name__ == "__main__":
