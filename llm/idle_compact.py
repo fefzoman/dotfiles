@@ -94,10 +94,6 @@ def marker(session: str, kind: str) -> Path:
     return state_dir() / "sessions" / f"{session}.{kind}"
 
 
-def handoff(cwd: str) -> Path:
-    return state_dir() / "handoff" / project_of(cwd)
-
-
 def lifetime(client: str = "claude", recs: list[dict[str, Any]] | None = None) -> float:
     test = os.environ.get("IDLE_COMPACT_TEST_SECONDS")
     if test:
@@ -581,7 +577,6 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         folder = folder_for(session)
         if reply and folder:
             store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
-            write(handoff(cwd), session)
         return 0
     if client == "codex":
         learn(session, recs)
@@ -762,10 +757,13 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}))
         return 0
     if command := PITSTOP.fullmatch(str(hook.get("prompt", ""))):
-        if command[1] in (None, session) and folder and resume(cwd, session).startswith("Continuing"):
-            write(handoff(cwd), session)
+        own = folder and resume(cwd, session).startswith("Continuing")
+        if command[1] is None:
+            step = restart(client, session) if own else f"{'$' if client == 'codex' else '/'}pitstop <session>"
+            print(json.dumps({"decision": "block", "reason": f"Provide a session ID: {step}."}))
+        elif command[1] == session and own:
             print(json.dumps({"decision": "block",
-                              "reason": f"Idle checkpoint {session} handed off; {restart(client, session)}."}))
+                              "reason": f"Idle checkpoint {session} is ready; {restart(client, session)}."}))
         return 0
     call = last_call(recs)
     renewed = float(read(marker(session, "renewed")) or 0)
@@ -828,7 +826,7 @@ def goal_line(body: str) -> str:
 
 def resume(cwd: str, only: str | None = None) -> str:
     current = os.environ.get("CODEX_THREAD_ID")
-    only = only or (current if current and folder_for(current) else read(handoff(cwd)) or None)
+    only = only or (current if current and folder_for(current) else None)
     found = []
     for folder in sorted(state_dir().glob(f"checkpoints/{project_of(cwd)}/*"), key=lambda f: f.stat().st_mtime, reverse=True):
         session = folder.name[11:]

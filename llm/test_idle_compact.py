@@ -121,8 +121,10 @@ class IdleCompactTest(unittest.TestCase):
         folder = ic.folder_for("s1")
         self.assertIn("### Goal\nFix race", (folder / "checkpoint.md").read_text())
         self.assertIn("## T2 · tool ·", (folder / "transcript.md").read_text())
-        self.assertEqual(json.loads(self.run_hook(ic.guard, hook | {"prompt": "/pitstop"})[1])["reason"],
-                         "Idle checkpoint s1 handed off; run /clear and then /pitstop s1.")
+        reason = lambda extra: json.loads(self.run_hook(ic.guard, hook | extra)[1])["reason"]
+        self.assertEqual(reason({"prompt": "/pitstop"}), "Provide a session ID: run /clear and then /pitstop s1.")
+        self.assertEqual(reason({"prompt": "/pitstop s1"}), "Idle checkpoint s1 is ready; run /clear and then /pitstop s1.")
+        self.assertEqual(reason({"session_id": "s2", "prompt": "/pitstop"}), "Provide a session ID: /pitstop <session>.")
         self.assertEqual(self.run_hook(ic.guard, hook | {"session_id": "s2", "prompt": "/pitstop s1"})[1], "")
         self.assertIn("### Dead ends\nretry", ic.resume(self.cwd, "s1"))
 
@@ -142,7 +144,7 @@ class IdleCompactTest(unittest.TestCase):
         self.assertEqual(self.run_hook(ic.arm, hook), (0, "", ""))
         self.assertIn("### Goal\nFix race", (ic.folder_for("s1") / "checkpoint.md").read_text())
         self.assertNotIn("patched a.py", (ic.folder_for("s1") / "checkpoint.md").read_text())
-        self.assertIn("### Next steps\nlock", ic.resume(self.cwd))
+        self.assertIn("### Next steps\nlock", ic.resume(self.cwd, "s1"))
 
     def test_checkpoint_after_cd_into_a_subdir_loads_in_the_launch_dir(self) -> None:
         os.environ["CLAUDE_PROJECT_DIR"] = self.cwd
@@ -219,15 +221,6 @@ class IdleCompactTest(unittest.TestCase):
                 self.assertIn("### Goal\nship", ic.resume(self.cwd, "s1"))
         self.save([prompt("fix it", old), prompt("$pitstop then change the design", time.time())])
         self.assertEqual(ic.resume(self.cwd, "s1"), "No idle checkpoint for this project.")
-
-    def test_resume_uses_handoff_without_consuming_it(self) -> None:
-        self.save([prompt("fix it", time.time() - 60)])
-        for session in ("s1", "s2"):
-            ic.store_checkpoint(ic.folder_for(session, self.cwd), session,
-                                f"## Idle checkpoint\n### Goal\n{session}", self.cwd, self.transcript)
-        ic.write(ic.handoff(self.cwd), "s1")
-        self.assertIn("Continuing from idle checkpoint s1", ic.resume(self.cwd))
-        self.assertEqual(ic.read(ic.handoff(self.cwd)), "s1")
 
     def test_resume_prefers_current_codex_session_without_falling_back_when_stale(self) -> None:
         old = int(time.time()) - 60

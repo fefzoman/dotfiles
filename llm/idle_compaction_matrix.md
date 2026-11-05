@@ -23,8 +23,8 @@
 | **Guard, checkpoint ready** | 1h cache: blocks once, repeats prompt. 5m cache: hint | Blocks once; hint when the model's cache is usually warm |
 | **Guard, no or stale checkpoint** | ✓ `/compact` hint | ✓ `/compact` hint, silent when the cache is usually warm |
 | **Staleness** | `last_prompt` stored in the checkpoint header | Same |
-| **Resume** | `/clear`, then `/pitstop <session>`; bare resume prefers the handoff, then newest | `$pitstop <session>` in a new chat; bare resume prefers the current session, then handoff, then newest |
-| **Handoff** | Until the old chat moves on; `/clear` loads nothing by itself | Use New Chat and the explicit session ID; IDE `/clear` text does not reset context |
+| **Resume** | `/clear`, then `/pitstop <session>`; a bare `/pitstop` is blocked with "Provide a session ID" | `$pitstop <session>` in a new chat; a bare `$pitstop` is blocked the same way |
+| **Fresh context** | `/clear` loads nothing by itself | Use New Chat; IDE `/clear` text does not reset context |
 | **Redaction** | Common key/token formats, JWTs, URL credentials, password assignments | Same |
 | **Kill switch** | `IDLE_COMPACT=off` | Same |
 
@@ -49,7 +49,7 @@
 | 6 | No floor | 2× fresh-chat floor per client |
 | 7 | 5-minute cache noisy | Non-blocking hint instead of a block |
 | 8 | Codex TTL assumed | Learned per-model hit rate turns the block into a hint |
-| 9 | `/pitstop` could take another session or invalidate its own checkpoint | Prefer the current Codex session or handoff; explicit session IDs for new chats; resume-only prompts stay fresh |
+| 9 | `/pitstop` could take another session or invalidate its own checkpoint | Explicit session IDs required; resume-only prompts stay fresh |
 | 10 | Worker dies with the session | `SessionEnd` saves excerpts for both clients |
 | 11 | 10-minute handoff window | Removed; staleness invalidates instead |
 | 12 | Narrow redaction | More formats covered |

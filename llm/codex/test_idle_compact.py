@@ -107,7 +107,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.assertEqual(ic.resume(str(self.home)), "No idle checkpoint for this project.")
         self.assertNotIn("decision", json.loads(self.run_hook(ic.guard, self.hook, "codex")))
 
-    def test_linked_pitstop_hands_off_its_own_checkpoint(self):
+    def test_linked_pitstop_without_id_asks_for_it(self):
         self.run_hook(ic.arm, self.hook, "codex")
         command = "[$pitstop](/Users/test/.agents/skills/pitstop/SKILL.md)"
         self.rows.append(self.row("response_item", {"type": "message", "role": "user", "content": [
@@ -116,9 +116,10 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.save()
         output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": command}, "codex"))
         self.assertEqual(output["decision"], "block")
-        self.assertIn("$pitstop codex-session", output["reason"])
-        self.assertNotIn("/clear", output["reason"])
-        self.assertEqual(ic.read(ic.handoff(str(self.home))), "codex-session")
+        self.assertEqual(output["reason"], "Provide a session ID: open a new chat in this workspace "
+                                           "and run $pitstop codex-session.")
+        output = json.loads(self.run_hook(ic.guard, self.hook | {"session_id": "codex-new", "prompt": command}, "codex"))
+        self.assertEqual(output["reason"], "Provide a session ID: $pitstop <session>.")
 
     def test_cold_guard_names_the_checkpoint_for_a_new_chat(self):
         self.run_hook(ic.arm, self.hook, "codex")
@@ -321,7 +322,7 @@ class CodexIdleCompactTest(unittest.TestCase):
         result = subprocess.run([sys.executable, ic.__file__, "guard", "--client", "codex"], input=json.dumps(self.hook | {"prompt": "$pitstop"}),
                                 text=True, capture_output=True, check=True)
         self.assertEqual(json.loads(result.stdout)["reason"],
-                         "Idle checkpoint codex-session handed off; open a new chat in this workspace "
+                         "Provide a session ID: open a new chat in this workspace "
                          "and run $pitstop codex-session.")
         self.assertIn("client: codex", ic.read(ic.folder_for("codex-session") / "checkpoint.md"))
         self.assertTrue(ic.resume(self.hook["cwd"], "codex-session").startswith("Continuing from idle checkpoint codex-session"))
