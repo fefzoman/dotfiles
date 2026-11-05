@@ -25,6 +25,7 @@ CONTEXT_TRIM_SKILLS = {
 # Cheapest setting passing every trial in benchmarks/claude_matrix and benchmarks/codex_matrix.
 EFFORT = "medium"
 WORK_PLUGINS = ("dlm@dlm-user",)
+PONYTAIL = "ponytail@ponytail"
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
 SHELL_END = "# END AI TOOLING SHELL ENVIRONMENT"
 
@@ -273,13 +274,14 @@ def context_efficiency(agent: str, profile: str) -> None:
     if agent not in {"codex", "claude"}:
         raise ValueError(f"Unknown agent: {agent}")
     profile = Path(profile)
-    plugins = ("superpowers@openai-curated", "superpowers@superpowers-dev", "ponytail@ponytail", "superpowers@claude-plugins-official")
+    plugins = ("superpowers@openai-curated", "superpowers@superpowers-dev", "superpowers@claude-plugins-official")
     if agent == "codex":
         path = profile / "config.toml"
         text = path.read_text() if path.exists() else ""
         expected = tomllib.loads(text)
         changes = [("skills", "max_context_tokens", 2000), ("skills", "include_instructions", False)] + [
-            (f"plugins.{json.dumps(plugin)}", "enabled", False) for plugin in plugins[:3]]
+            (f"plugins.{json.dumps(plugin)}", "enabled", False) for plugin in plugins[:2]] + [
+            (f"plugins.{json.dumps(PONYTAIL)}", "enabled", True)]
         for section, key, value in changes:
             if section == "skills":
                 table = expected.setdefault("skills", {})
@@ -300,7 +302,7 @@ def context_efficiency(agent: str, profile: str) -> None:
         path = profile / "settings.json"
         data = load(str(path))
         data.setdefault("env", {})["SLASH_COMMAND_TOOL_CHAR_BUDGET"] = "8000"
-        data.setdefault("enabledPlugins", {}).update(dict.fromkeys(plugins[1:], False))
+        data.setdefault("enabledPlugins", {}).update(dict.fromkeys(plugins[1:], False), **{PONYTAIL: True})
         save(str(path), data)
     path = profile / ("hooks.json" if agent == "codex" else "settings.json")
     data = load(str(path))
@@ -317,13 +319,16 @@ def context_efficient(agent: str, profile: str) -> bool:
     if agent == "codex":
         data = load_toml(str(profile / "config.toml"))
         skills = data.get("skills", {})
+        plugins = data.get("plugins", {})
         return skills.get("max_context_tokens") == 2000 and skills.get("include_instructions") is False and all(
-            data.get("plugins", {}).get(plugin, {}).get("enabled") is False
-            for plugin in ("superpowers@openai-curated", "superpowers@superpowers-dev", "ponytail@ponytail"))
+            plugins.get(plugin, {}).get("enabled") is False
+            for plugin in ("superpowers@openai-curated", "superpowers@superpowers-dev")
+        ) and plugins.get(PONYTAIL, {}).get("enabled") is True
     data = load(str(profile / "settings.json"))
+    plugins = data.get("enabledPlugins", {})
     return data.get("env", {}).get("SLASH_COMMAND_TOOL_CHAR_BUDGET") == "8000" and all(
-        data.get("enabledPlugins", {}).get(plugin) is False
-        for plugin in ("superpowers@superpowers-dev", "superpowers@claude-plugins-official", "ponytail@ponytail"))
+        plugins.get(plugin) is False for plugin in ("superpowers@superpowers-dev", "superpowers@claude-plugins-official")
+    ) and plugins.get(PONYTAIL) is True
 
 
 def headroom_unroute(claude_dir: str, codex_dir: str) -> None:

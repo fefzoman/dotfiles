@@ -124,7 +124,7 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
     agent_config policy-matches "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
-  check "Codex keeps the skills catalog, Ponytail and Superpowers opt-in in $profile" "Codex context defaults are stale in $profile" \
+  check "Codex keeps the skills catalog and Superpowers opt-in with Ponytail on in $profile" "Codex context defaults are stale in $profile" \
     agent_config context-efficient codex "$profile"
   check "Codex reaches OpenAI directly in $profile" "Codex still routes through Headroom in $profile" \
     agent_config codex-direct "$profile/config.toml"
@@ -166,7 +166,7 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
   check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
-  check "Claude limits skills and keeps Ponytail and Superpowers opt-in in $profile" "Claude context defaults are stale in $profile" \
+  check "Claude limits skills, keeps Superpowers opt-in and Ponytail on in $profile" "Claude context defaults are stale in $profile" \
     agent_config context-efficient claude "$profile"
 done
 

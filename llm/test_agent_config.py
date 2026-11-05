@@ -22,11 +22,11 @@ class AgentInstallationTests(unittest.TestCase):
             config = profile / "config.toml"
             config.write_text('model = "custom"\n[skills]\ninclude_instructions = true\n'
                               'max_context_tokens = 9000\n[plugins."superpowers@superpowers-dev"]\nenabled = true\n'
-                              '[plugins."ponytail@ponytail"]\nenabled = true\n'
+                              '[plugins."ponytail@ponytail"]\nenabled = false\n'
                               '[plugins."custom@local"]\nenabled = true\n'
                               '[mcp_servers.serena]\ncommand = "serena"\n')
             settings = profile / "settings.json"
-            settings.write_text('{"env":{"CUSTOM":"yes"},"enabledPlugins":{"custom@local":true,"ponytail@ponytail":true}}')
+            settings.write_text('{"env":{"CUSTOM":"yes"},"enabledPlugins":{"custom@local":true,"ponytail@ponytail":false}}')
             for agent in ("codex", "claude"):
                 self.assertFalse(agent_config.context_efficient(agent, str(profile)))
                 agent_config.context_efficiency(agent, str(profile))
@@ -40,12 +40,12 @@ class AgentInstallationTests(unittest.TestCase):
             self.assertEqual(data["skills"], {"include_instructions": False, "max_context_tokens": 2000})
             self.assertFalse(data["plugins"]["superpowers@superpowers-dev"]["enabled"])
             self.assertTrue(data["plugins"]["custom@local"]["enabled"])
-            self.assertFalse(data["plugins"]["ponytail@ponytail"]["enabled"])
+            self.assertTrue(data["plugins"]["ponytail@ponytail"]["enabled"])
             data = agent_config.load(str(settings))
             self.assertEqual(data["env"], {"CUSTOM": "yes", "SLASH_COMMAND_TOOL_CHAR_BUDGET": "8000"})
             self.assertFalse(data["enabledPlugins"]["superpowers@claude-plugins-official"])
             self.assertTrue(data["enabledPlugins"]["custom@local"])
-            self.assertFalse(data["enabledPlugins"]["ponytail@ponytail"])
+            self.assertTrue(data["enabledPlugins"]["ponytail@ponytail"])
 
     def test_context_efficiency_removes_only_eager_serena_hooks(self):
         with tempfile.TemporaryDirectory() as directory:
