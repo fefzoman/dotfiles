@@ -7,17 +7,24 @@ import argparse
 import ast
 import fcntl
 import hashlib
+import json
 import os
 import re
 import sqlite3
 import subprocess
 import sys
+import tempfile
+import time
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
 EMBED_MODEL = os.environ.get("SMART_READ_EMBED", "jinaai/jina-embeddings-v2-base-code")
 CACHE = Path(os.environ.get("SMART_READ_CACHE") or Path.home() / ".cache" / "smart-read")
+USAGE = CACHE / "usage.jsonl"
+# Sandboxed agents (Codex workspace-write) cannot write ~/.cache; `gain` merges this fallback back.
+SANDBOX_USAGE = Path(tempfile.gettempdir()) / "smart-read-usage.jsonl"
+CHARS_PER_TOKEN = 4
 WINDOW, OVERLAP, MAX_SEGMENT = 60, 10, 80
 MAX_FILE_BYTES = 512_000
 RRF_K, CANDIDATES = 60, 50
@@ -324,6 +331,68 @@ def render(db: sqlite3.Connection, hits: list[tuple[int, float]], note: str) -> 
     return text if len(text) <= OUTPUT_CAP else text[:OUTPUT_CAP] + "\n… output capped; narrow with --path or -k"
 
 
+def found(db: sqlite3.Connection, hits: list[tuple[int, float]], note: str) -> str:
+    text = render(db, hits, note)
+    ids = [cid for cid, _ in hits]
+    files, size = db.execute(
+        f"SELECT count(*), coalesce(sum(size), 0) FROM files WHERE path IN "
+        f"(SELECT path FROM chunks WHERE id IN ({','.join('?' * len(ids))}))", ids).fetchone()
+    record("search", len(hits), files, size, text)
+    return text
+
+
+def record(command: str, hits: int, files: int, baseline: int, output: str) -> None:
+    """Log one call; baseline is the size of every file shown, i.e. reading those files whole."""
+    agent = "codex" if os.environ.get("CODEX_THREAD_ID") or os.environ.get("CODEX_SANDBOX") else \
+        "claude" if os.environ.get("CLAUDECODE") else "other"
+    entry = {"ts": int(time.time()), "agent": agent, "command": command, "hits": hits, "files": files,
+             "baseline": baseline, "output": len(output)}
+    for target in (USAGE, SANDBOX_USAGE):
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("a") as log:
+                log.write(json.dumps(entry) + "\n")
+            return
+        except OSError:
+            continue
+
+
+def gain() -> str:
+    totals: dict[tuple[str, str], list[int]] = {}
+    if SANDBOX_USAGE.exists():
+        CACHE.mkdir(parents=True, exist_ok=True)
+        with USAGE.open("a") as log:
+            log.write(SANDBOX_USAGE.read_text())
+        SANDBOX_USAGE.unlink()
+    try:
+        lines = USAGE.read_text().splitlines()
+    except FileNotFoundError:
+        lines = []
+    for line in lines:
+        try:
+            e = json.loads(line)
+            row = totals.setdefault((e["agent"], e["command"]), [0] * 5)
+            for i, n in enumerate((1, e["hits"], e["files"], e["output"], e["baseline"])):
+                row[i] += n
+        except (ValueError, KeyError, TypeError):
+            continue
+    if not totals:
+        return "No smart-read calls recorded yet."
+    totals[("total", "")] = [sum(col) for col in zip(*totals.values())]
+
+    def tok(chars: int) -> str:
+        n = chars / CHARS_PER_TOKEN
+        return f"{n / 1e6:.1f}M" if n >= 1e6 else f"{n / 1e3:.1f}K" if n >= 1e3 else f"{n:.0f}"
+    out = [f"{'agent':<7} {'command':<8} {'calls':>6} {'ranges':>7} {'files':>6} {'shown':>8} {'whole':>8} "
+           f"{'saved':>8} {'saved%':>7}"]
+    for (agent, command), (calls, hits, files, shown, whole) in totals.items():
+        pct = f"{(whole - shown) / whole:.0%}" if whole else "-"
+        out.append(f"{agent:<7} {command:<8} {calls:>6} {hits:>7} {files:>6} {tok(shown):>8} {tok(whole):>8} "
+                   f"{tok(whole - shown):>8} {pct:>7}")
+    return "\n".join(out) + (f"\n\nTokens ≈ chars/{CHARS_PER_TOKEN}. 'whole' = reading every file shown in full; "
+                             "follow-up range reads are not subtracted.")
+
+
 def outline(file: Path) -> str:
     lines = file.read_text(encoding="utf-8", errors="replace").splitlines()
     rows = segments_of(file.name, lines) if lines else []
@@ -342,9 +411,15 @@ def main() -> int:
     show.add_argument("file")
     build = commands.add_parser("index", help="refresh and embed pending chunks in the foreground (Ctrl-C to stop)")
     build.add_argument("--root")
+    commands.add_parser("gain", help="usage and estimated token savings of search and outline calls")
     args = parser.parse_args()
+    if args.command == "gain":
+        print(gain())
+        return 0
     if args.command == "outline":
-        print(outline(Path(args.file)))
+        text = outline(Path(args.file))
+        record("outline", 1, 1, Path(args.file).stat().st_size, text)
+        print(text)
         return 0
     try:
         root = repo_root(Path(getattr(args, "root", None) or os.getcwd()))
@@ -368,14 +443,14 @@ def main() -> int:
                     if path and Path(path).is_absolute():
                         path = os.path.relpath(path, root)
                     hits, note = search(db, root, args.query, path, args.k, use_dense=not args.lexical)
-                    print(render(db, hits, note))
+                    print(found(db, hits, note))
     except PermissionError:
         if args.command != "search" or not args.lexical:
             raise
         with closing(connect(root, memory=True)) as db:
             path = os.path.relpath(args.path, root) if args.path and Path(args.path).is_absolute() else args.path
             hits, note = search(db, root, args.query, path, args.k, use_dense=False)
-            print(render(db, hits, note))
+            print(found(db, hits, note))
     except KeyboardInterrupt:
         print("Index/search interrupted; completed embedding batches are saved.", file=sys.stderr)
         return 130

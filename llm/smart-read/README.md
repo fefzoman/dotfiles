@@ -10,7 +10,20 @@ smart-read search "token refresh" --path src/auth/ -k 3          # file, directo
 smart-read search "facebook_spend" --lexical                     # no models: BM25 + trigram only
 smart-read outline models/marts/ad_spend_daily.sql               # symbols with line ranges, no models
 smart-read index                                                 # explicit request only; foreground, Ctrl-C to stop
+smart-read gain                                                  # calls, ranges, files and estimated token savings
 ```
+
+## Usage stats
+
+Every `search` and `outline` call appends one line to `~/.cache/smart-read/usage.jsonl`. Each line records the
+agent, the command, the ranges and files shown, the output size, and the full size of those files. `smart-read gain`
+totals them per agent and command. The agent is `codex` when `CODEX_THREAD_ID` or `CODEX_SANDBOX` is set, otherwise
+`claude` when `CLAUDECODE` is set, otherwise `other`. Sandboxed Codex cannot write `~/.cache`, so its calls go to
+`$TMPDIR/smart-read-usage.jsonl`, and `gain` merges them into the main log. macOS purges `$TMPDIR` after a few idle
+days, so run `gain` now and then.
+
+Savings are an upper-bound estimate: tokens are approximated as characters / 4, and the baseline assumes the agent
+would otherwise have read every shown file in full. Range reads the agent makes afterwards are not subtracted.
 
 ## How it works
 

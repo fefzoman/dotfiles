@@ -4,6 +4,7 @@
 import contextlib
 import fcntl
 import io
+import json
 import os
 import subprocess
 import sys
@@ -56,6 +57,27 @@ class SmartReadTest(unittest.TestCase):
         (self.root / "models").mkdir()
         (self.root / "models" / "spend.sql").write_text(SQL)
         (self.root / "image.png").write_bytes(b"\x89PNG\0\0")
+
+    def test_gain_reports_logged_search_and_outline_calls(self):
+        logs = Path(tempfile.mkdtemp())
+        usage, fallback = logs / "cache" / "usage.jsonl", logs / "fallback.jsonl"
+        with patch.object(sr, "USAGE", usage), patch.object(sr, "SANDBOX_USAGE", fallback), \
+                patch.dict(os.environ, {"CLAUDECODE": "1"}), patch.object(sr, "repo_root", return_value=self.root):
+            with patch.object(sys, "argv", ["smart-read", "search", "renew token", "--lexical", "-k", "1"]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sr.main(), 0)
+            usage.chmod(0o400)
+            with patch.object(sys, "argv", ["smart-read", "outline", str(self.root / "auth.py")]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(sr.main(), 0)
+            usage.chmod(0o600)
+            self.assertTrue(fallback.exists())
+            report = sr.gain()
+        self.assertFalse(fallback.exists())
+        size = (self.root / "auth.py").stat().st_size
+        self.assertEqual([json.loads(line)["baseline"] for line in usage.read_text().splitlines()], [size, size])
+        self.assertRegex(report, r"claude\s+search\s+1\s+1\s+1")
+        self.assertRegex(report, r"total\s+2\s+2\s+2")
 
     def test_python_chunks_follow_symbols_and_split_large_classes(self):
         chunks = sr.chunk_file("auth.py", PYTHON)
