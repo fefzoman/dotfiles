@@ -20,7 +20,7 @@ WHOLE_READ = {"cat", "nl", "bat"}
 
 def bash_targets(command: str) -> list[str]:
     """Files a shell command prints whole: `cat FILE` not piped into head, sed, grep and the like."""
-    targets = []
+    targets, base = [], ""
     for segment in re.split(r"&&|\|\||;|\n", command):
         if "|" in segment or "<" in segment or ">" in segment:
             continue
@@ -28,12 +28,15 @@ def bash_targets(command: str) -> list[str]:
             words = shlex.split(segment)
         except ValueError:
             continue
+        if len(words) == 2 and words[0] == "cd" and words[1] != "-":
+            base = os.path.join(base, os.path.expanduser(words[1]))
+            continue
         if words and words[0] == "rtk":
             words = words[1:]
             if words and words[0] == "proxy":
                 words = words[1:]
         if words and words[0] in WHOLE_READ:
-            targets += [w for w in words[1:] if not w.startswith("-")]
+            targets += [os.path.join(base, w) for w in words[1:] if not w.startswith("-")]
     return targets
 
 

@@ -28,7 +28,15 @@ class ReadHintTest(unittest.TestCase):
 
     def test_whole_reads_of_large_files_get_a_hint(self):
         self.assertIn("big.py has 80 lines", self.run_hook("Read", {"file_path": str(self.dir / "big.py")}))
-        self.assertIn("smart-read outline big.py", self.run_hook("Bash", {"command": "cd x && cat big.py"}))
+        self.assertIn("smart-read outline big.py", self.run_hook("Bash", {"command": "cat big.py"}))
+
+    def test_cd_before_a_read_resolves_against_the_new_directory(self):
+        (self.dir / "repo").mkdir()
+        (self.dir / "repo/deep.py").write_text("x = 1\n" * 80)
+        self.assertIn("repo/deep.py has 80 lines", self.run_hook("Bash", {"command": "cd repo && cat deep.py"}))
+        self.assertIn(f"{self.dir}/repo/deep.py has 80 lines",
+                      self.run_hook("Bash", {"command": f"cd {self.dir}/repo && git status; cat deep.py"}))
+        self.assertEqual(self.run_hook("Bash", {"command": "cd repo && cat big.py"}), "")
 
     def test_rtk_reads_of_large_skills_get_a_hint(self):
         skill = self.dir / "a skill/SKILL.md"
