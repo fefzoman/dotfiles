@@ -799,8 +799,8 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         f"To continue, {restart(client, session)}, then paste your prompt; or send this prompt again to keep "
         f"the full session.{echo(client, hook)}"
     )
-    print(json.dumps({"decision": "block", "reason": reason}))
-    return 0
+    print(reason, file=sys.stderr)
+    return 2
 
 
 def instructions(hook: dict[str, Any], client: str = "claude") -> int:

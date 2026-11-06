@@ -58,11 +58,12 @@ class CodexIdleCompactTest(unittest.TestCase):
     def save(self):
         self.transcript.write_text("\n".join(json.dumps(r) for r in self.rows) + "\n")
 
-    def run_hook(self, function, *args):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            self.assertEqual(function(*args), 0)
-        return output.getvalue()
+    def run_hook(self, function, *args, blocked=False):
+        output, error = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            self.assertEqual(function(*args), 2 if blocked else 0)
+        self.assertEqual(output.getvalue() if blocked else error.getvalue(), "")
+        return error.getvalue() if blocked else output.getvalue()
 
     def test_checkpoint_resume_and_one_time_cold_guard(self):
         self.assertEqual(self.run_hook(ic.arm, self.hook, "codex"), "")
@@ -80,9 +81,8 @@ class CodexIdleCompactTest(unittest.TestCase):
         self.rows.append(self.row("event_msg", {"type": "task_started"}, time.time()))
         self.save()
         self.hook["prompt"] = "Continue with the next parser case."
-        blocked = json.loads(self.run_hook(ic.guard, self.hook, "codex"))
-        self.assertEqual(blocked["decision"], "block")
-        self.assertIn(self.hook["prompt"], blocked["reason"])
+        blocked = self.run_hook(ic.guard, self.hook, "codex", blocked=True)
+        self.assertIn(self.hook["prompt"], blocked)
         self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
         self.assertIn("Parser fixed", ic.resume(str(self.home)))
 
@@ -132,11 +132,11 @@ class CodexIdleCompactTest(unittest.TestCase):
 
     def test_cold_guard_names_the_checkpoint_for_a_new_chat(self):
         self.run_hook(ic.arm, self.hook, "codex")
-        output = json.loads(self.run_hook(ic.guard, self.hook | {"prompt": "continue"}, "codex"))
-        self.assertIn("$pitstop codex-session", output["reason"])
-        self.assertIn("in that new chat", output["reason"])
-        self.assertIn("Running $pitstop here will not clear", output["reason"])
-        self.assertNotIn("/clear", output["reason"])
+        output = self.run_hook(ic.guard, self.hook | {"prompt": "continue"}, "codex", blocked=True)
+        self.assertIn("$pitstop codex-session", output)
+        self.assertIn("in that new chat", output)
+        self.assertIn("Running $pitstop here will not clear", output)
+        self.assertNotIn("/clear", output)
 
     def test_linked_checkpoint_requests_a_manual_summary(self):
         command = "[$checkpoint](/Users/test/.agents/skills/checkpoint/SKILL.md)"
@@ -168,10 +168,8 @@ class CodexIdleCompactTest(unittest.TestCase):
         with mock.patch.object(ic.time, "time", return_value=self.started + 1799):
             self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
         with mock.patch.object(ic.time, "time", return_value=self.started + 1800):
-            output = self.run_hook(ic.guard, self.hook, "codex")
+            output = self.run_hook(ic.guard, self.hook, "codex", blocked=True)
             self.assertTrue(output)
-            offered = json.loads(output)
-            self.assertEqual(offered["decision"], "block")
             self.assertEqual(self.run_hook(ic.guard, self.hook, "codex"), "")
 
     def test_65k_session_without_checkpoint_gets_a_hint_at_the_cache_boundary(self):

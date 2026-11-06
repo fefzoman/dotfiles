@@ -195,12 +195,12 @@ class IdleCompactTest(unittest.TestCase):
         ic.store_checkpoint(folder, "s1", "## Idle checkpoint\n### Next steps\nrun\n### Goal\nship\n### Decisions\nlock",
                             self.cwd, self.transcript)
         hook = self.save([prompt("x", old - 60), reply("cp", old)]) | {"prompt": "continue the fix"}
-        _, out, _ = self.run_hook(ic.guard, hook)
-        decision = json.loads(out)
-        self.assertEqual(decision["decision"], "block")
-        self.assertTrue(decision["reason"].startswith("This thread has about 250K tokens after a long pause."))
-        self.assertNotIn("continue the fix", decision["reason"])
-        self.assertIn("/clear and then /pitstop s1", decision["reason"])
+        code, out, reason = self.run_hook(ic.guard, hook)
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertTrue(reason.startswith("This thread has about 250K tokens after a long pause."))
+        self.assertNotIn("continue the fix", reason)
+        self.assertIn("/clear and then /pitstop s1", reason)
         self.assertEqual(self.run_hook(ic.guard, hook)[1], "")
 
         ic.marker("s1", "guard").unlink()
