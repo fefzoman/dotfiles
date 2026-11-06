@@ -79,6 +79,18 @@ class IdleCompactTest(unittest.TestCase):
         self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", old), reply("y", old, tokens=80_000)]))[0], 0)
         self.assertFalse(ic.marker("s1", "arm").exists())
 
+    def test_cli_arm_hands_off_to_a_detached_worker(self) -> None:
+        old = time.time() - 30
+        hook = self.save([prompt("Fix the race", old), reply("done", old)])
+        env = {**os.environ, "IDLE_COMPACT_TEST_SECONDS": "0.01", "PATH": "/usr/bin:/bin"}
+        subprocess.run([sys.executable, ic.__file__, "arm"], input=json.dumps(hook), text=True, env=env,
+                       check=True, timeout=5)
+        deadline = time.time() + 10
+        while not (ic.folder_for("s1") and (ic.folder_for("s1") / "checkpoint.md").exists()) and time.time() < deadline:
+            time.sleep(0.1)
+        self.assertIn("Fix the race", ic.read(ic.folder_for("s1") / "checkpoint.md"))
+        self.assertEqual(ic.read(ic.marker("s1", "arm.log")), "")
+
     def test_lifetime_follows_latest_cache_ttl(self) -> None:
         now = time.time()
         self.assertEqual(ic.lifetime("claude", [reply("a", now, ttl="5m")]), 300.0)

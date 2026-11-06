@@ -618,15 +618,15 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     return 0
 
 
-def end_background(hook: dict[str, Any]) -> int:
-    log = marker(hook["session_id"], "end.log")
+def background(hook: dict[str, Any], command: str, client: str) -> int:
+    log = marker(hook["session_id"], f"{command}.log")
     write(log, "")
     with tempfile.TemporaryFile(mode="w+") as payload, log.open("a") as errors:
         json.dump(hook, payload)
         payload.seek(0)
-        # SessionEnd has a 3s deadline; the worker must outlive its process group and pipes.
+        # Codex SessionEnd has a 3s deadline and the Claude CLI kills async Stop hooks; outlive both.
         subprocess.Popen(
-            [sys.executable, str(Path(__file__).resolve()), "end", "--client", "codex", "--foreground"],
+            [sys.executable, str(Path(__file__).resolve()), command, "--client", client, "--foreground"],
             stdin=payload, stdout=subprocess.DEVNULL, stderr=errors, start_new_session=True,
         )
     return 0
@@ -915,7 +915,8 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("arm", "end", "guard", "instructions"):
         commands.add_parser(name).add_argument("--client", choices=("claude", "codex"), default="claude")
-    commands.choices["end"].add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)
+    for name in ("arm", "end"):
+        commands.choices[name].add_argument("--foreground", action="store_true", help=argparse.SUPPRESS)
     commands.add_parser("resume").add_argument("session", nargs="?")
     find = commands.add_parser("search")
     find.add_argument("query")
@@ -941,8 +942,8 @@ def main() -> int:
         hook = json.load(sys.stdin)
         if not re.fullmatch(r"[A-Za-z0-9_-]+", hook["session_id"]):
             return 0
-        if args.command == "end" and args.client == "codex" and not args.foreground:
-            return end_background(hook)
+        if (args.command, args.client) in (("end", "codex"), ("arm", "claude")) and not args.foreground:
+            return background(hook, args.command, args.client)
         return {"arm": arm, "end": end, "guard": guard, "instructions": instructions}[args.command](hook, args.client)
     except (OSError, ValueError, KeyError, TypeError) as error:
         if args.command == "end":
