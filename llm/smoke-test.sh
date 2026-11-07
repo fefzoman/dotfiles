@@ -98,7 +98,7 @@ check "Codex pitstop skill matches the repository" "Codex pitstop skill is missi
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
 
 for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-  for skill in natural-article investigation; do
+  for skill in natural-article; do
     check "$skill skill matches the repository in $profile" "$skill skill is missing or stale in $profile" \
       cmp -s "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
   done

@@ -191,7 +191,7 @@ class AgentInstallationTests(unittest.TestCase):
                     (home / profile / filename).read_text(),
                     (SCRIPT_DIR / agent / "__AGENTS.md").read_text(),
                 )
-                for skill in ("natural-article", "investigation"):
+                for skill in ("natural-article",):
                     self.assertEqual(
                         (home / profile / f"skills/{skill}/SKILL.md").read_text(),
                         (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text(),

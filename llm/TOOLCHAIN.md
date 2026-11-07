@@ -226,8 +226,6 @@ The installer sets `effortLevel = "medium"` in both Claude profiles and a top-le
 
 ### Investigation, output and waiting
 
-The shared `investigation` skill activates for disputed facts, uncertain compatibility and repeated failures needing a new hypothesis. It establishes the question, target version/environment and stopping evidence, then asks what new evidence another attempt would provide. It does not impose a retry count or replace debugging and validation. Both clients receive the same skill through `install_global_agents`; active Ponytail policy and already-loaded skill instructions are reused.
-
 The agent selects what to retrieve; tools keep unnecessary text out of context. Use Serena and smart-read for code and passages, RTK for supported shell output, and explicit field selection for shell envelopes and equivalent MCP representations. Preserve distinct content, errors, warnings and resource links. Large logs stay local with bounded diagnostics and a recovery path. There is no model-based summarizer or universal tool-result rewrite hook.
 
 Running commands retain their native process/session IDs. Wait about 30 seconds with the client's native mechanism, increasing to 60 seconds when progress is unchanged while maintaining user updates; avoid separate sleeps and repeated log tails. Cancellation and final exit status remain part of verification. A new wait daemon is unnecessary.
@@ -263,7 +261,7 @@ Each piece has exactly one owner:
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
-| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `investigation` into all four profiles |
+| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` into all four profiles |
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
