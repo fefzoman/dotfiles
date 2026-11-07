@@ -257,7 +257,7 @@ install_global_agents() {
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
   done
   for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-    for skill in natural-article; do
+    for skill in natural-article code-retrieval; do
       mkdir -p "$profile/skills/$skill"
       install -m 0644 "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
     done

@@ -261,7 +261,7 @@ Each piece has exactly one owner:
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
-| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` into all four profiles |
+| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `code-retrieval` into all four profiles; global policies automatically apply `code-retrieval` |
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
