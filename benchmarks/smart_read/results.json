@@ -1,36 +1,43 @@
 {
-  "commit": "346ab0d3a00152f8cde69f81645578cb01b383c2",
+  "commit": "e2c50397f74216f6b96d4d49199f3b5311ef69ea",
   "tokenizer": "o200k_base via installed token-count",
   "repetitions": 3,
-  "artifacts": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v",
+  "artifacts": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96",
   "summary": {
     "whole-file": {
       "output_tokens": 25433,
       "initial_tokens": 25496,
       "complete_tokens": 25496,
       "complete_initially": 8,
-      "median_seconds": 0.00226
+      "median_seconds": 0.002163
     },
     "targeted-rg": {
       "output_tokens": 2886,
       "initial_tokens": 3027,
-      "complete_tokens": 4839,
+      "complete_tokens": 6968,
       "complete_initially": 3,
-      "median_seconds": 0.003494
+      "median_seconds": 0.003047
     },
     "smart-read": {
       "output_tokens": 8167,
       "initial_tokens": 8438,
-      "complete_tokens": 9077,
+      "complete_tokens": 9625,
       "complete_initially": 7,
-      "median_seconds": 0.059116
+      "median_seconds": 0.152871
+    },
+    "discover-sed": {
+      "output_tokens": 2488,
+      "initial_tokens": 2627,
+      "complete_tokens": 4585,
+      "complete_initially": 1,
+      "median_seconds": 0.003027
     },
     "known-range-sed": {
       "output_tokens": 2171,
       "initial_tokens": 2290,
       "complete_tokens": 2290,
       "complete_initially": 8,
-      "median_seconds": 0.002222
+      "median_seconds": 0.002282
     }
   },
   "tasks": [
@@ -54,9 +61,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 919,
-          "median_seconds": 0.001963,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-whole-file.txt"
+          "median_seconds": 0.003332,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/line-count-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^def line_count' llm/read_hint.py",
@@ -68,9 +77,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 268,
-          "median_seconds": 0.002893,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-targeted-rg.txt"
+          "median_seconds": 0.003104,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/line-count-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'How does line_count handle missing files and count lines?' --lexical --path llm/read_hint.py -k 2",
@@ -82,9 +93,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1137,
-          "median_seconds": 0.054966,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-smart-read.txt"
+          "median_seconds": 0.1526,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/line-count-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^(def |class )' llm/read_hint.py",
+          "output_tokens": 42,
+          "command_tokens": 15,
+          "initial_tokens": 57,
+          "covered_lines": 1,
+          "required_lines": 7,
+          "complete_initially": false,
+          "followup_command": "sed -n 50,58p llm/read_hint.py",
+          "followup_tokens": 69,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 126,
+          "median_seconds": 0.003119,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/line-count-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 50,56p llm/read_hint.py",
@@ -96,9 +125,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 69,
-          "median_seconds": 0.001967,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-known-range-sed.txt"
+          "median_seconds": 0.002449,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/line-count-known-range-sed.txt"
         }
       }
     },
@@ -122,9 +153,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 919,
-          "median_seconds": 0.002175,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-whole-file.txt"
+          "median_seconds": 0.001806,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/shell-targets-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^def bash_targets' llm/read_hint.py",
@@ -134,11 +167,13 @@
           "covered_lines": 13,
           "required_lines": 20,
           "complete_initially": false,
-          "followup_command": "sed -n 21,40p llm/read_hint.py",
+          "followup_command": "sed -n 21,42p llm/read_hint.py",
           "followup_tokens": 237,
-          "complete_tokens": 517,
-          "median_seconds": 0.00358,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-targeted-rg.txt"
+          "discovery_command": "rg -n '^(def |class )' llm/read_hint.py",
+          "discovery_tokens": 57,
+          "complete_tokens": 574,
+          "median_seconds": 0.002904,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/shell-targets-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'How does bash_targets handle quoted paths pipelines and redirections?' --lexical --path llm/read_hint.py -k 2",
@@ -150,9 +185,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1138,
-          "median_seconds": 0.056917,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-smart-read.txt"
+          "median_seconds": 0.152408,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/shell-targets-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^(def |class )' llm/read_hint.py",
+          "output_tokens": 42,
+          "command_tokens": 15,
+          "initial_tokens": 57,
+          "covered_lines": 1,
+          "required_lines": 20,
+          "complete_initially": false,
+          "followup_command": "sed -n 21,42p llm/read_hint.py",
+          "followup_tokens": 237,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 294,
+          "median_seconds": 0.003018,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/shell-targets-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 21,40p llm/read_hint.py",
@@ -164,9 +217,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 237,
-          "median_seconds": 0.002143,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-known-range-sed.txt"
+          "median_seconds": 0.005115,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/shell-targets-known-range-sed.txt"
         }
       }
     },
@@ -190,9 +245,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1086,
-          "median_seconds": 0.002103,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-whole-file.txt"
+          "median_seconds": 0.002204,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/version-match-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^def mentions' llm/context7_version_guard.py",
@@ -204,9 +261,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 373,
-          "median_seconds": 0.003116,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-targeted-rg.txt"
+          "median_seconds": 0.002777,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/version-match-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'How does mentions match pinned package versions in a query?' --lexical --path llm/context7_version_guard.py -k 2",
@@ -218,9 +277,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1155,
-          "median_seconds": 0.06079,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-smart-read.txt"
+          "median_seconds": 0.151138,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/version-match-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^(def |class )' llm/context7_version_guard.py",
+          "output_tokens": 99,
+          "command_tokens": 17,
+          "initial_tokens": 116,
+          "covered_lines": 1,
+          "required_lines": 3,
+          "complete_initially": false,
+          "followup_command": "sed -n 57,61p llm/context7_version_guard.py",
+          "followup_tokens": 77,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 193,
+          "median_seconds": 0.003006,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/version-match-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 57,59p llm/context7_version_guard.py",
@@ -232,9 +309,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 77,
-          "median_seconds": 0.002302,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-known-range-sed.txt"
+          "median_seconds": 0.00213,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/version-match-known-range-sed.txt"
         }
       }
     },
@@ -258,9 +337,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1086,
-          "median_seconds": 0.004102,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-whole-file.txt"
+          "median_seconds": 0.00208,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/pinned-versions-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^def pinned_versions' llm/context7_version_guard.py",
@@ -270,11 +351,13 @@
           "covered_lines": 13,
           "required_lines": 21,
           "complete_initially": false,
-          "followup_command": "sed -n 34,54p llm/context7_version_guard.py",
+          "followup_command": "sed -n 34,56p llm/context7_version_guard.py",
           "followup_tokens": 309,
-          "complete_tokens": 691,
-          "median_seconds": 0.003521,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-targeted-rg.txt"
+          "discovery_command": "rg -n '^(def |class )' llm/context7_version_guard.py",
+          "discovery_tokens": 116,
+          "complete_tokens": 807,
+          "median_seconds": 0.003219,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/pinned-versions-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'Where does pinned_versions discover package version pins and installed package metadata?' --lexical --path llm/context7_version_guard.py -k 2",
@@ -286,9 +369,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1157,
-          "median_seconds": 0.054389,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-smart-read.txt"
+          "median_seconds": 0.15129,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/pinned-versions-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^(def |class )' llm/context7_version_guard.py",
+          "output_tokens": 99,
+          "command_tokens": 17,
+          "initial_tokens": 116,
+          "covered_lines": 1,
+          "required_lines": 21,
+          "complete_initially": false,
+          "followup_command": "sed -n 34,56p llm/context7_version_guard.py",
+          "followup_tokens": 309,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 425,
+          "median_seconds": 0.003158,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/pinned-versions-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 34,54p llm/context7_version_guard.py",
@@ -300,9 +401,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 309,
-          "median_seconds": 0.002032,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-known-range-sed.txt"
+          "median_seconds": 0.005955,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/pinned-versions-known-range-sed.txt"
         }
       }
     },
@@ -326,9 +429,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 11687,
-          "median_seconds": 0.001978,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-whole-file.txt"
+          "median_seconds": 0.002123,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/jsonl-tail-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^def records' llm/idle_compact.py",
@@ -338,11 +443,13 @@
           "covered_lines": 13,
           "required_lines": 19,
           "complete_initially": false,
-          "followup_command": "sed -n 158,176p llm/idle_compact.py",
+          "followup_command": "sed -n 158,178p llm/idle_compact.py",
           "followup_tokens": 162,
-          "complete_tokens": 468,
-          "median_seconds": 0.004095,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-targeted-rg.txt"
+          "discovery_command": "rg -n '^(def |class )' llm/idle_compact.py",
+          "discovery_tokens": 1178,
+          "complete_tokens": 1646,
+          "median_seconds": 0.003079,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/jsonl-tail-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'How does records read JSONL tails and skip invalid sidechain records?' --lexical --path llm/idle_compact.py -k 2",
@@ -354,9 +461,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 919,
-          "median_seconds": 0.061203,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-smart-read.txt"
+          "median_seconds": 0.157338,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/jsonl-tail-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^(def |class )' llm/idle_compact.py",
+          "output_tokens": 1161,
+          "command_tokens": 17,
+          "initial_tokens": 1178,
+          "covered_lines": 1,
+          "required_lines": 19,
+          "complete_initially": false,
+          "followup_command": "sed -n 158,178p llm/idle_compact.py",
+          "followup_tokens": 162,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 1340,
+          "median_seconds": 0.003151,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/jsonl-tail-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 158,176p llm/idle_compact.py",
@@ -368,9 +493,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 162,
-          "median_seconds": 0.002849,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-known-range-sed.txt"
+          "median_seconds": 0.00222,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/jsonl-tail-known-range-sed.txt"
         }
       }
     },
@@ -394,9 +521,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 5394,
-          "median_seconds": 0.003038,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-whole-file.txt"
+          "median_seconds": 0.00298,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-policy-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^def context_efficiency' llm/agent_config.py",
@@ -406,11 +535,13 @@
           "covered_lines": 13,
           "required_lines": 42,
           "complete_initially": false,
-          "followup_command": "sed -n 273,314p llm/agent_config.py",
+          "followup_command": "sed -n 273,316p llm/agent_config.py",
           "followup_tokens": 639,
-          "complete_tokens": 1029,
-          "median_seconds": 0.004696,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-targeted-rg.txt"
+          "discovery_command": "rg -n '^(def |class )' llm/agent_config.py",
+          "discovery_tokens": 548,
+          "complete_tokens": 1577,
+          "median_seconds": 0.003016,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-policy-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'How does context_efficiency enable Ponytail and disable Superpowers for Codex and Claude?' --lexical --path llm/agent_config.py -k 2",
@@ -420,11 +551,29 @@
           "covered_lines": 34,
           "required_lines": 42,
           "complete_initially": false,
-          "followup_command": "sed -n 273,314p llm/agent_config.py",
+          "followup_command": "sed -n 273,316p llm/agent_config.py",
           "followup_tokens": 639,
-          "complete_tokens": 1914,
-          "median_seconds": 0.061965,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-smart-read.txt"
+          "discovery_command": "rg -n '^(def |class )' llm/agent_config.py",
+          "discovery_tokens": 548,
+          "complete_tokens": 2462,
+          "median_seconds": 0.153397,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-policy-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^(def |class )' llm/agent_config.py",
+          "output_tokens": 532,
+          "command_tokens": 16,
+          "initial_tokens": 548,
+          "covered_lines": 1,
+          "required_lines": 42,
+          "complete_initially": false,
+          "followup_command": "sed -n 273,316p llm/agent_config.py",
+          "followup_tokens": 639,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 1187,
+          "median_seconds": 0.003036,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-policy-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 273,314p llm/agent_config.py",
@@ -436,9 +585,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 639,
-          "median_seconds": 0.003635,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-known-range-sed.txt"
+          "median_seconds": 0.00212,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-policy-known-range-sed.txt"
         }
       }
     },
@@ -462,9 +613,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 4080,
-          "median_seconds": 0.003095,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-whole-file.txt"
+          "median_seconds": 0.002113,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-install-whole-file.txt"
         },
         "targeted-rg": {
           "command": "rg -n -C 12 '^install_ponytail' llm/ai-install.sh",
@@ -476,9 +629,11 @@
           "complete_initially": false,
           "followup_command": "sed -n 147,181p llm/ai-install.sh",
           "followup_tokens": 465,
-          "complete_tokens": 1168,
-          "median_seconds": 0.003466,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-targeted-rg.txt"
+          "discovery_command": "rg -n '^([A-Za-z_][A-Za-z0-9_]*\\(\\)|})' llm/ai-install.sh",
+          "discovery_tokens": 230,
+          "complete_tokens": 1398,
+          "median_seconds": 0.003196,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-install-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'How does install_ponytail install and update Ponytail in all Codex and Claude profiles?' --lexical --path llm/ai-install.sh -k 2",
@@ -490,9 +645,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 1203,
-          "median_seconds": 0.057442,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-smart-read.txt"
+          "median_seconds": 0.153142,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-install-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "rg -n '^([A-Za-z_][A-Za-z0-9_]*\\(\\)|})' llm/ai-install.sh",
+          "output_tokens": 201,
+          "command_tokens": 29,
+          "initial_tokens": 230,
+          "covered_lines": 3,
+          "required_lines": 32,
+          "complete_initially": false,
+          "followup_command": "sed -n 147,181p llm/ai-install.sh",
+          "followup_tokens": 465,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 695,
+          "median_seconds": 0.002981,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-install-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 147,181p llm/ai-install.sh",
@@ -504,9 +677,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 465,
-          "median_seconds": 0.001943,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-known-range-sed.txt"
+          "median_seconds": 0.002194,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/plugin-install-known-range-sed.txt"
         }
       }
     },
@@ -530,9 +705,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 325,
-          "median_seconds": 0.002345,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-whole-file.txt"
+          "median_seconds": 0.002217,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/small-known-file-whole-file.txt"
         },
         "targeted-rg": {
           "command": "cat llm/skills/natural-article/SKILL.md",
@@ -544,9 +721,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 325,
-          "median_seconds": 0.00218,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-targeted-rg.txt"
+          "median_seconds": 0.002203,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/small-known-file-targeted-rg.txt"
         },
         "smart-read": {
           "command": "smart-read search 'What are the natural-article skill writing rules and delivery checks?' --lexical --path llm/skills/natural-article/SKILL.md -k 2",
@@ -558,9 +737,27 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 454,
-          "median_seconds": 0.063804,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-smart-read.txt"
+          "median_seconds": 0.153722,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/small-known-file-smart-read.txt"
+        },
+        "discover-sed": {
+          "command": "cat llm/skills/natural-article/SKILL.md",
+          "output_tokens": 312,
+          "command_tokens": 13,
+          "initial_tokens": 325,
+          "covered_lines": 13,
+          "required_lines": 13,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
+          "complete_tokens": 325,
+          "median_seconds": 0.00223,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/small-known-file-discover-sed.txt"
         },
         "known-range-sed": {
           "command": "sed -n 1,18p llm/skills/natural-article/SKILL.md",
@@ -572,9 +769,11 @@
           "complete_initially": true,
           "followup_command": null,
           "followup_tokens": 0,
+          "discovery_command": null,
+          "discovery_tokens": 0,
           "complete_tokens": 332,
-          "median_seconds": 0.003573,
-          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-known-range-sed.txt"
+          "median_seconds": 0.002343,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-2mnb0v96/small-known-file-known-range-sed.txt"
         }
       }
     }

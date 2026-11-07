@@ -38,6 +38,20 @@ def tokens(text):
     return int(output.strip())
 
 
+def discover_range(output, symbol, python):
+    # shortcut: these fixtures use top-level definitions; use a parser for other layouts.
+    definitions = [(int(number), text) for number, text in
+                   (line.split(':', 1) for line in output.splitlines())]
+    prefix = 'def ' + symbol + '(' if python else symbol + '()'
+    index = next(i for i, (_, text) in enumerate(definitions) if text.startswith(prefix))
+    start = definitions[index][0]
+    following = definitions[index + 1:]
+    end = following[0][0] - 1 if python else next(number for number, text in following if text == '}')
+    return start, end
+
+
+assert discover_range('3:def target():\n8:def next_one():\n', 'target', True) == (3, 7)
+assert discover_range('2:target() {\n9:}\n12:next_one() {\n', 'target', False) == (2, 9)
 assert tokens('Hello world') == 2
 results = []
 for task_id, file, symbol, query in TASKS:
@@ -54,10 +68,13 @@ for task_id, file, symbol, query in TASKS:
     expected = [line.strip() for line in lines[start - 1:end] if line.strip() and not line.lstrip().startswith('#')]
     assert expected
     precise = ['sed', '-n', f'{start},{end}p', file]
+    discovery = ['rg', '-n', r'^(def |class )' if file.endswith('.py') else
+                 r'^([A-Za-z_][A-Za-z0-9_]*\(\)|})', file] if symbol else ['cat', file]
     commands = {
         'whole-file': ['cat', file],
         'targeted-rg': ['rg', '-n', '-C', '12', '^' + ('def ' if file.endswith('.py') else '') + symbol, file] if symbol else ['cat', file],
         'smart-read': ['smart-read', 'search', query, '--lexical', '--path', file, '-k', '2'],
+        'discover-sed': discovery,
         'known-range-sed': precise,
     }
     task = {'id': task_id, 'file': file, 'query': query, 'required_range': [start, end],
@@ -73,14 +90,27 @@ for task_id, file, symbol, query in TASKS:
         covered = sum(line in output for line in expected)
         followup = None
         followup_output = ''
+        discovery_command = None
+        discovery_output = ''
+        discovery_tokens = 0
         if covered != len(expected):
-            followup = precise
+            if method == 'discover-sed':
+                definitions = output
+            else:
+                discovery_command = discovery
+                discovery_output, _ = run(discovery)
+                definitions = discovery_output
+                discovery_tokens = tokens(shlex.join(discovery)) + tokens(discovery_output)
+            found_start, found_end = discover_range(definitions, symbol, file.endswith('.py'))
+            followup = ['sed', '-n', f'{found_start},{found_end}p', file]
             followup_output, _ = run(followup)
         assert all(line in output + followup_output for line in expected), (task_id, method)
         raw = ARTIFACTS / f'{task_id}-{method}.txt'
         raw.write_text(output)
         if followup:
             raw.with_suffix('.followup.txt').write_text(followup_output)
+        if discovery_command:
+            raw.with_suffix('.discovery.txt').write_text(discovery_output)
         command_text = shlex.join(command)
         command_tokens = tokens(command_text)
         output_tokens = tokens(output)
@@ -91,7 +121,9 @@ for task_id, file, symbol, query in TASKS:
             'required_lines': len(expected), 'complete_initially': covered == len(expected),
             'followup_command': shlex.join(followup) if followup else None,
             'followup_tokens': followup_tokens,
-            'complete_tokens': output_tokens + command_tokens + followup_tokens,
+            'discovery_command': shlex.join(discovery_command) if discovery_command else None,
+            'discovery_tokens': discovery_tokens,
+            'complete_tokens': output_tokens + command_tokens + discovery_tokens + followup_tokens,
             'median_seconds': round(statistics.median(times), 6), 'raw_output': str(raw),
         }
     results.append(task)
