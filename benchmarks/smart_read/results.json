@@ -1,0 +1,582 @@
+{
+  "commit": "346ab0d3a00152f8cde69f81645578cb01b383c2",
+  "tokenizer": "o200k_base via installed token-count",
+  "repetitions": 3,
+  "artifacts": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v",
+  "summary": {
+    "whole-file": {
+      "output_tokens": 25433,
+      "initial_tokens": 25496,
+      "complete_tokens": 25496,
+      "complete_initially": 8,
+      "median_seconds": 0.00226
+    },
+    "targeted-rg": {
+      "output_tokens": 2886,
+      "initial_tokens": 3027,
+      "complete_tokens": 4839,
+      "complete_initially": 3,
+      "median_seconds": 0.003494
+    },
+    "smart-read": {
+      "output_tokens": 8167,
+      "initial_tokens": 8438,
+      "complete_tokens": 9077,
+      "complete_initially": 7,
+      "median_seconds": 0.059116
+    },
+    "known-range-sed": {
+      "output_tokens": 2171,
+      "initial_tokens": 2290,
+      "complete_tokens": 2290,
+      "complete_initially": 8,
+      "median_seconds": 0.002222
+    }
+  },
+  "tasks": [
+    {
+      "id": "line-count",
+      "file": "llm/read_hint.py",
+      "query": "How does line_count handle missing files and count lines?",
+      "required_range": [
+        50,
+        56
+      ],
+      "source_sha256": "1bb85ec9f0ef2542774df9c70b802c3dc736631229a28b91be93b54f02369fd2",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/read_hint.py",
+          "output_tokens": 913,
+          "command_tokens": 6,
+          "initial_tokens": 919,
+          "covered_lines": 7,
+          "required_lines": 7,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 919,
+          "median_seconds": 0.001963,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^def line_count' llm/read_hint.py",
+          "output_tokens": 251,
+          "command_tokens": 17,
+          "initial_tokens": 268,
+          "covered_lines": 7,
+          "required_lines": 7,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 268,
+          "median_seconds": 0.002893,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'How does line_count handle missing files and count lines?' --lexical --path llm/read_hint.py -k 2",
+          "output_tokens": 1108,
+          "command_tokens": 29,
+          "initial_tokens": 1137,
+          "covered_lines": 7,
+          "required_lines": 7,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1137,
+          "median_seconds": 0.054966,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 50,56p llm/read_hint.py",
+          "output_tokens": 56,
+          "command_tokens": 13,
+          "initial_tokens": 69,
+          "covered_lines": 7,
+          "required_lines": 7,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 69,
+          "median_seconds": 0.001967,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/line-count-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "shell-targets",
+      "file": "llm/read_hint.py",
+      "query": "How does bash_targets handle quoted paths pipelines and redirections?",
+      "required_range": [
+        21,
+        40
+      ],
+      "source_sha256": "1bb85ec9f0ef2542774df9c70b802c3dc736631229a28b91be93b54f02369fd2",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/read_hint.py",
+          "output_tokens": 913,
+          "command_tokens": 6,
+          "initial_tokens": 919,
+          "covered_lines": 20,
+          "required_lines": 20,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 919,
+          "median_seconds": 0.002175,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^def bash_targets' llm/read_hint.py",
+          "output_tokens": 263,
+          "command_tokens": 17,
+          "initial_tokens": 280,
+          "covered_lines": 13,
+          "required_lines": 20,
+          "complete_initially": false,
+          "followup_command": "sed -n 21,40p llm/read_hint.py",
+          "followup_tokens": 237,
+          "complete_tokens": 517,
+          "median_seconds": 0.00358,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'How does bash_targets handle quoted paths pipelines and redirections?' --lexical --path llm/read_hint.py -k 2",
+          "output_tokens": 1108,
+          "command_tokens": 30,
+          "initial_tokens": 1138,
+          "covered_lines": 20,
+          "required_lines": 20,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1138,
+          "median_seconds": 0.056917,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 21,40p llm/read_hint.py",
+          "output_tokens": 224,
+          "command_tokens": 13,
+          "initial_tokens": 237,
+          "covered_lines": 20,
+          "required_lines": 20,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 237,
+          "median_seconds": 0.002143,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/shell-targets-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "version-match",
+      "file": "llm/context7_version_guard.py",
+      "query": "How does mentions match pinned package versions in a query?",
+      "required_range": [
+        57,
+        59
+      ],
+      "source_sha256": "11e65e7d32d0f87c0c4876abd67caf648efd39a05726af30a66f4cc63127d7e3",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/context7_version_guard.py",
+          "output_tokens": 1078,
+          "command_tokens": 8,
+          "initial_tokens": 1086,
+          "covered_lines": 3,
+          "required_lines": 3,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1086,
+          "median_seconds": 0.002103,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^def mentions' llm/context7_version_guard.py",
+          "output_tokens": 355,
+          "command_tokens": 18,
+          "initial_tokens": 373,
+          "covered_lines": 3,
+          "required_lines": 3,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 373,
+          "median_seconds": 0.003116,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'How does mentions match pinned package versions in a query?' --lexical --path llm/context7_version_guard.py -k 2",
+          "output_tokens": 1124,
+          "command_tokens": 31,
+          "initial_tokens": 1155,
+          "covered_lines": 3,
+          "required_lines": 3,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1155,
+          "median_seconds": 0.06079,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 57,59p llm/context7_version_guard.py",
+          "output_tokens": 62,
+          "command_tokens": 15,
+          "initial_tokens": 77,
+          "covered_lines": 3,
+          "required_lines": 3,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 77,
+          "median_seconds": 0.002302,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/version-match-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "pinned-versions",
+      "file": "llm/context7_version_guard.py",
+      "query": "Where does pinned_versions discover package version pins and installed package metadata?",
+      "required_range": [
+        34,
+        54
+      ],
+      "source_sha256": "11e65e7d32d0f87c0c4876abd67caf648efd39a05726af30a66f4cc63127d7e3",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/context7_version_guard.py",
+          "output_tokens": 1078,
+          "command_tokens": 8,
+          "initial_tokens": 1086,
+          "covered_lines": 21,
+          "required_lines": 21,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1086,
+          "median_seconds": 0.004102,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^def pinned_versions' llm/context7_version_guard.py",
+          "output_tokens": 363,
+          "command_tokens": 19,
+          "initial_tokens": 382,
+          "covered_lines": 13,
+          "required_lines": 21,
+          "complete_initially": false,
+          "followup_command": "sed -n 34,54p llm/context7_version_guard.py",
+          "followup_tokens": 309,
+          "complete_tokens": 691,
+          "median_seconds": 0.003521,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'Where does pinned_versions discover package version pins and installed package metadata?' --lexical --path llm/context7_version_guard.py -k 2",
+          "output_tokens": 1124,
+          "command_tokens": 33,
+          "initial_tokens": 1157,
+          "covered_lines": 21,
+          "required_lines": 21,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1157,
+          "median_seconds": 0.054389,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 34,54p llm/context7_version_guard.py",
+          "output_tokens": 294,
+          "command_tokens": 15,
+          "initial_tokens": 309,
+          "covered_lines": 21,
+          "required_lines": 21,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 309,
+          "median_seconds": 0.002032,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/pinned-versions-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "jsonl-tail",
+      "file": "llm/idle_compact.py",
+      "query": "How does records read JSONL tails and skip invalid sidechain records?",
+      "required_range": [
+        158,
+        176
+      ],
+      "source_sha256": "996110b0e77bce841754285d16764d5a31c1b2b4e029ad080d19f65deb63c4ff",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/idle_compact.py",
+          "output_tokens": 11679,
+          "command_tokens": 8,
+          "initial_tokens": 11687,
+          "covered_lines": 19,
+          "required_lines": 19,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 11687,
+          "median_seconds": 0.001978,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^def records' llm/idle_compact.py",
+          "output_tokens": 288,
+          "command_tokens": 18,
+          "initial_tokens": 306,
+          "covered_lines": 13,
+          "required_lines": 19,
+          "complete_initially": false,
+          "followup_command": "sed -n 158,176p llm/idle_compact.py",
+          "followup_tokens": 162,
+          "complete_tokens": 468,
+          "median_seconds": 0.004095,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'How does records read JSONL tails and skip invalid sidechain records?' --lexical --path llm/idle_compact.py -k 2",
+          "output_tokens": 885,
+          "command_tokens": 34,
+          "initial_tokens": 919,
+          "covered_lines": 19,
+          "required_lines": 19,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 919,
+          "median_seconds": 0.061203,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 158,176p llm/idle_compact.py",
+          "output_tokens": 147,
+          "command_tokens": 15,
+          "initial_tokens": 162,
+          "covered_lines": 19,
+          "required_lines": 19,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 162,
+          "median_seconds": 0.002849,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/jsonl-tail-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "plugin-policy",
+      "file": "llm/agent_config.py",
+      "query": "How does context_efficiency enable Ponytail and disable Superpowers for Codex and Claude?",
+      "required_range": [
+        273,
+        314
+      ],
+      "source_sha256": "04c289aa0e443c5213479423ed5322fd1c0e893755c6f1148aedc8b5765110fa",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/agent_config.py",
+          "output_tokens": 5387,
+          "command_tokens": 7,
+          "initial_tokens": 5394,
+          "covered_lines": 42,
+          "required_lines": 42,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 5394,
+          "median_seconds": 0.003038,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^def context_efficiency' llm/agent_config.py",
+          "output_tokens": 371,
+          "command_tokens": 19,
+          "initial_tokens": 390,
+          "covered_lines": 13,
+          "required_lines": 42,
+          "complete_initially": false,
+          "followup_command": "sed -n 273,314p llm/agent_config.py",
+          "followup_tokens": 639,
+          "complete_tokens": 1029,
+          "median_seconds": 0.004696,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'How does context_efficiency enable Ponytail and disable Superpowers for Codex and Claude?' --lexical --path llm/agent_config.py -k 2",
+          "output_tokens": 1238,
+          "command_tokens": 37,
+          "initial_tokens": 1275,
+          "covered_lines": 34,
+          "required_lines": 42,
+          "complete_initially": false,
+          "followup_command": "sed -n 273,314p llm/agent_config.py",
+          "followup_tokens": 639,
+          "complete_tokens": 1914,
+          "median_seconds": 0.061965,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 273,314p llm/agent_config.py",
+          "output_tokens": 625,
+          "command_tokens": 14,
+          "initial_tokens": 639,
+          "covered_lines": 42,
+          "required_lines": 42,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 639,
+          "median_seconds": 0.003635,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-policy-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "plugin-install",
+      "file": "llm/ai-install.sh",
+      "query": "How does install_ponytail install and update Ponytail in all Codex and Claude profiles?",
+      "required_range": [
+        147,
+        181
+      ],
+      "source_sha256": "10f54afd99b45b1ee34b2ee939d5094d86670f2fe2a7fbc9142159c318fc59a2",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/ai-install.sh",
+          "output_tokens": 4073,
+          "command_tokens": 7,
+          "initial_tokens": 4080,
+          "covered_lines": 32,
+          "required_lines": 32,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 4080,
+          "median_seconds": 0.003095,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "rg -n -C 12 '^install_ponytail' llm/ai-install.sh",
+          "output_tokens": 683,
+          "command_tokens": 20,
+          "initial_tokens": 703,
+          "covered_lines": 17,
+          "required_lines": 32,
+          "complete_initially": false,
+          "followup_command": "sed -n 147,181p llm/ai-install.sh",
+          "followup_tokens": 465,
+          "complete_tokens": 1168,
+          "median_seconds": 0.003466,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'How does install_ponytail install and update Ponytail in all Codex and Claude profiles?' --lexical --path llm/ai-install.sh -k 2",
+          "output_tokens": 1164,
+          "command_tokens": 39,
+          "initial_tokens": 1203,
+          "covered_lines": 32,
+          "required_lines": 32,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 1203,
+          "median_seconds": 0.057442,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 147,181p llm/ai-install.sh",
+          "output_tokens": 451,
+          "command_tokens": 14,
+          "initial_tokens": 465,
+          "covered_lines": 32,
+          "required_lines": 32,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 465,
+          "median_seconds": 0.001943,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/plugin-install-known-range-sed.txt"
+        }
+      }
+    },
+    {
+      "id": "small-known-file",
+      "file": "llm/skills/natural-article/SKILL.md",
+      "query": "What are the natural-article skill writing rules and delivery checks?",
+      "required_range": [
+        1,
+        18
+      ],
+      "source_sha256": "4aeeb7f4f7050396c2376170d33dcbafff6d14f184e7629fa792fd91e0be2400",
+      "methods": {
+        "whole-file": {
+          "command": "cat llm/skills/natural-article/SKILL.md",
+          "output_tokens": 312,
+          "command_tokens": 13,
+          "initial_tokens": 325,
+          "covered_lines": 13,
+          "required_lines": 13,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 325,
+          "median_seconds": 0.002345,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-whole-file.txt"
+        },
+        "targeted-rg": {
+          "command": "cat llm/skills/natural-article/SKILL.md",
+          "output_tokens": 312,
+          "command_tokens": 13,
+          "initial_tokens": 325,
+          "covered_lines": 13,
+          "required_lines": 13,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 325,
+          "median_seconds": 0.00218,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-targeted-rg.txt"
+        },
+        "smart-read": {
+          "command": "smart-read search 'What are the natural-article skill writing rules and delivery checks?' --lexical --path llm/skills/natural-article/SKILL.md -k 2",
+          "output_tokens": 416,
+          "command_tokens": 38,
+          "initial_tokens": 454,
+          "covered_lines": 13,
+          "required_lines": 13,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 454,
+          "median_seconds": 0.063804,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-smart-read.txt"
+        },
+        "known-range-sed": {
+          "command": "sed -n 1,18p llm/skills/natural-article/SKILL.md",
+          "output_tokens": 312,
+          "command_tokens": 20,
+          "initial_tokens": 332,
+          "covered_lines": 13,
+          "required_lines": 13,
+          "complete_initially": true,
+          "followup_command": null,
+          "followup_tokens": 0,
+          "complete_tokens": 332,
+          "median_seconds": 0.003573,
+          "raw_output": "/var/folders/8s/zl71k1s163z6t75s2snv5t1r0000gp/T/smart-read-benchmark-uxm9ls7v/small-known-file-known-range-sed.txt"
+        }
+      }
+    }
+  ]
+}
