@@ -250,7 +250,7 @@ remove_retrieval_mcps() {
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     for server in serena context7; do
-      if with_claude_profile "$profile" "$claude_bin" mcp get "$server" >/dev/null 2>&1; then
+      if ! agent_config retrieval-mcps-absent claude "$profile" "$server"; then
         with_claude_profile "$profile" "$claude_bin" mcp remove --scope user "$server"
       fi
     done

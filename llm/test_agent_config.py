@@ -61,11 +61,15 @@ class AgentInstallationTests(unittest.TestCase):
                 path = home / "bin" / name
                 path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n')
                 path.chmod(0o755)
+            agent_config.save(str(home / ".claude.json"), {"mcpServers": {"serena": {}, "context7": {}}})
+            (home / ".claude-work").mkdir()
+            agent_config.save(str(home / ".claude-work/.claude.json"), {"mcpServers": {"serena": {}, "context7": {}}})
             result = self.run_installer_function("remove_retrieval_mcps", home, 'export PATH="$HOME/bin:$PATH"')
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = (home / "calls").read_text().splitlines()
             self.assertEqual(sum("mcp remove" in call for call in calls), 8)
             self.assertFalse(any("mcp add" in call for call in calls))
+            self.assertFalse(any("mcp get" in call for call in calls))
 
     def test_cli_install_removes_only_retired_tool_state(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -103,6 +107,7 @@ class AgentInstallationTests(unittest.TestCase):
                 path.write_text('[mcp_servers.context7]\ncommand="old"\n' if agent == "codex" else
                                 '{"projects":{"/repo":{"mcpServers":{"serena":{}}}}}')
                 self.assertFalse(agent_config.retrieval_mcps_absent(agent, str(profile)))
+                self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile), "unrelated"))
 
     def test_context_efficiency_preserves_custom_settings_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -464,14 +464,15 @@ def codex_mcp_enabled(name: str) -> bool:
     return any(s.get("name") == name and s.get("enabled") for s in json.load(sys.stdin))
 
 
-def retrieval_mcps_absent(agent: str, profile: str) -> bool:
+def retrieval_mcps_absent(agent: str, profile: str, server: str = "") -> bool:
     profile = Path(profile)
+    names = {server} if server else {"serena", "context7"}
     if agent == "codex":
-        return not {"serena", "context7"}.intersection(load_toml(str(profile / "config.toml")).get("mcp_servers", {}))
+        return not names.intersection(load_toml(str(profile / "config.toml")).get("mcp_servers", {}))
     if agent != "claude":
         raise ValueError(f"Unknown agent: {agent}")
     data = load(str(profile.parent / ".claude.json" if profile.name == ".claude" else profile / ".claude.json"))
-    return all(not {"serena", "context7"}.intersection(entry.get("mcpServers", {}))
+    return all(not names.intersection(entry.get("mcpServers", {}))
                for entry in [data, *data.get("projects", {}).values()])
 
 
