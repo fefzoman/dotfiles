@@ -3,10 +3,20 @@ import subprocess
 import tempfile
 import unittest
 
-from large import cli_method_compliant, grade, mcp_calls, source_scope_ok, tests_digest
+from large import cli_method_compliant, elapsed_seconds, grade, mcp_calls, source_scope_ok, tests_digest
 
 
 class LargeTrialTests(unittest.TestCase):
+    def test_elapsed_requires_one_completed_turn_and_monotonic_timestamps(self):
+        def event(kind, second):
+            return dict(type="event_msg", timestamp=f"2026-11-08T10:00:{second:02d}Z", payload=dict(type=kind))
+        rows = [event("task_started", 1), event("task_complete", 5)]
+        self.assertEqual(elapsed_seconds(rows), 4)
+        for invalid in ([], rows[:1], rows * 2, list(reversed(rows)),
+                        [event("task_started", 5), event("task_complete", 1)]):
+            with self.assertRaises(ValueError):
+                elapsed_seconds(invalid)
+
     def test_cli_methods_reject_mcp_skill_leaks_and_missing_cli_queries(self):
         for arm in ("shell", "context7_cli"):
             trial = dict(arm=arm)
@@ -19,6 +29,8 @@ class LargeTrialTests(unittest.TestCase):
         self.assertFalse(cli_method_compliant(trial, [], ["/old/code-retrieval/SKILL.md"], []))
         self.assertTrue(cli_method_compliant(trial, [], ["/new/code-retrieval/SKILL.md"], []))
         self.assertFalse(cli_method_compliant(trial, [], ["/new/code-retrieval/SKILL.md /old/code-retrieval/SKILL.md"], []))
+        trial["forbid_cli"] = True
+        self.assertFalse(cli_method_compliant(trial, [], [trial["skill_path"]], ["docs"]))
 
     def test_scope_rejects_extra_files_and_changed_history(self):
         self.assertTrue(source_scope_ok(["Lib/x.py"], [".serena/project.yml"], "Lib/x.py", "a", "a"))

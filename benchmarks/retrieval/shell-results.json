@@ -1,0 +1,49 @@
+{
+  "status": "blocked",
+  "valid_comparison": false,
+  "blocked_reason": "Prepared only; awaiting explicit authorization to launch benchmark agents.",
+  "collected_utc": "2026-11-08T18:42:01.044011+00:00",
+  "manifest": "/Users/odobrynin/dotfiles/benchmarks/retrieval/shell-manifest.json",
+  "summary": {
+    "shell": {
+      "trials": 0,
+      "tests_pass": 0,
+      "elapsed_seconds": 0,
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_output_tokens": 0,
+      "calls": 0,
+      "total_tokens": 0,
+      "uncached_input_tokens": 0
+    },
+    "baseline": {
+      "trials": 0,
+      "tests_pass": 0,
+      "elapsed_seconds": 0,
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_output_tokens": 0,
+      "calls": 0,
+      "total_tokens": 0,
+      "uncached_input_tokens": 0
+    },
+    "optimized": {
+      "trials": 0,
+      "tests_pass": 0,
+      "elapsed_seconds": 0,
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_output_tokens": 0,
+      "calls": 0,
+      "total_tokens": 0,
+      "uncached_input_tokens": 0
+    }
+  },
+  "results": []
+}

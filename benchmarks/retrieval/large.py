@@ -178,7 +178,7 @@ def prepare(base, root, python):
 
 
 def cli_method_compliant(trial, calls, skill_reads, cli_commands):
-    if calls:
+    if calls or (trial.get("forbid_cli") and cli_commands):
         return False
     expected = trial.get("skill_path")
     if not expected and skill_reads:
@@ -192,6 +192,18 @@ def cli_method_compliant(trial, calls, skill_reads, cli_commands):
     if trial["arm"] == "context7_cli":
         return {"library", "docs"} <= set(cli_commands)
     return True
+
+
+def elapsed_seconds(rows):
+    events = [(r["payload"].get("type"), r["timestamp"]) for r in rows if r["type"] == "event_msg"
+              and r["payload"].get("type") in ("task_started", "task_complete")]
+    if [kind for kind, _ in events] != ["task_started", "task_complete"]:
+        raise ValueError("Expected exactly one completed benchmark turn")
+    start, end = [datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00")) for _, stamp in events]
+    elapsed = (end - start).total_seconds()
+    if elapsed < 0:
+        raise ValueError("Completion precedes start")
+    return elapsed
 
 
 def collect(manifest_path=MANIFEST):
@@ -258,11 +270,12 @@ def collect(manifest_path=MANIFEST):
                             source_scope_ok=scope_ok, tests_unchanged=True, patch=patch,
                             observed_mcp_calls=calls, skill_read_calls=skill_reads,
                             observed_cli_commands=cli_commands, repeat=trial.get("repeat", 1),
-                            method_compliant=method_ok))
+                            method_compliant=method_ok, elapsed_seconds=elapsed_seconds(rows)))
     summary = {}
     for arm in manifest.get("arms", ARMS):
         group = [r for r in results if r["arm"] == arm]
         summary[arm] = dict(trials=len(group), tests_pass=sum(r["grade"]["exit_code"] == 0 for r in group),
+                            elapsed_seconds=sum(r["elapsed_seconds"] for r in group),
                             **{k: sum(r["usage"][k] for r in group) for k in (*COUNTERS, "calls", "total_tokens", "uncached_input_tokens")})
     complete = len(results) == len(manifest["trials"])
     valid = complete and all(r["grade"]["exit_code"] == 0 and r["source_scope_ok"] and r["method_compliant"] for r in results)

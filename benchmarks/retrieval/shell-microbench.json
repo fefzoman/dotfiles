@@ -1,0 +1,80 @@
+{
+  "workspace": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r1",
+  "warmups": 1,
+  "repeats": 9,
+  "note": "Warm-cache subprocess wall time, including startup. AST query differs; no model-token measurement.",
+  "results": {
+    "rg": {
+      "command": [
+        "rg",
+        "-H",
+        "-n",
+        "-F",
+        "-m",
+        "20",
+        "--",
+        "def is_dir",
+        "Lib/pathlib/__init__.py"
+      ],
+      "median_seconds": 0.01675087498733774,
+      "output_bytes": 75,
+      "output_lines": 1
+    },
+    "ag": {
+      "command": [
+        "ag",
+        "--vimgrep",
+        "--nocolor",
+        "-Q",
+        "-m",
+        "20",
+        "--",
+        "def is_dir",
+        "Lib/pathlib/__init__.py"
+      ],
+      "median_seconds": 0.06776691699633375,
+      "output_bytes": 77,
+      "output_lines": 1
+    },
+    "ack": {
+      "command": [
+        "ack",
+        "--no-filter",
+        "-H",
+        "--nocolor",
+        "--noheading",
+        "-Q",
+        "--max-count=20",
+        "--",
+        "def is_dir",
+        "Lib/pathlib/__init__.py"
+      ],
+      "median_seconds": 0.0453987920191139,
+      "output_bytes": 75,
+      "output_lines": 1
+    },
+    "ast-grep": {
+      "command": [
+        "ast-grep",
+        "run",
+        "--lang",
+        "python",
+        "--pattern",
+        "self.stat()",
+        "--color",
+        "never",
+        "Lib/pathlib/__init__.py"
+      ],
+      "median_seconds": 0.02240037504816428,
+      "output_bytes": 359,
+      "output_lines": 5
+    }
+  },
+  "source_sha256": "66b69c1a661f64298eb8f347a3f26a859e2a95ddc8abcf6bcb91c670439bc72a",
+  "tools": {
+    "rg": "ripgrep 15.2.0 (rev e89fff89ac)\n\nfeatures:+pcre2\nsimd(compile):+NEON\nsimd(runtime):+NEON\n\nPCRE2 10.45 is available (JIT is available)\n",
+    "ag": "ag version 2.2.0\npcre version 10.47 2025-10-21\nFeatures:\n  +jit +pcre2 +lzma +zlib\n",
+    "ack": "ack v3.10.0 (standalone version)\nRunning under Perl v5.34.1 at /usr/bin/perl\n\nCopyright 2005-2026 Andy Lester.\n\nThis program is free software.  You may modify or distribute it\nunder the terms of the Artistic License v2.0.\n",
+    "ast-grep": "ast-grep 0.51.1\n"
+  }
+}
