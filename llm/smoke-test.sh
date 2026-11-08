@@ -65,7 +65,7 @@ with_claude_profile() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk token-profiler token-count smart-read node uv ctx7 code code-work; do
+for command_name in python codex claude fabric rtk token-profiler token-count smart-read node uv code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
@@ -80,7 +80,7 @@ for profile in codex codex-work claude claude-work; do
     token-profiler "$profile" --help
 done
 
-for file in ai-install.sh codex/codex_compact_warning.py idle_compact.py context7_version_guard.py read_hint.py \
+for file in ai-install.sh codex/codex_compact_warning.py idle_compact.py read_hint.py \
   claude/claude_compact_statusline.py; do
   check "Installed $file matches the repository" "Installed $file is missing or stale" \
     cmp -s "$SCRIPT_DIR/$file" "$HOME/.config/dotfiles/${file##*/}"
@@ -114,8 +114,8 @@ rtk_dir="$(dirname "$(command -v rtk)")"
 check "RTK produces valid Codex rewrites and respects bypasses" "RTK Codex hook contract is invalid" \
   python -m unittest discover -s "$SCRIPT_DIR/codex" -p test_codex_rtk_hook.py
 for profile in "$HOME/.codex" "$HOME/.codex-work"; do
-  check "Codex RTK, Context7 CLI guard and compact-warning hooks are configured in $profile" \
-    "Codex RTK, Context7 CLI guard or compact-warning hooks are invalid in $profile" \
+  check "Codex RTK and compact-warning hooks are configured in $profile" \
+    "Codex RTK or compact-warning hooks are invalid in $profile" \
     agent_config codex-hooks-valid "$SCRIPT_DIR/codex/codex-hooks.json" "$profile/hooks.json"
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
@@ -164,17 +164,19 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     cmp -s "$SCRIPT_DIR/claude/checkpoint.md" "$profile/commands/checkpoint.md"
   check "smart-read hint is enabled in $profile" "smart-read hint is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
-  check "Context7 CLI version guard is enabled in $profile" "Context7 CLI version guard is missing in $profile" \
-    agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
+  check "Retired Context7 guard is absent in $profile" "Retired Context7 guard remains in $profile" \
+    bash -c '"$@"; status=$?; test "$status" -eq 1' _ python "$SCRIPT_DIR/agent_config.py" \
+      claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Claude limits skills, keeps Superpowers opt-in and Ponytail on in $profile" "Claude context defaults are stale in $profile" \
     agent_config context-efficient claude "$profile"
 done
 
-check "Context7 CLI starts without MCP" "Context7 CLI cannot start" ctx7 --version
-for retired in serena serena-agent serena-hooks context7-mcp; do
+for retired in serena serena-agent serena-hooks context7-mcp ctx7; do
   check "$retired executable is absent" "$retired executable is still installed" \
     bash -c '! command -v "$1" >/dev/null 2>&1' _ "$retired"
 done
+check "Retired Context7 guard file is absent" "Retired Context7 guard file remains" \
+  test ! -e "$HOME/.config/dotfiles/context7_version_guard.py"
 check "Retired backend state is absent" "Retired backend state remains" test ! -e "$HOME/.serena"
 for agent in codex claude; do
   for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do

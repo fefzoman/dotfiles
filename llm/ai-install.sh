@@ -2,7 +2,6 @@
 
 export RTK_TELEMETRY_DISABLED=1
 export TRANSFORMERS_VERBOSITY=error
-export CTX7_TELEMETRY_DISABLED=1
 export MCP_TIMEOUT="${MCP_TIMEOUT:-60000}"
 
 __codex_answer() {
@@ -118,7 +117,7 @@ install_ai_tools() {
     exit 1
   fi
 
-  install_context7_cli
+  remove_retired_retrieval_tools
   curl -fsSL https://claude.ai/install.sh | bash -s latest
   curl -fsSL https://raw.githubusercontent.com/danielmiessler/Fabric/main/scripts/installer/install.sh |
     env INSTALL_DIR="$HOME/.local/bin" bash
@@ -227,9 +226,19 @@ install_superpowers() {
   done
 }
 
-install_context7_cli() {
-  npm uninstall --global --prefix "$HOME/.local" @upstash/context7-mcp
-  npm install --global --prefix "$HOME/.local" ctx7@latest
+remove_retired_retrieval_tools() {
+  local profile prefix config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  [[ "$config_home" == /* ]] || config_home="$HOME/.config"
+  prefix="$(npm prefix --global)"
+  [[ "$prefix" == /* ]] || { echo "Cannot determine the global npm prefix." >&2; return 1; }
+  for profile in "$HOME/.codex" "$HOME/.codex-work"; do
+    agent_config remove-context7-path "$profile/config.toml"
+  done
+  npm uninstall --global --prefix "$HOME/.local" ctx7 @upstash/context7-mcp
+  if [[ "$prefix" != "$HOME/.local" ]]; then
+    npm uninstall --global --prefix "$prefix" ctx7 @upstash/context7-mcp
+  fi
+  rm -rf -- "$HOME/.codex-work/context7-cli" "$config_home/context7" "$HOME/.context7"
   if command -v uv >/dev/null 2>&1; then
     if uv tool list | grep -q '^serena-agent '; then
       UV_TOOL_BIN_DIR="$HOME/.local/bin" uv tool uninstall serena-agent
@@ -240,20 +249,17 @@ install_context7_cli() {
 }
 
 remove_retrieval_mcps() {
-  local claude_bin codex_bin profile server
-  claude_bin="$(type -P claude)"
+  local codex_bin profile server
   codex_bin="$(type -P codex)"
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     for server in serena context7; do
-      CODEX_HOME="$profile" "$codex_bin" mcp remove "$server"
+      if ! agent_config retrieval-mcps-absent codex "$profile" "$server"; then
+        CODEX_HOME="$profile" "$codex_bin" mcp remove "$server"
+      fi
     done
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    for server in serena context7; do
-      if ! agent_config retrieval-mcps-absent claude "$profile" "$server"; then
-        with_claude_profile "$profile" "$claude_bin" mcp remove --scope user "$server"
-      fi
-    done
+    agent_config remove-claude-retrieval-mcps "$profile"
   done
 }
 
@@ -304,7 +310,7 @@ install_codex_hooks() {
   local config_dir="$HOME/.config/dotfiles" profile
 
   mkdir -p "$config_dir"
-  install -m 0755 "$SCRIPT_DIR/codex/codex_compact_warning.py" "$SCRIPT_DIR/context7_version_guard.py" "$SCRIPT_DIR/codex/codex_rtk_hook.py" \
+  install -m 0755 "$SCRIPT_DIR/codex/codex_compact_warning.py" "$SCRIPT_DIR/codex/codex_rtk_hook.py" \
     "$config_dir/"
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
@@ -378,16 +384,21 @@ install_shell_config() {
 
 if [[ "${1:-}" == --retrieval-only ]]; then
   warn_live_sessions || exit 1
-  install_context7_cli
+  remove_retired_retrieval_tools
   remove_retrieval_mcps
   install_global_agents --retrieval-only
-  install_claude_hook context7_version_guard.py context7-guard
-  for profile in "$HOME/.codex" "$HOME/.codex-work"; do
-    agent_config context7-guard "$profile/hooks.json"
+  for agent in codex claude; do
+    for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do
+      if [[ "$agent" == codex ]]; then
+        agent_config remove-legacy-hooks "$profile/hooks.json"
+      else
+        agent_config remove-legacy-hooks "$profile/settings.json"
+      fi
+    done
   done
-  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    agent_config remove-legacy-hooks "$profile/settings.json"
-  done
+  rm -f -- "$HOME/.config/dotfiles/context7_version_guard.py"
+  mkdir -p "$HOME/.config/dotfiles"
+  install -m 0644 "$SCRIPT_DIR/ai-install.sh" "$HOME/.config/dotfiles/ai-install.sh"
   for agent in codex claude; do
     for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do
       agent_config retrieval-mcps-absent "$agent" "$profile" || exit 1
@@ -403,14 +414,12 @@ echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
 install_global_agents
-echo "==> Installing Codex Context7 CLI guard and compact-warning hooks..."
+echo "==> Installing Codex command and compact-warning hooks..."
 install_codex_hooks
 echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
 echo "==> Installing Claude compact-warning status line..."
 install_claude_hook claude/claude_compact_statusline.py statusline
-echo "==> Installing Claude Context7 version guard..."
-install_claude_hook context7_version_guard.py context7-guard
 echo "==> Installing idle compaction hooks..."
 install_idle_compact
 echo "==> Installing smart-read hints for large whole-file reads..."
@@ -427,6 +436,7 @@ echo "==> Removing legacy retrieval MCP servers from Codex and Claude profiles..
 remove_retrieval_mcps
 echo "==> Limiting startup context and making Superpowers opt-in..."
 configure_context_efficiency || exit 1
+rm -f -- "$HOME/.config/dotfiles/context7_version_guard.py"
 echo "==> Installing Codex and Claude token profiler..."
 bash "$SCRIPT_DIR/token-profiler/install.sh"
 echo "==> Installing AI shell configuration..."

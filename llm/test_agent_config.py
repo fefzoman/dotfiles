@@ -21,9 +21,12 @@ class AgentInstallationTests(unittest.TestCase):
             home = Path(directory)
             binaries = home / ".local/bin"
             binaries.mkdir(parents=True)
+            installed = home / ".config/dotfiles"
+            installed.mkdir(parents=True)
+            (installed / "context7_version_guard.py").write_text("retired")
             for name, code in (("npm", 0), ("uv", 0), ("codex", 0), ("claude", 1), ("pgrep", 1)):
                 path = binaries / name
-                path.write_text(f"#!/bin/sh\nexit {code}\n")
+                path.write_text(f'#!/bin/sh\nif [ "{name} $*" = "npm prefix --global" ]; then echo "$HOME/.local"; fi\nexit {code}\n')
                 path.chmod(0o755)
             original = 'model="custom"\nmodel_reasoning_effort="high"\napproval_policy="on-request"\n'
             for agent in ("codex", "claude"):
@@ -35,10 +38,14 @@ class AgentInstallationTests(unittest.TestCase):
                         (profile / "config.toml").write_text(original)
                     agent_config.save(str(profile / ("hooks.json" if agent == "codex" else "settings.json")),
                                       {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
-                                          {"type": "command", "command": "custom-check"}]}]}})
+                                          {"type": "command", "command": "custom-check"},
+                                          {"type": "command", "command": agent_config.RETIRED_CONTEXT7_GUARD}]}]}})
             result = subprocess.run(["bash", str(SCRIPT_DIR / "ai-install.sh"), "--retrieval-only"],
-                                    env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
+                                    env={**os.environ, "HOME": str(home), "XDG_CONFIG_HOME": str(home / ".config")},
+                                    capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((installed / "context7_version_guard.py").exists())
+            self.assertEqual((installed / "ai-install.sh").read_text(), (SCRIPT_DIR / "ai-install.sh").read_text())
             for agent in ("codex", "claude"):
                 for name in (f".{agent}", f".{agent}-work"):
                     profile = home / name
@@ -51,7 +58,10 @@ class AgentInstallationTests(unittest.TestCase):
                 self.assertEqual((home / name / "config.toml").read_text(), original)
                 entries = list(agent_config.hook_entries(agent_config.load(str(home / name / "hooks.json"))))
                 self.assertIn(("PreToolUse", "Bash", "command", "custom-check"), entries)
-                self.assertIn(("PreToolUse", "Bash", "command", agent_config.CONTEXT7_GUARD), entries)
+                self.assertNotIn(("PreToolUse", "Bash", "command", agent_config.RETIRED_CONTEXT7_GUARD), entries)
+            for name in (".claude", ".claude-work"):
+                entries = list(agent_config.hook_entries(agent_config.load(str(home / name / "settings.json"))))
+                self.assertEqual(entries, [("PreToolUse", "Bash", "command", "custom-check")])
 
     def test_retrieval_cleanup_removes_both_mcps_from_all_profiles_without_adding_any(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -61,34 +71,49 @@ class AgentInstallationTests(unittest.TestCase):
                 path = home / "bin" / name
                 path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n')
                 path.chmod(0o755)
+            for name in (".codex", ".codex-work"):
+                (home / name).mkdir()
+                (home / name / "config.toml").write_text('[mcp_servers.serena]\n[mcp_servers.context7]\n')
             agent_config.save(str(home / ".claude.json"), {"mcpServers": {"serena": {}, "context7": {}}})
             (home / ".claude-work").mkdir()
             agent_config.save(str(home / ".claude-work/.claude.json"), {"mcpServers": {"serena": {}, "context7": {}}})
             result = self.run_installer_function("remove_retrieval_mcps", home, 'export PATH="$HOME/bin:$PATH"')
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = (home / "calls").read_text().splitlines()
-            self.assertEqual(sum("mcp remove" in call for call in calls), 8)
+            self.assertEqual(sum("mcp remove" in call for call in calls), 4)
+            for name in (".claude", ".claude-work"):
+                self.assertTrue(agent_config.retrieval_mcps_absent("claude", str(home / name)))
             self.assertFalse(any("mcp add" in call for call in calls))
             self.assertFalse(any("mcp get" in call for call in calls))
 
-    def test_cli_install_removes_only_retired_tool_state(self):
+    def test_cleanup_uninstalls_context7_and_removes_only_retired_tool_state(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             (home / "bin").mkdir()
             for name in ("npm", "uv"):
                 path = home / "bin" / name
                 path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n'
-                                'if [ "$*" = "tool list" ]; then echo "serena-agent v1"; fi\n')
+                                'if [ "$*" = "tool list" ]; then echo "serena-agent v1"; fi\n'
+                                'if [ "$*" = "prefix --global" ]; then echo "$HOME/global"; fi\n')
                 path.chmod(0o755)
             (home / ".serena").mkdir()
+            for relative in (".codex-work/context7-cli", "custom-config/context7", ".context7"):
+                path = home / relative
+                path.mkdir(parents=True)
+                (path / "state").write_text("retired")
             (home / "unrelated").write_text("keep")
-            result = self.run_installer_function("install_context7_cli", home, 'export PATH="$HOME/bin:$PATH"')
+            result = self.run_installer_function("remove_retired_retrieval_tools", home,
+                       'export PATH="$HOME/bin:$PATH"; export XDG_CONFIG_HOME="$HOME/custom-config"')
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = (home / "calls").read_text()
-            self.assertIn("ctx7@latest", calls)
+            self.assertIn(f"npm uninstall --global --prefix {home}/.local ctx7 @upstash/context7-mcp", calls)
+            self.assertIn(f"npm uninstall --global --prefix {home}/global ctx7 @upstash/context7-mcp", calls)
+            self.assertNotIn("npm install", calls)
             self.assertIn("tool uninstall serena-agent", calls)
             self.assertIn("cache clean serena-agent", calls)
             self.assertFalse((home / ".serena").exists())
+            for relative in (".codex-work/context7-cli", "custom-config/context7", ".context7"):
+                self.assertFalse((home / relative).exists())
             self.assertEqual((home / "unrelated").read_text(), "keep")
 
     def test_retrieval_mcp_check_preserves_custom_servers_and_checks_claude_project_scope(self):
@@ -97,6 +122,7 @@ class AgentInstallationTests(unittest.TestCase):
             for agent in ("codex", "claude"):
                 profile = home / f".{agent}"
                 profile.mkdir()
+                self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile)))
                 if agent == "codex":
                     path = profile / "config.toml"
                     path.write_text('[mcp_servers.custom]\ncommand="keep"\n')
@@ -108,6 +134,27 @@ class AgentInstallationTests(unittest.TestCase):
                                 '{"projects":{"/repo":{"mcpServers":{"serena":{}}}}}')
                 self.assertFalse(agent_config.retrieval_mcps_absent(agent, str(profile)))
                 self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile), "unrelated"))
+
+    def test_claude_cleanup_covers_legacy_and_project_registrations_without_data_loss(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            profiles = [home / ".claude", home / ".claude-work"]
+            for profile in profiles:
+                profile.mkdir()
+            paths = [home / ".claude.json", profiles[0] / ".claude.json", profiles[1] / ".claude.json"]
+            original = {"custom": "keep", "mcpServers": {"context7": {}, "serena": {}, "custom": {"command": "keep"}},
+                        "projects": {"/repo": {"custom": "keep", "mcpServers": {"context7": {}, "custom": {}}}}}
+            expected = {"custom": "keep", "mcpServers": {"custom": {"command": "keep"}},
+                        "projects": {"/repo": {"custom": "keep", "mcpServers": {"custom": {}}}}}
+            for path in paths:
+                agent_config.save(str(path), original)
+            for profile in profiles:
+                self.assertFalse(agent_config.retrieval_mcps_absent("claude", str(profile)))
+                for _ in range(2):
+                    agent_config.remove_claude_retrieval_mcps(str(profile))
+                self.assertTrue(agent_config.retrieval_mcps_absent("claude", str(profile)))
+            for path in paths:
+                self.assertEqual(agent_config.load(str(path)), expected)
 
     def test_context_efficiency_preserves_custom_settings_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -154,17 +201,31 @@ class AgentInstallationTests(unittest.TestCase):
                 self.assertEqual(commands, ["custom-check"])
                 self.assertEqual(agent_config.load(str(path))["description"], "custom retain")
 
-    def test_context7_guard_migrates_mcp_hook_to_cli_without_dropping_custom_hooks(self):
+    def test_context7_cleanup_removes_bash_and_mcp_guards_but_keeps_custom_hooks(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "settings.json")
             agent_config.save(path, {"hooks": {"PreToolUse": [{"matcher": "mcp__context7__query-docs", "hooks": [
-                {"type": "command", "command": agent_config.CONTEXT7_GUARD},
-                {"type": "command", "command": "custom-check"}]}]}})
+                {"type": "command", "command": agent_config.RETIRED_CONTEXT7_GUARD},
+                {"type": "command", "command": "custom-check"}]},
+                {"matcher": "Bash", "hooks": [
+                    {"type": "command", "command": agent_config.RETIRED_CONTEXT7_GUARD},
+                    {"type": "command", "command": "custom-shell-check"}]}]}})
             for _ in range(2):
-                agent_config.context7_guard(path)
+                agent_config.remove_legacy_hooks(path)
             entries = list(agent_config.hook_entries(agent_config.load(path)))
-            self.assertIn(("PreToolUse", "Bash", "command", agent_config.CONTEXT7_GUARD), entries)
-            self.assertEqual(len(entries), 2)
+            self.assertEqual([e[3] for e in entries], ["custom-check", "custom-shell-check"])
+
+    def test_context7_path_cleanup_preserves_other_config_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"HOME": directory}):
+            path = Path(directory) / "config.toml"
+            retired = str(Path(directory) / ".codex-work/context7-cli/node_modules/.bin")
+            path.write_text('model="custom"\nmodel_reasoning_effort="high"\n[shell_environment_policy]\n'
+                            f'set = {{PATH = "/usr/bin:{retired}:/keep:{retired}", OTHER = "keep"}}\n')
+            expected = tomllib.loads(path.read_text())
+            expected["shell_environment_policy"]["set"]["PATH"] = "/usr/bin:/keep"
+            for _ in range(2):
+                agent_config.remove_context7_path(str(path))
+                self.assertEqual(tomllib.loads(path.read_text()), expected)
 
     def test_context_efficiency_rejects_unsupported_toml_without_writing(self):
         with tempfile.TemporaryDirectory() as directory:

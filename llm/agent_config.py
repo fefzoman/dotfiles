@@ -10,7 +10,7 @@ from pathlib import Path
 
 STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
 CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
-CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
+RETIRED_CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
 OBSOLETE_CODEX_HOOK = r"(?:^|/)serena-hooks(?:\s|$)|idle_compact\.py\"?\s+clear$"
 READ_HINT = 'python3 "$HOME/.config/dotfiles/read_hint.py"'
@@ -85,6 +85,7 @@ def remove_legacy_hooks(target: str) -> None:
     data = load(target)
     if isinstance(data.get("description"), str):
         data["description"] = data["description"].replace("Serena session cleanup, ", "")
+        data["description"] = data["description"].replace("Context7 CLI version guard, ", "")
     events = data.get("hooks", {})
     for event, groups in list(events.items()):
         for group in groups:
@@ -92,7 +93,7 @@ def remove_legacy_hooks(target: str) -> None:
                 hook
                 for hook in group.get("hooks", [])
                 if not re.search(OBSOLETE_CODEX_HOOK, hook.get("command") or "")
-                and not ("mcp__" in (group.get("matcher") or "") and hook.get("command") == CONTEXT7_GUARD)
+                and hook.get("command") != RETIRED_CONTEXT7_GUARD
             ]
         events[event] = [group for group in groups if group.get("hooks")]
         if not events[event]:
@@ -311,9 +312,14 @@ def scope_plugins(agent: str, profile: str) -> None:
     path.write_text(text)
 
 
-def context7_guard(settings: str) -> None:
-    remove_legacy_hooks(settings)
-    pre_tool_hook(settings, "Bash", CONTEXT7_GUARD)
+def remove_context7_path(config: str) -> None:
+    path = Path(config)
+    if not path.exists():
+        return
+    current = load_toml(config).get("shell_environment_policy", {}).get("set", {}).get("PATH")
+    retired = str(Path.home() / ".codex-work/context7-cli/node_modules/.bin")
+    if current is not None and retired in current.split(os.pathsep):
+        codex_shell_path(config, os.pathsep.join(p for p in current.split(os.pathsep) if p != retired))
 
 
 def read_hint(settings: str) -> None:
@@ -464,15 +470,34 @@ def codex_mcp_enabled(name: str) -> bool:
     return any(s.get("name") == name and s.get("enabled") for s in json.load(sys.stdin))
 
 
+def claude_mcp_paths(profile: Path) -> list[Path]:
+    return ([profile.parent / ".claude.json", profile / ".claude.json"]
+            if profile.name == ".claude" else [profile / ".claude.json"])
+
+
+def remove_claude_retrieval_mcps(profile: str) -> None:
+    for path in claude_mcp_paths(Path(profile)):
+        if not path.is_file():
+            continue
+        data = load(str(path))
+        before = json.dumps(data)
+        for entry in [data, *data.get("projects", {}).values()]:
+            for name in ("serena", "context7"):
+                entry.get("mcpServers", {}).pop(name, None)
+        if json.dumps(data) != before:
+            save(str(path), data)
+
+
 def retrieval_mcps_absent(agent: str, profile: str, server: str = "") -> bool:
     profile = Path(profile)
     names = {server} if server else {"serena", "context7"}
     if agent == "codex":
-        return not names.intersection(load_toml(str(profile / "config.toml")).get("mcp_servers", {}))
+        path = profile / "config.toml"
+        return not names.intersection((load_toml(str(path)) if path.exists() else {}).get("mcp_servers", {}))
     if agent != "claude":
         raise ValueError(f"Unknown agent: {agent}")
-    data = load(str(profile.parent / ".claude.json" if profile.name == ".claude" else profile / ".claude.json"))
     return all(not names.intersection(entry.get("mcpServers", {}))
+               for path in claude_mcp_paths(profile) for data in [load(str(path))]
                for entry in [data, *data.get("projects", {}).values()])
 
 
@@ -516,7 +541,7 @@ def codex_hooks_valid(required: str, installed: str) -> bool:
     entries = list(hook_entries(load(installed)))
     installed = set(entries)
     obsolete = any((command and re.search(OBSOLETE_CODEX_HOOK, command))
-                   or ("mcp__" in (matcher or "") and command == CONTEXT7_GUARD)
+                   or command == RETIRED_CONTEXT7_GUARD
                    for _, matcher, _, command in installed)
     return len(entries) == len(installed) and set(hook_entries(load(required))) <= installed and not obsolete
 
@@ -540,8 +565,8 @@ def plugins_scoped(agent: str, profile: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, remove_legacy_hooks, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
-        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled, retrieval_mcps_absent,
+        codex_shell_path, codex_hooks, remove_legacy_hooks, remove_context7_path, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, idle_compact, attribution, scope_plugins,
+        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled, retrieval_mcps_absent, remove_claude_retrieval_mcps,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
     )

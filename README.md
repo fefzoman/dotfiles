@@ -41,7 +41,7 @@ The smoke test makes no model or API requests. `llm/ai-install.sh` runs the
 non-strict test automatically after installation.
 
 `base-macos.sh` / `base-linux.sh` (sharing `base-common.sh`) own general machine tooling, while `llm/ai-install.sh` owns
-Codex, Claude Code, Fabric, RTK, Ponytail, Context7 CLI, the token
+Codex, Claude Code, Fabric, RTK, Ponytail, the token
 profiler, and AI profile shell commands. It configures every applicable tool
 for personal and work Codex/Claude profiles and installs `llm/codex/__AGENTS.md`
 in both Codex profiles and `llm/claude/__AGENTS.md` in both Claude profiles.
@@ -174,7 +174,6 @@ Python, Vim, Vimdoc, and YAML.
 | Fabric | Pattern-based text transformation through a selected model provider; it does not inherit Codex CLI tools or live environment access | `fabric --setup`, `fabric --listpatterns`, `fabric -p summarize < FILE`, `fabric --stream 'PROMPT'` |
 | RTK | Compacts supported shell output before it enters an agent's context | `rtk gain`, `rtk gain --history`, `rtk discover --all --since 7`, `RTK_DISABLED=1 COMMAND` |
 | Ponytail | Guides agents toward the smallest correct implementation | Codex: `@ponytail`, `@ponytail-review`; Claude: `/ponytail`, `/ponytail-review` |
-| Context7 CLI | Version-aware third-party library and API documentation without MCP | `ctx7 library PACKAGE "question" --json`, then `ctx7 docs /RETURNED/ID "VERSION: question" --json` |
 | token-profiler | Local usage, inner-session, context, and optimization reports for all four agent profiles | `token-profiler codex`, `token-profiler codex-work short`, `token-profiler claude current`, `token-profiler codex top --by command` |
 | tiktoken | Tokenizer used by token-profiler for diagnostic attribution estimates | `python -c 'import tiktoken; print(tiktoken.get_encoding("o200k_base"))'` |
 | token-count | Counts tokens in a UTF-8 file; defaults to `o200k_base`, with optional OpenAI model selection | `token-count FILE`, `token-count FILE --model gpt-4o`, `token-count --help` |
@@ -204,7 +203,7 @@ to install another release.
 
 On Debian and Ubuntu, system dependencies and Alacritty come from APT. Current
 Neovim, Node 22 LTS, kubectl, yq, Terraform, LazyGit, Codex, Claude Code,
-Context7 CLI, Treesitter CLI, Python 3.13, and the JetBrainsMono Nerd Font are
+Treesitter CLI, Python 3.13, and the JetBrainsMono Nerd Font are
 installed under `~/.local`, so no Linuxbrew is required.
 
 ## RTK
@@ -241,24 +240,30 @@ Claude user and enabled plugin hooks run by default; project hooks require trust
 Ponytail defaults to `full`; Codex uses `@ponytail` commands and Claude uses
 `/ponytail` commands.
 
-## Context7 CLI and retrieval
+## Retrieval and retired-tool cleanup
 
-The installer installs the official `ctx7` CLI for all four Codex/Claude profiles,
-without registering a documentation MCP server. Queries run anonymously; do not
-run `ctx7 setup` or `ctx7 login`, or supply saved credentials/API keys.
+The `code-retrieval` skill chooses one narrow route: direct file reads, bounded
+`rg` searches, smart-read for behavior discovery/outlines, or an optional verified
+structural filename query. Unresolved API contracts use the pinned version,
+installed source/help, then matching official documentation. No documentation MCP
+or separate documentation CLI is required.
 
-The `code-retrieval` skill is a short dispatcher: exact identifiers use bounded
-shell reads, behavior discovery uses smart-read, and unresolved library contracts
-load the optional structured CLI lookup procedure. Resolve a returned library ID,
-query the pinned version, and verify the source version before relying on it.
-Both clients retain a Bash hook checking literal CLI queries against project pins.
+Context7 and its version-guard hook are removed. The [external-documentation
+benchmark](benchmarks/retrieval/CONTEXT7.md) records the measured removal rationale.
+Historical benchmarks and offline token-profiler attribution remain available.
 
-To migrate an existing installation without upgrading unrelated tools, close
-running agents and run `bash llm/ai-install.sh --retrieval-only`. This removes the
-retired semantic backend and its state, removes both legacy retrieval MCP entries,
-installs `ctx7`, and updates policies, skill references, and managed hooks. Start
-new agent sessions afterward; existing sessions retain their loaded tool schemas.
-Historical benchmark records remain available for comparison.
+To clean an existing installation without upgrading unrelated tools, close
+Codex/Claude clients and run from this repository:
+
+```bash
+bash llm/ai-install.sh --retrieval-only
+```
+
+This uninstalls retired CLI/MCP packages, removes their managed private install,
+configuration, PATH fallback, hooks and MCP registrations, and refreshes policies
+and retrieval skills across both clients' personal/work profiles. It preserves
+model, reasoning, permissions, RTK imports and unrelated hooks. Restart clients
+and shells afterward; existing processes retain their loaded settings.
 
 ## Token Profiler
 
@@ -323,7 +328,7 @@ changing `PY_VERSION` carries packages over. Global npm packages live in
 | `~/.bashrc` | Oh My Bash, aliases, completions, terminal variables, word navigation |
 | `~/.config/dotfiles/ai-install.sh` | Sourced Codex/Claude profiles, Codex `??` helper, and AI telemetry settings |
 | `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/codex/__AGENTS.md` |
-| `~/.codex/hooks.json`, `~/.codex-work/hooks.json` | RTK, Context7 CLI version guard, read hints, idle checkpoints, and context-warning hooks |
+| `~/.codex/hooks.json`, `~/.codex-work/hooks.json` | RTK, read hints, idle checkpoints, and context-warning hooks |
 | `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/claude/__AGENTS.md` |
 | `~/.bash_profile` | Loads `~/.bashrc` for login shells |
 | `~/.oh-my-bash/custom/themes/font/font.theme.sh` | Two-line prompt with clock, host, path, Git branch, and status arrow |

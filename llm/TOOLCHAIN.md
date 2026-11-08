@@ -5,13 +5,12 @@
 | Tool | Layer | Question | Effect |
 |---|---|---|---|
 | **Ponytail** | Solution policy | How much should we build? | Smaller implementations; fewer abstractions/dependencies/files |
-| **Context7** | External dependency knowledge | How does this library/API work in this version? | Current library/API docs and examples |
 | **RTK** | Shell execution | How much terminal output does the model need? | Rewrites supported commands to compact equivalents |
 | **Superpowers** | Implementation discipline | How do we implement and verify the change? | Conditional TDD, debugging, verification, and review skills |
 
 The tools act at different stages; their savings overlap, so percentages are **never added**.
 
-This repo installs the stack for personal and work profiles of Codex and Claude Code: smart-read and Context7 as shell CLIs, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile.
+This repo installs the stack for personal and work profiles of Codex and Claude Code: smart-read as a shell CLI, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile.
 
 Two local safeguards complement them, neither runs `/compact` automatically:
 
@@ -28,7 +27,7 @@ flowchart TB
     policy["AGENTS.md / CLAUDE.md<br/>Ponytail: scope · Superpowers: discipline"] -.-> agent
 
     agent <-->|"repo navigation"| code["Retrieval skill + smart-read"]
-    agent <-->|"dependency docs"| docs["Context7 CLI"]
+    agent <-->|"dependency docs"| docs["Version-matched official documentation"]
     agent <-->|"edit, test, git"| shell["File tools + shell<br/>RTK compacts shell output"]
 
     session["Hooks + checkpoints + pitstop<br/>guard context, save and resume"] -.-> agent
@@ -99,28 +98,19 @@ No semantic MCP backend or language-server initialization is required.
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
 - `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a short note pointing at `smart-read` before a whole-file read of 80 or more lines, including `rtk cat`, `rtk proxy cat` and large skill files; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through. Ranged and piped reads pass through.
 
-## 5. Context7 CLI
+## 5. External dependency evidence
 
-Context7 supplies external library contracts, not local source navigation. The
-installer uses `npm install --global --prefix "$HOME/.local" ctx7@latest`.
-Do not use MCP, `ctx7 setup`, login, or saved credentials/API keys. Anonymous
-`ctx7 library` and `ctx7 docs` commands work without account setup; see the
-[official CLI documentation](https://context7.com/docs/clients/cli).
+For an unresolved API contract, identify the project's pinned or requested
+version, inspect installed source/help, then consult matching official
+upstream documentation. Load `references/library-docs.md` only when needed.
+Verify the source version, retain qualifications, and never send secrets or
+confidential source to external queries.
 
-Load the retrieval skill's optional `references/library-docs.md` only when an
-unfamiliar/version-sensitive contract remains unresolved. Identify the installed
-or requested version, resolve a library ID, query that version, and verify the
-returned source. Reuse the resolution within the session and stop once settled.
-On quota/network failure, report it and use matching official documentation.
-
-`context7_version_guard.py` is a Bash hook in both clients. It checks literal
-`ctx7 docs` and library-qualified `ctx7 search` requests against existing Python
-and Node package pins. Explicit upgrade targets remain supported. The hook does
-not interpret arbitrary generated shell code and does not verify returned docs;
-the agent must still check the source version and qualifications.
-
-Docs cost context and network time. Use this route conditionally, not on every
-local fix, and never send secrets or confidential source in external queries.
+Context7 and its version-guard hook are retired. The [external API benchmark](../benchmarks/retrieval/CONTEXT7.md)
+found no net benefit over direct official-source lookup on the measured contracts.
+The retrieval-only migration uninstalls the retired packages, private CLI,
+configuration and managed hooks without changing model or permission settings.
+Historical measurements and offline attribution remain intact.
 
 ## 6. RTK
 
@@ -256,13 +246,13 @@ Nested-call attribution has regression coverage in [the profiler tests](token-pr
 
 Prevent waste as early as possible — earlier cuts remove downstream work entirely:
 
-Ponytail (unneeded implementation) → retrieval skill (unneeded reads) → Context7 CLI (unresolved API contracts) → RTK (shell-output volume).
+Ponytail (unneeded implementation) → retrieval skill (unneeded reads) → version-matched evidence → RTK (shell-output volume).
 
 **Example — "Deleted users still appear in /users."** Without the stack: broad grep, whole-file reads, patch only the named route, noisy full test run, large logs/diffs over several turns. With it:
 
 1. **Ponytail**: find the root cause, fix it once in the shared path.
 2. **Retrieval skill**: locate the endpoint and shared implementation, then trace callers and tests.
-3. **Context7**, only if the fix depends on third-party behavior.
+3. **Official dependency evidence**, only if the fix depends on unresolved third-party behavior.
 4. Read only required bodies and docs; make the smallest root-cause diff.
 5. **RTK** compacts test/git output.
 6. **Ponytail review** checks the diff for accidental abstractions or files.
@@ -273,7 +263,7 @@ Each piece has exactly one owner:
 
 | Piece | Owner | Mechanism |
 |---|---|---|
-| Context7 CLI | `llm/ai-install.sh` `install_context7_cli`, `remove_retrieval_mcps` | Installs `ctx7`; uninstalls the retired backend and MCP package; removes legacy registrations in all four profiles |
+| Retired retrieval tools | `llm/ai-install.sh` `remove_retired_retrieval_tools`, `remove_retrieval_mcps` | Uninstalls legacy CLI/MCP packages and private state; removes obsolete registrations, hooks and PATH fallback |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `llm/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
 | Claude base prompt | `llm/ai-install.sh` `install_global_agents`, `claude()` | `llm/claude-system-prompt.md` → `system-prompt.md` in both Claude homes; passed with `--system-prompt-file` |
@@ -290,7 +280,7 @@ Plugin scope is applied at installation for future sessions, not switched inside
 ## 10. Hook coexistence
 
 Codex lifecycle hooks have distinct jobs: RTK rewrites supported Bash commands;
-read hints and the Context7 CLI guard inspect Bash requests; idle hooks preserve
+read hints inspect Bash requests; idle hooks preserve
 checkpoints; Ponytail carries its optional plugin procedures. Migration removes
 retired backend hooks and old documentation-MCP matchers while preserving other
 commands, even in shared groups. Merge hooks rather than replacing user files,
@@ -298,7 +288,7 @@ and review new or changed Codex hooks in `/hooks`.
 
 ## 11. `AGENTS.md`
 
-Describe behavior, not install manuals: use bounded source retrieval; Context7 CLI conditionally for unresolved API contracts; use RTK for supported commands; keep general plugin procedures opt-in; minimize context at the source. `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
+Describe behavior, not install manuals: use bounded source retrieval; version-matched official sources for unresolved API contracts; use RTK for supported commands; keep general plugin procedures opt-in; minimize context at the source. `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
 
 Both agent templates keep retrieval and correctness requirements while making general plugin procedures opt-in. Resolve conflicts in this order: explicit user requirements, applicable agent policy, then Superpowers defaults.
 
@@ -306,7 +296,7 @@ Both agent templates keep retrieval and correctness requirements while making ge
 
 1. Understand the request.
 2. Use the retrieval dispatcher to locate implementations and trace callers.
-3. Query Context7 CLI narrowly if a dependency contract remains unresolved.
+3. Check installed source/help and matching official docs if an API contract remains unresolved.
 4. Apply Ponytail's ladder; edit the fewest files.
 5. Run the narrowest useful validation (RTK compacts output).
 6. Inspect the final diff; `@ponytail-review` for non-trivial changes when available.
@@ -332,8 +322,8 @@ Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026)
 | Situation | Action |
 |---|---|
 | Source structure remains unclear | smart-read outline, complete bodies, and focused tests |
-| Dependency docs unnecessary/stable | Skip Context7 |
-| Context7 lacks the library/version | Authoritative upstream docs, or inspect the installed package narrowly |
+| Dependency contract already settled | Reuse the evidence; skip another lookup |
+| Matching library/version evidence unavailable | Report the gap; do not silently substitute another version |
 | Exact raw output required | `RTK_DISABLED=1 <command>` |
 | User explicitly requests an abstraction/dependency/design | Ponytail follows the requirement |
 | Security, trust-boundary validation, accessibility, data-loss protection | Never simplified away |
@@ -342,7 +332,7 @@ Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026)
 ## 14. Expected impact
 
 The stack targets different sources of waste: Ponytail limits unnecessary code,
-the retrieval dispatcher limits unnecessary reads, Context7 CLI resolves missing
+the retrieval dispatcher limits unnecessary reads, official sources resolve missing
 API contracts, and RTK limits noisy shell output. Their savings overlap and are
 not additive. Neither a large repository nor an available tool proves a saving;
 measure complete correct tasks with actual model usage, not retrieved-text estimates.
@@ -385,7 +375,7 @@ The [ablation report](../benchmarks/codex_toolchain/ABLATION.md) and [machine-re
 
 ## 15. What to measure
 
-Per task: model input/output tokens; raw vs RTK shell bytes; full-file reads; smart-read searches/outlines; Context7 CLI lookups and whether they changed decisions; diff LOC; files changed; dependencies added; latency; test pass/fail; reruns caused by missing context.
+Per task: model input/output tokens; raw vs RTK shell bytes; full-file reads; smart-read searches/outlines; official-documentation lookups and whether they changed decisions; diff LOC; files changed; dependencies added; latency; test pass/fail; reruns caused by missing context.
 
 Same-thread quota-reset experiment, one row per pause: context just before and after `/compact`; pause duration; first resumed call's total, cached and fresh input; fresh input across the first ten resumed calls; provider-cache warmth. Compare against a similar uncompacted cycle; don't sum RTK and cache percentages (scopes overlap).
 

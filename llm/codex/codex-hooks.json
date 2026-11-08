@@ -1,5 +1,5 @@
 {
-  "description": "RTK command rewriting, Context7 CLI version guard, smart-read hints for large whole-file reads, and Codex context warnings and idle checkpoints, and prompt-cache switch and instruction-edit notes.",
+  "description": "RTK command rewriting, smart-read hints for large whole-file reads, and Codex context warnings and idle checkpoints, and prompt-cache switch and instruction-edit notes.",
   "hooks": {
     "PreToolUse": [
       {
@@ -13,11 +13,6 @@
           {
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/read_hint.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"$HOME/.config/dotfiles/context7_version_guard.py\"",
             "timeout": 5
           }
         ]
