@@ -162,8 +162,8 @@ install_nerd_font_linux() {
 install_linux() {
   echo "==> Installing Debian/Ubuntu packages..."
   apt_get update -y
-  apt_get install -y alacritty bash bash-completion build-essential ca-certificates clangd curl dconf-cli \
-    fd-find fontconfig fzf git libc-bin psmisc ripgrep tmux tree unzip wget xclip xz-utils
+  apt_get install -y ack alacritty bash bash-completion build-essential ca-certificates clangd curl dconf-cli \
+    fd-find fontconfig fzf git libc-bin psmisc ripgrep silversearcher-ag tmux tree unzip wget xclip xz-utils
   apt_get install -y btop || true
 
   install_python_linux
@@ -176,7 +176,7 @@ install_linux() {
   install_lazygit_linux
   install_broot_linux
   install_navi_linux
-  npm install --global --prefix "$HOME/.local" tree-sitter-cli
+  npm install --global --prefix "$HOME/.local" tree-sitter-cli @ast-grep/cli
   "$BIN/pip" install --upgrade basedpyright
   install_nerd_font_linux
 }
