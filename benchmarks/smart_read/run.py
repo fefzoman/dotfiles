@@ -14,8 +14,6 @@ ARTIFACTS = Path(tempfile.mkdtemp(prefix='smart-read-benchmark-'))
 TASKS = [
     ('line-count', 'llm/read_hint.py', 'line_count', 'How does line_count handle missing files and count lines?'),
     ('shell-targets', 'llm/read_hint.py', 'bash_targets', 'How does bash_targets handle quoted paths pipelines and redirections?'),
-    ('version-match', 'llm/context7_version_guard.py', 'mentions', 'How does mentions match pinned package versions in a query?'),
-    ('pinned-versions', 'llm/context7_version_guard.py', 'pinned_versions', 'Where does pinned_versions discover package version pins and installed package metadata?'),
     ('jsonl-tail', 'llm/idle_compact.py', 'records', 'How does records read JSONL tails and skip invalid sidechain records?'),
     ('plugin-policy', 'llm/agent_config.py', 'context_efficiency', 'How does context_efficiency enable Ponytail and disable Superpowers for Codex and Claude?'),
     ('plugin-install', 'llm/ai-install.sh', 'install_ponytail', 'How does install_ponytail install and update Ponytail in all Codex and Claude profiles?'),

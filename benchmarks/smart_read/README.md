@@ -1,5 +1,9 @@
 # smart-read and shell retrieval token benchmark
 
+The results below preserve the historical eight-task corpus. After Context7's
+removal, the current runner excludes its two retired guard fixtures and runs six
+tasks. Future aggregate results are not directly comparable to these totals.
+
 On eight bounded tasks in this repository, a shell workflow that discovers function boundaries with `rg` and reads them with `sed` used **4,585 command-and-output tokens**. Lexical smart-read used **9,625**, including boundary discovery and a follow-up read for missing source. The shell workflow used **52.4% fewer tokens than smart-read**. Smart-read used **62.2% fewer tokens than whole-file reads**.
 
 | Method | Initial output tokens | Commands + output, including required follow-ups | Complete on first read |
@@ -42,7 +46,8 @@ Median initial-command latency across the eight per-task medians was 152.9 ms fo
 
 These are retrieval-context measurements, not billed model usage. They exclude prompts, reasoning, tool schemas, result envelopes, hook messages, model retries, caching and subsequent conversation turns. Queries contain identifiers and the file path is supplied to both methods. Repository-wide discovery and other repositories were not tested. Smart-read's ranking can change as the repository or installed tool changes.
 
-Reproduce with the existing installed tools:
+Run the current six-task corpus with the existing installed tools, preserving
+the historical results file first:
 
 ```bash
 python3 benchmarks/smart_read/run.py
