@@ -89,9 +89,7 @@ tmux, shell, and Neovim keybindings.
 | btop | Interactive CPU, memory, process, disk, and network monitor | `btop`; press `q` to quit and `?` for help |
 | LazyGit | Interactive Git interface | `lazygit`; in Neovim use `Space lg` |
 | ripgrep (`rg`) | Fast recursive text search that respects `.gitignore` | `rg PATTERN`, `rg PATTERN PATH`, `rg -g '*.py' PATTERN`, `rg --files` |
-| The Silver Searcher (`ag`) | Fast recursive code search | `ag PATTERN`, `ag PATTERN PATH`, `ag -l PATTERN` |
-| ack | Code-oriented recursive text search | `ack PATTERN`, `ack --python PATTERN`, `ack -l PATTERN` |
-| ast-grep | Syntax-aware code search and rewriting; Linux uses the npm CLI | `ast-grep --help`, `ast-grep -p '$PROP && $PROP()' -l ts` |
+| ast-grep | Optional verified structural file discovery; Linux uses the npm CLI | `ast-grep scan --rule RULE.yml --files-with-matches PATH` |
 | fd | Fast file and directory finder | `fd NAME`, `fd -e py`, `fd -t d NAME`; Linux maps `fd` to `fdfind` |
 | tree | Display directory contents as a tree | `tree`, `tree -L 2`, `tree -a` |
 | pstree | Display running processes as a tree; Linux installs it via psmisc | `pstree` |

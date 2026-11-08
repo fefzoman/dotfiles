@@ -1,0 +1,282 @@
+{
+  "tokenizer": "o200k_base",
+  "tokenizer_version": "0.14.0",
+  "warmups": 1,
+  "repeats": 9,
+  "note": "Rotated order; subprocess wall time including startup. Output tokens are not total model consumption.",
+  "tools": {
+    "rg": "ripgrep 15.2.0 (rev e89fff89ac)\n\nfeatures:+pcre2\nsimd(compile):+NEON\nsimd(runtime):+NEON\n\nPCRE2 10.45 is available (JIT is available)\n",
+    "ag": "ag version 2.2.0\npcre version 10.47 2025-10-21\nFeatures:\n  +jit +pcre2 +lzma +zlib\n",
+    "ack": "ack v3.10.0 (standalone version)\nRunning under Perl v5.34.1 at /usr/bin/perl\n\nCopyright 2005-2026 Andy Lester.\n\nThis program is free software.  You may modify or distribute it\nunder the terms of the Artistic License v2.0.\n"
+  },
+  "results": [
+    {
+      "task": "local_literal",
+      "source_sha256": "ae5ede690731b1b12d82d047d4861de7bb3a3c04de4fb907f7073771e5816259",
+      "matches": 10,
+      "normalized_output_tokens": 208,
+      "tools": {
+        "rg": {
+          "command": [
+            "rg",
+            "-F",
+            "--type",
+            "py",
+            "--color",
+            "never",
+            "-H",
+            "-n",
+            "--no-heading",
+            "--",
+            "shell=True",
+            "Lib/test/test_subprocess.py"
+          ],
+          "median_seconds": 0.03363233304116875,
+          "samples": [
+            0.03352895803982392,
+            0.03363233304116875,
+            0.03220012498786673,
+            0.03374616598011926,
+            0.0332333329715766,
+            0.033915292005985975,
+            0.033816208015196025,
+            0.034297749982215464,
+            0.032954375026747584
+          ],
+          "raw_output_tokens": 208
+        },
+        "ag": {
+          "command": [
+            "ag",
+            "--vimgrep",
+            "-s",
+            "-Q",
+            "--python",
+            "--nocolor",
+            "--",
+            "shell=True",
+            "Lib/test/test_subprocess.py"
+          ],
+          "median_seconds": 0.12646554200910032,
+          "samples": [
+            0.13215587503509596,
+            0.11688958399463445,
+            0.12800666701514274,
+            0.12340624997159466,
+            0.12646554200910032,
+            0.1343826669617556,
+            0.12490854202769697,
+            0.12289066700031981,
+            0.1289374170009978
+          ],
+          "raw_output_tokens": 228
+        },
+        "ack": {
+          "command": [
+            "ack",
+            "--no-filter",
+            "-Q",
+            "--python",
+            "--nocolor",
+            "-H",
+            "--noheading",
+            "--",
+            "shell=True",
+            "Lib/test/test_subprocess.py"
+          ],
+          "median_seconds": 0.08403549995273352,
+          "samples": [
+            0.08647662500152364,
+            0.08338212495436892,
+            0.08725583297200501,
+            0.08385966595960781,
+            0.08403549995273352,
+            0.08707050001248717,
+            0.08348416700027883,
+            0.08358062501065433,
+            0.08833649998996407
+          ],
+          "raw_output_tokens": 208
+        }
+      }
+    },
+    {
+      "task": "recursive_literal",
+      "source_sha256": "6de0d116854e06efdbb4c71d58c3494c94c2904a98e16b399fc4ddfa2e313067",
+      "matches": 410,
+      "normalized_output_tokens": 10668,
+      "tools": {
+        "rg": {
+          "command": [
+            "rg",
+            "-F",
+            "--type",
+            "py",
+            "--color",
+            "never",
+            "-H",
+            "-n",
+            "--no-heading",
+            "--",
+            "follow_symlinks",
+            "Lib"
+          ],
+          "median_seconds": 0.08272862498415634,
+          "samples": [
+            0.0779833749984391,
+            0.08586595801170915,
+            0.0685069999890402,
+            0.09238166600698605,
+            0.13670254201861098,
+            0.07470258302055299,
+            0.08272862498415634,
+            0.0845767090213485,
+            0.06737591599812731
+          ],
+          "raw_output_tokens": 10668
+        },
+        "ag": {
+          "command": [
+            "ag",
+            "--vimgrep",
+            "-s",
+            "-Q",
+            "--python",
+            "--nocolor",
+            "--",
+            "follow_symlinks",
+            "Lib"
+          ],
+          "median_seconds": 0.17598175001330674,
+          "samples": [
+            0.17598175001330674,
+            0.17104966699844226,
+            0.16528412501793355,
+            0.18420191697077826,
+            0.2915345830260776,
+            0.22109908401034772,
+            0.2136956660542637,
+            0.16935999999986961,
+            0.1567457920173183
+          ],
+          "raw_output_tokens": 12894
+        },
+        "ack": {
+          "command": [
+            "ack",
+            "--no-filter",
+            "-Q",
+            "--python",
+            "--nocolor",
+            "-H",
+            "--noheading",
+            "--",
+            "follow_symlinks",
+            "Lib"
+          ],
+          "median_seconds": 0.40577895898604766,
+          "samples": [
+            0.40852725005242974,
+            0.40577895898604766,
+            0.4023237910005264,
+            0.3922032910049893,
+            0.421570917009376,
+            0.4080848749727011,
+            0.4370488750282675,
+            0.39920149999670684,
+            0.3887690420378931
+          ],
+          "raw_output_tokens": 10668
+        }
+      }
+    },
+    {
+      "task": "typed_filenames",
+      "source_sha256": "6de0d116854e06efdbb4c71d58c3494c94c2904a98e16b399fc4ddfa2e313067",
+      "matches": 2,
+      "normalized_output_tokens": 12,
+      "tools": {
+        "rg": {
+          "command": [
+            "rg",
+            "-F",
+            "--type",
+            "py",
+            "--color",
+            "never",
+            "-l",
+            "--",
+            "ExtendedInterpolation",
+            "Lib"
+          ],
+          "median_seconds": 0.08260012499522418,
+          "samples": [
+            0.08260012499522418,
+            0.0832992079667747,
+            0.0662310830084607,
+            0.07923466700594872,
+            0.09070391597924754,
+            0.06736708298558369,
+            0.08700262499041855,
+            0.08509499998763204,
+            0.06900829199003056
+          ],
+          "raw_output_tokens": 12
+        },
+        "ag": {
+          "command": [
+            "ag",
+            "--vimgrep",
+            "-s",
+            "-Q",
+            "--python",
+            "--nocolor",
+            "-l",
+            "--",
+            "ExtendedInterpolation",
+            "Lib"
+          ],
+          "median_seconds": 0.172924000013154,
+          "samples": [
+            0.18677254195790738,
+            0.16651650000130758,
+            0.1579085830016993,
+            0.23055274999933317,
+            0.1712700420175679,
+            0.172924000013154,
+            0.20011483295820653,
+            0.1830465419916436,
+            0.1695895420270972
+          ],
+          "raw_output_tokens": 12
+        },
+        "ack": {
+          "command": [
+            "ack",
+            "--no-filter",
+            "-Q",
+            "--python",
+            "--nocolor",
+            "-l",
+            "--",
+            "ExtendedInterpolation",
+            "Lib"
+          ],
+          "median_seconds": 0.38478304096497595,
+          "samples": [
+            0.3778638750081882,
+            0.3757449589902535,
+            0.3671017090091482,
+            0.3878262499929406,
+            0.38478304096497595,
+            0.3930538330459967,
+            0.39450133399805054,
+            0.38535962504101917,
+            0.37805574998492375
+          ],
+          "raw_output_tokens": 12
+        }
+      }
+    }
+  ]
+}

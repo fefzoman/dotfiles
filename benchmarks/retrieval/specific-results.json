@@ -1,0 +1,441 @@
+{
+  "complete": true,
+  "valid_comparison": true,
+  "results": [
+    {
+      "task": "shell_true",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_shell_true_shell_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-01-45-01a1bc89-bc98-7763-966b-a7952b2d53b6.jsonl",
+      "session_sha256": "f841be32499594e73bf63bec2e342a905352fcab4473b754e1b6d4b4579ea9f3",
+      "usage": {
+        "input_tokens": 36339,
+        "cached_input_tokens": 32000,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 608,
+        "reasoning_output_tokens": 24,
+        "calls": 3,
+        "total_tokens": 36947,
+        "uncached_input_tokens": 4339
+      },
+      "elapsed_seconds": 21.589,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_subprocess.py\",\"line\":404},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":408},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":413},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1745},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1817},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2414},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2789}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "shell_true",
+      "arm": "ast",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_shell_true_ast_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-01-55-01a1bc89-dfd7-7462-be61-67551e540467.jsonl",
+      "session_sha256": "fc016725de02a835baab6438baa845ab044c8e1c07d81af188a645d5e97ecd9c",
+      "usage": {
+        "input_tokens": 58823,
+        "cached_input_tokens": 51840,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 561,
+        "reasoning_output_tokens": 23,
+        "calls": 4,
+        "total_tokens": 59384,
+        "uncached_input_tokens": 6983
+      },
+      "elapsed_seconds": 23.5,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_subprocess.py\",\"line\":404},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":408},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":413},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1745},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1817},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2414},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2789}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "raises_value",
+      "arm": "ast",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_raises_value_ast_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-02-03-01a1bc8a-0092-7523-87c8-6c7de81c5795.jsonl",
+      "session_sha256": "ba6ee2a7430634232e811854122f62176292cfc905f883ead8c5fc92fd65fddd",
+      "usage": {
+        "input_tokens": 53511,
+        "cached_input_tokens": 47744,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 748,
+        "reasoning_output_tokens": 50,
+        "calls": 4,
+        "total_tokens": 54259,
+        "uncached_input_tokens": 5767
+      },
+      "elapsed_seconds": 25.856,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":575},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":578},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":580},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":582},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":584},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":586},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1001},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1005},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2269},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2271},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2273},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2286},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2288},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2290},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2292}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "raises_value",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_raises_value_shell_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-02-33-01a1bc8a-7757-77d2-9b65-303cff6e521b.jsonl",
+      "session_sha256": "8ee437e1f8b75c110e7979417096bccb5fdd5cb8946c55599bcf302ad562b4ac",
+      "usage": {
+        "input_tokens": 50430,
+        "cached_input_tokens": 46208,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 805,
+        "reasoning_output_tokens": 39,
+        "calls": 4,
+        "total_tokens": 51235,
+        "uncached_input_tokens": 4222
+      },
+      "elapsed_seconds": 27.032,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":575},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":578},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":580},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":582},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":584},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":586},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1001},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1005},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2269},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2271},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2273},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2286},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2288},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2290},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2292}]",
+      "excluded_reason": "Worker read a forbidden retrieval skill. Retained but excluded from the comparison.",
+      "method_compliant": false,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "shell_true",
+      "arm": "ast",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_shell_true_ast_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-02-41-01a1bc8a-964b-74f1-bfc2-dee02867eb90.jsonl",
+      "session_sha256": "4724f02f02fe73348ea4035aeea72b552ea1a9b84fdd2bbd922a7722221c8ad8",
+      "usage": {
+        "input_tokens": 58923,
+        "cached_input_tokens": 51968,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 634,
+        "reasoning_output_tokens": 77,
+        "calls": 4,
+        "total_tokens": 59557,
+        "uncached_input_tokens": 6955
+      },
+      "elapsed_seconds": 24.376,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_subprocess.py\",\"line\":404},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":408},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":413},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1745},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1817},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2414},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2789}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "shell_true",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_shell_true_shell_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-02-49-01a1bc8a-b566-7833-ba9c-15a58772362c.jsonl",
+      "session_sha256": "85b6aa8336217709f744427b4ff46f2e4d9c5af9868f4b8caa773d8c9c15e81e",
+      "usage": {
+        "input_tokens": 36450,
+        "cached_input_tokens": 34688,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 523,
+        "reasoning_output_tokens": 28,
+        "calls": 3,
+        "total_tokens": 36973,
+        "uncached_input_tokens": 1762
+      },
+      "elapsed_seconds": 25.165,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_subprocess.py\",\"line\":404},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":408},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":413},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1745},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":1817},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2414},{\"file\":\"Lib/test/test_subprocess.py\",\"line\":2789}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "raises_value",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_raises_value_shell_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-03-16-01a1bc8b-1ca9-7c53-a77a-08b6e24ffc60.jsonl",
+      "session_sha256": "65c1f761d4f8d8eedff956e3794c51b011942469e4d115f58bdf91a5bb2913a2",
+      "usage": {
+        "input_tokens": 37328,
+        "cached_input_tokens": 34816,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 529,
+        "reasoning_output_tokens": 19,
+        "calls": 3,
+        "total_tokens": 37857,
+        "uncached_input_tokens": 2512
+      },
+      "elapsed_seconds": 19.978,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":575},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":578},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":580},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":582},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":584},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":586},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1001},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1005},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2269},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2271},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2273},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2286},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2288},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2290},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2292}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "raises_value",
+      "arm": "ast",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_raises_value_ast_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-03-24-01a1bc8b-3eed-7720-8557-e96d9636dc62.jsonl",
+      "session_sha256": "f9fa5edff187629e3a476c5644f67b78a8db160413f689eb85911882509af48b",
+      "usage": {
+        "input_tokens": 54022,
+        "cached_input_tokens": 45056,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 687,
+        "reasoning_output_tokens": 0,
+        "calls": 4,
+        "total_tokens": 54709,
+        "uncached_input_tokens": 8966
+      },
+      "elapsed_seconds": 25.728,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":575},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":578},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":580},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":582},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":584},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":586},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1001},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1005},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2269},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2271},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2273},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2286},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2288},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2290},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2292}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "raises_value",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_raises_value_shell_r1_retry",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-04-45-01a1bc8c-7a38-71e3-ac93-fb170b9f7ddf.jsonl",
+      "session_sha256": "b2a108297f8c0a83a3d6c2e770acddadb2b0f44bcb4dbe126ce4892232786c84",
+      "usage": {
+        "input_tokens": 25613,
+        "cached_input_tokens": 21504,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 501,
+        "reasoning_output_tokens": 0,
+        "calls": 2,
+        "total_tokens": 26114,
+        "uncached_input_tokens": 4109
+      },
+      "elapsed_seconds": 15.512,
+      "correct": true,
+      "answer": "[{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":575},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":578},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":580},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":582},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":584},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":586},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1001},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":1005},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2269},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2271},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2273},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2286},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2288},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2290},{\"file\":\"Lib/test/test_asyncio/test_events.py\",\"line\":2292}]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "ast",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_bare_except_ast_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-07-50-01a1bc8f-4e29-7bb0-8dfc-5ce9e0506756.jsonl",
+      "session_sha256": "6c28f1833d78be17fd86607e92a41906291507865370d2eecf791f1ec8dff28f",
+      "usage": {
+        "input_tokens": 23761,
+        "cached_input_tokens": 21504,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 169,
+        "reasoning_output_tokens": 0,
+        "calls": 2,
+        "total_tokens": 23930,
+        "uncached_input_tokens": 2257
+      },
+      "elapsed_seconds": 8.619,
+      "correct": true,
+      "answer": "[\"Lib/asyncio/__main__.py\",\"Lib/asyncio/base_events.py\",\"Lib/asyncio/base_subprocess.py\",\"Lib/asyncio/queues.py\",\"Lib/asyncio/unix_events.py\",\"Lib/asyncio/windows_utils.py\"]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-07-59-01a1bc8f-6eb2-7f32-97cb-6b7d276473c3.jsonl",
+      "session_sha256": "211b088d491c5a96ccc1f6d80fc6d29fe8f94001ea5545cb1a8843086828da62",
+      "usage": {
+        "input_tokens": 60767,
+        "cached_input_tokens": 57344,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 357,
+        "reasoning_output_tokens": 48,
+        "calls": 5,
+        "total_tokens": 61124,
+        "uncached_input_tokens": 3423
+      },
+      "elapsed_seconds": 39.767,
+      "correct": false,
+      "answer": "Query failed: Python 3.9 cannot parse `match name:`. No result array was produced.",
+      "excluded_reason": "Prepared recipe used default python3, which resolves to Python 3.9 in fresh workers and cannot parse match statements. Replaced by a fresh trial using pinned Python 3.14.",
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-08-08-01a1bc8f-9289-7471-9374-f122b7512cb7.jsonl",
+      "session_sha256": "ac3ec95fca746b5ae1ee2394e3b398085ad8f55eb83076e80c51a45170d6b5ce",
+      "usage": {
+        "input_tokens": 48279,
+        "cached_input_tokens": 46592,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 318,
+        "reasoning_output_tokens": 43,
+        "calls": 4,
+        "total_tokens": 48597,
+        "uncached_input_tokens": 1687
+      },
+      "elapsed_seconds": 27.51,
+      "correct": false,
+      "answer": "Query failed: Python 3.9 cannot parse `match name:`. No filenames returned.",
+      "excluded_reason": "Prepared recipe used default python3, which resolves to Python 3.9 in fresh workers and cannot parse match statements. Replaced by a fresh trial using pinned Python 3.14.",
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "ast",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_bare_except_ast_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-09-08-01a1bc90-7e2a-7dc2-8ccd-498911a0e219.jsonl",
+      "session_sha256": "0c84052411b7a8a9b254adbcf699855a258ff1ecb5043e061cebf289a863fc0f",
+      "usage": {
+        "input_tokens": 23736,
+        "cached_input_tokens": 22400,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 175,
+        "reasoning_output_tokens": 0,
+        "calls": 2,
+        "total_tokens": 23911,
+        "uncached_input_tokens": 1336
+      },
+      "elapsed_seconds": 10.243,
+      "correct": true,
+      "answer": "[\"Lib/asyncio/__main__.py\",\"Lib/asyncio/base_events.py\",\"Lib/asyncio/base_subprocess.py\",\"Lib/asyncio/queues.py\",\"Lib/asyncio/unix_events.py\",\"Lib/asyncio/windows_utils.py\"]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r1_pinned",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-09-18-01a1bc90-a4d1-7873-ad59-509d4bdb4d31.jsonl",
+      "session_sha256": "b598d7035039cddee292ee0ec81fc22f9ed704a7f58a53b56c49198ae5a4be97",
+      "usage": {
+        "input_tokens": 23945,
+        "cached_input_tokens": 22528,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 232,
+        "reasoning_output_tokens": 0,
+        "calls": 2,
+        "total_tokens": 24177,
+        "uncached_input_tokens": 1417
+      },
+      "elapsed_seconds": 10.459,
+      "correct": true,
+      "answer": "[\"Lib/asyncio/__main__.py\",\"Lib/asyncio/base_events.py\",\"Lib/asyncio/base_subprocess.py\",\"Lib/asyncio/queues.py\",\"Lib/asyncio/unix_events.py\",\"Lib/asyncio/windows_utils.py\"]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r2_pinned",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-09-27-01a1bc90-c926-7b01-9a73-d57a23132152.jsonl",
+      "session_sha256": "d71b69a142ad0356bc4c735d011e5b9d769471be8c7db67020a7cdbd19f92a2b",
+      "usage": {
+        "input_tokens": 23952,
+        "cached_input_tokens": 22528,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 237,
+        "reasoning_output_tokens": 0,
+        "calls": 2,
+        "total_tokens": 24189,
+        "uncached_input_tokens": 1424
+      },
+      "elapsed_seconds": 10.586,
+      "correct": true,
+      "answer": "[\"Lib/asyncio/__main__.py\",\"Lib/asyncio/base_events.py\",\"Lib/asyncio/base_subprocess.py\",\"Lib/asyncio/queues.py\",\"Lib/asyncio/unix_events.py\",\"Lib/asyncio/windows_utils.py\"]",
+      "excluded_reason": null,
+      "method_compliant": true,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    }
+  ]
+}

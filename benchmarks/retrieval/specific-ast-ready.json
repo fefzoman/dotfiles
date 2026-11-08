@@ -1,0 +1,103 @@
+{
+  "task": "bare_except_files",
+  "scope": "Lib/asyncio",
+  "expected": [
+    "Lib/asyncio/__main__.py",
+    "Lib/asyncio/base_events.py",
+    "Lib/asyncio/base_subprocess.py",
+    "Lib/asyncio/queues.py",
+    "Lib/asyncio/unix_events.py",
+    "Lib/asyncio/windows_utils.py"
+  ],
+  "python_version": "Python 3.14.7",
+  "results": {
+    "python": {
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-c",
+        "import ast,pathlib; print('\\n'.join(sorted(str(p) for p in pathlib.Path('Lib/asyncio').rglob('*.py') if any(isinstance(n,ast.ExceptHandler) and n.type is None for n in ast.walk(ast.parse(p.read_text()))))))"
+      ],
+      "median_seconds": 0.1999952499754727,
+      "samples": [
+        0.18956000002799556,
+        0.1865142920287326,
+        0.19182887498755008,
+        0.1988327499711886,
+        0.21687508397735655,
+        0.26320133300032467,
+        0.2751882920274511,
+        0.2422041249810718,
+        0.1999952499754727
+      ],
+      "normalized_output_tokens": 51
+    },
+    "ast-grep": {
+      "command": [
+        "ast-grep",
+        "scan",
+        "--inline-rules",
+        "{\"id\": \"bare-except\", \"language\": \"Python\", \"rule\": {\"kind\": \"except_clause\", \"regex\": \"^except\\\\s*:\"}}",
+        "--files-with-matches",
+        "Lib/asyncio"
+      ],
+      "median_seconds": 0.06749695801408961,
+      "samples": [
+        0.06749695801408961,
+        0.05867141700582579,
+        0.08321504102787003,
+        0.05830295803025365,
+        0.06132337497547269,
+        0.08915029198396951,
+        0.11708470800658688,
+        0.1126999159459956,
+        0.061339624982792884
+      ],
+      "normalized_output_tokens": 51
+    }
+  },
+  "unversioned_initial_measurement": {
+    "python": {
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-c",
+        "import ast,pathlib; print('\\n'.join(sorted(str(p) for p in pathlib.Path('Lib/asyncio').rglob('*.py') if any(isinstance(n,ast.ExceptHandler) and n.type is None for n in ast.walk(ast.parse(p.read_text()))))))"
+      ],
+      "median_seconds": 0.20537391601828858,
+      "samples": [
+        0.2038621660321951,
+        0.19840966700576246,
+        0.2333524579880759,
+        0.20537391601828858,
+        0.20513404201483354,
+        0.19954499998129904,
+        0.2171108330367133,
+        0.20570424996549264,
+        0.22196487500332296
+      ],
+      "normalized_output_tokens": 51
+    },
+    "ast-grep": {
+      "command": [
+        "ast-grep",
+        "scan",
+        "--inline-rules",
+        "{\"id\": \"bare-except\", \"language\": \"Python\", \"rule\": {\"kind\": \"except_clause\", \"regex\": \"^except\\\\s*:\"}}",
+        "--files-with-matches",
+        "Lib/asyncio"
+      ],
+      "median_seconds": 0.06722470803651959,
+      "samples": [
+        0.07851654198020697,
+        0.06295708299148828,
+        0.06716329196933657,
+        0.0649983329931274,
+        0.07546912500401959,
+        0.05956120800692588,
+        0.06889425002736971,
+        0.06722470803651959,
+        0.06821329199010506
+      ],
+      "normalized_output_tokens": 51
+    }
+  }
+}

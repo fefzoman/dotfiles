@@ -11,14 +11,13 @@ Start with supplied paths/identifiers. Reuse evidence; batch independent searche
 |---|---|
 | Named file or source | Read directly, using known ranges. |
 | Exact text or filename | Bounded `rg -n -F -m 20 -- 'TEXT' PATH`; filenames: `rg --files -g 'GLOB' PATH`. |
-| Existing ag/ack workflow or rg unavailable | Choose `ag --vimgrep --nocolor -s -Q -m 20 -- 'TEXT' PATH` or `ack --no-filter -H --nocolor --noheading -Q --max-count=20 -- 'TEXT' PATH`. |
-| Syntax shape or noisy/multiline text matches | `ast-grep run --lang python --pattern '$OBJ.method($$$ARGS)' --color never PATH`; adapt language/pattern, quote `$`, narrow paths. Search only, never rewrite. |
+| Repeated structural file discovery with a verified query | Optional [structural search](references/structural-search.md); otherwise use `rg` and the installed parser. |
 | Behavior without an identifier | `smart-read search "behavior" --lexical --path PATH`. |
 | Ambiguous definition boundaries | `smart-read outline FILE`, then `sed` ranges. |
 | Unresolved API contract | Pinned version → installed source/help → matching official docs. See [library lookup](references/library-docs.md) only if unresolved. |
 | Other unsourced topic | Focused authoritative search; verify evidence. |
 
-Narrow paths first: `-m` caps matches per file, not globally. Use `-l` for filenames; avoid large AST/JSON dumps. Missing hits require checking scope, file types and ignore rules. AST matches do not establish symbol identity. Consult [local code](references/local-code.md) only for unclear relationships.
+Narrow paths first: `-m` caps matches per file, not globally. Use `-l` for filenames. Missing hits require checking scope, file types and ignore rules. Consult [local code](references/local-code.md) only for unclear relationships.
 
 Read complete relevant bodies, validation and error handling. Trace callers/tests before editing shared code. Prefix shell commands with RTK; fall back to installed tools if unavailable. No speculative installs, embeddings or indexing; `smart-read index` requires explicit request.
 

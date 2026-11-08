@@ -92,7 +92,7 @@ install_macos() {
   brew tap hashicorp/tap
   brew trust --formula hashicorp/tap/terraform
   brew install bash bash-completion@2 tmux neovim git curl btop kubectl lazygit ripgrep fd broot fzf navi node \
-    basedpyright llvm pstree tree tree-sitter-cli hashicorp/tap/terraform yq the_silver_searcher ack ast-grep
+    basedpyright llvm pstree tree tree-sitter-cli hashicorp/tap/terraform yq ast-grep
   if brew list --formula tlrc >/dev/null 2>&1; then brew uninstall tlrc; fi
   brew upgrade bash || true
 

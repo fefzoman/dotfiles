@@ -1,5 +1,10 @@
 # Code retrieval benchmark: skill, Serena, and Context7
 
+Latest: the [tool-specific tests and removal decision](SPECIFIC.md) compare
+ag/ack against rg and exercise ast-grep on actual structural queries. The
+[shell-first dispatcher comparison](SHELL.md) records the preceding candidate's
+negative repair-benchmark result. These experiments are not pooled together.
+
 The [CLI-only follow-up](CLI.md) compares plain shell, the previous skill, the
 refactored dispatcher, and Context7 CLI in 24 clean trials, with no retrieval MCP
 tools exposed. An [earlier contaminated attempt](CLI-BLOCKED.md) is archived

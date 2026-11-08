@@ -1,0 +1,263 @@
+{
+  "root": "/Users/odobrynin/.codex-work/retrieval-specific-20261108_190122",
+  "corpus": "/Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus",
+  "parent_thread_id": "01a1bc67-9e5e-7fe3-a08e-a3915c44e734",
+  "session_date": "2026/11/08",
+  "source_hashes": {
+    "Lib/test/test_subprocess.py": "084c81aa70d4f5d3e38e2abba6f1b9fff22c29cafce9b6d161dd477e53e43aa9",
+    "Lib/test/test_asyncio/test_events.py": "650e3b93f01023a19a6538c773ed78bc5eab081b8f7a4fb43799d2503e4736a4",
+    "Lib/asyncio/__init__.py": "8148552daea881e3b33639d6e9bdab0da2021367ab694ee0604431c33c16983f",
+    "Lib/asyncio/__main__.py": "182bcc85986538540e37910b42a2287ccdf761ab22853bbc81c2c5fdb221ee5d",
+    "Lib/asyncio/base_events.py": "a82285b1ccb379d4bc18f3c1b05a2876040daed1523e7fb6bc05c0a86977894d",
+    "Lib/asyncio/base_futures.py": "2f3798c4b82f5ac77647908b157c924f734f36871d98970e72849ea9a9a07856",
+    "Lib/asyncio/base_subprocess.py": "13628aa092b36c676ae4bfdebee418f8c75fa5c098be193ebfc7b12b92884629",
+    "Lib/asyncio/base_tasks.py": "56efac65b63db927af336fa55eb5bda93c97a2defa4734ea8d695ed20fd6712a",
+    "Lib/asyncio/constants.py": "873fc2f9e66313c3c19c337269e704f204b59f9e91d6ecbec59f68335484d338",
+    "Lib/asyncio/coroutines.py": "57b52edd0fc4cf50be2956aed9530110556f8a098e2908d0492b88c36ea75933",
+    "Lib/asyncio/events.py": "b1a138015c6e1878d7f8c6be51896da451d7f25c24f6ef18d76ceff249050d94",
+    "Lib/asyncio/exceptions.py": "a5971f88be14cd1417d59adf539ae48c5d818f95362a4e0eb00017e3690ab37b",
+    "Lib/asyncio/format_helpers.py": "c02f2f8c1e2508ddb2f8d8c1bef452be1f6b9a1d2a998b89a56d153e42a5f1ef",
+    "Lib/asyncio/futures.py": "f23f290c9e3ab1b1839a0929ace615ce9195131d52d0a3819721fc2c9e1eb7b4",
+    "Lib/asyncio/graph.py": "f6bb1079a4759c4b34a6b8a852e273895df3a2d3b082d435dab2a33ed2fbd80b",
+    "Lib/asyncio/locks.py": "e8503dc3ab56aaa57ab14f74f2a4f9ce81db1740be68667ca0da0b48b34ee75f",
+    "Lib/asyncio/log.py": "80e4cc3ded4b138baba486519e7444801a23d6ac35f229d336a407a96af7e8d2",
+    "Lib/asyncio/mixins.py": "8f4a3e16eca845ebfba422550cbcee7340ec8166d2bff6b750a8ed0de6b9ae3c",
+    "Lib/asyncio/proactor_events.py": "bf5db8a08001a7e919944bc67c32099bf6d6bfaed9315f392b1acb35cfb3ffe2",
+    "Lib/asyncio/protocols.py": "1d1b49988c338b4ef06e30f9e92d9db2e00080c341f0a3f573bb8312deb8aff6",
+    "Lib/asyncio/queues.py": "48693f7c118584b0a896d3ad7c5fd6c1250104733075be071e6b19708b866d96",
+    "Lib/asyncio/runners.py": "749f15c02d29ea7f79e779b92e066422f8267d3fa0afc7e08b497a56c703897c",
+    "Lib/asyncio/selector_events.py": "5cf1b72c1ca5841159caa79cf8d68ff46c711497bbf913434196bc2db5170e7b",
+    "Lib/asyncio/sslproto.py": "b33d2f13fc373b7220402c4358dc96c770cea14489f5570b49774b37f9ac052f",
+    "Lib/asyncio/staggered.py": "8be17b2fa59a3a207b2e004f278257fc220c592afc8b6aa1cbe47030e1b9b4a9",
+    "Lib/asyncio/streams.py": "d1753bc21667afe914390623be181ebb31776845d7c7f2f50805cae972f0189b",
+    "Lib/asyncio/subprocess.py": "7b70605716334f63cc482123b2aaa3b7c5bb7138eeab63a037bd8068d43307c1",
+    "Lib/asyncio/taskgroups.py": "df0ea4f0911ea9c1006b4dec45557e0862a09d7a411c63259943731df8c41dda",
+    "Lib/asyncio/tasks.py": "8554946e93b93d70288a2ab0ad7f255cf3119c4861f89e3c9194956d0f3f591a",
+    "Lib/asyncio/threads.py": "39d37295383641565f0c08bd992e2f661dc8051eb17e890b834fce96bde0910e",
+    "Lib/asyncio/timeouts.py": "3154c617c94bf0124b0b5eaf1a6aef89cc0776e95d00b5e4e5302e32b29cb06b",
+    "Lib/asyncio/tools.py": "6e74b35d25157f99335d70e2352a11d9be4aeee80f3300294dc80f75862dd00b",
+    "Lib/asyncio/transports.py": "bfd414b25979e07b74081140bf91332957a9bf8b5aa5a0c7ff0d779d93eada21",
+    "Lib/asyncio/trsock.py": "c0eac37debcc51b702b808f6b7ed3e417343f5ff5f57125dad600a27eb082328",
+    "Lib/asyncio/unix_events.py": "7466b4efe773e4e05f4ea94b37ba4bc8d75dddd137357067a9ac02f45e4e906a",
+    "Lib/asyncio/windows_events.py": "886afa6f0f2e2ee02560c3b5dac8d0beb1239f9f34bd1a38a8b4c796ee4da43e",
+    "Lib/asyncio/windows_utils.py": "e6fcffefa2521666bc2aed0f5caf8e862c1c1014ad12d2ab5fbce09c2df9c6f0"
+  },
+  "expected": {
+    "shell_true": [
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 404
+      },
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 408
+      },
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 413
+      },
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 1745
+      },
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 1817
+      },
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 2414
+      },
+      {
+        "file": "Lib/test/test_subprocess.py",
+        "line": 2789
+      }
+    ],
+    "raises_value": [
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 575
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 578
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 580
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 582
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 584
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 586
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 1001
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 1005
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2269
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2271
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2273
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2286
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2288
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2290
+      },
+      {
+        "file": "Lib/test/test_asyncio/test_events.py",
+        "line": 2292
+      }
+    ],
+    "bare_except_files": [
+      "Lib/asyncio/__main__.py",
+      "Lib/asyncio/base_events.py",
+      "Lib/asyncio/base_subprocess.py",
+      "Lib/asyncio/queues.py",
+      "Lib/asyncio/unix_events.py",
+      "Lib/asyncio/windows_utils.py"
+    ]
+  },
+  "trials": [
+    {
+      "task": "shell_true",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_shell_true_shell_r1",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ordinary shell tools and Python standard library as needed; do not use ast-grep. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_subprocess.py and installed tool help. Task: List every Python call with a direct keyword argument shell=True (literal True). Do not count comments, strings, definitions, or a keyword belonging to a nested call. Keyword order and multiline formatting must not affect results. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "shell_true",
+      "arm": "ast",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_shell_true_ast_r1",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ast-grep as the primary source-query engine; actually invoke it. Shell and Python standard library may process or verify its output. Use installed help if needed; do not assume a pattern handles keyword order. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_subprocess.py and installed tool help. Task: List every Python call with a direct keyword argument shell=True (literal True). Do not count comments, strings, definitions, or a keyword belonging to a nested call. Keyword order and multiline formatting must not affect results. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "raises_value",
+      "arm": "ast",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_raises_value_ast_r1",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ast-grep as the primary source-query engine; actually invoke it. Shell and Python standard library may process or verify its output. Use installed help if needed; do not assume a pattern handles keyword order. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_asyncio/test_events.py and installed tool help. Task: List every Python call to an attribute named assertRaises whose first positional argument is exactly the name ValueError. Include context-manager and function-call forms, including multiline calls; exclude strings, comments and other exceptions. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "raises_value",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_raises_value_shell_r1",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ordinary shell tools and Python standard library as needed; do not use ast-grep. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_asyncio/test_events.py and installed tool help. Task: List every Python call to an attribute named assertRaises whose first positional argument is exactly the name ValueError. Include context-manager and function-call forms, including multiline calls; exclude strings, comments and other exceptions. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop.",
+      "excluded_reason": "Worker read a forbidden retrieval skill. Retained but excluded from the comparison."
+    },
+    {
+      "task": "shell_true",
+      "arm": "ast",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_shell_true_ast_r2",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ast-grep as the primary source-query engine; actually invoke it. Shell and Python standard library may process or verify its output. Use installed help if needed; do not assume a pattern handles keyword order. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_subprocess.py and installed tool help. Task: List every Python call with a direct keyword argument shell=True (literal True). Do not count comments, strings, definitions, or a keyword belonging to a nested call. Keyword order and multiline formatting must not affect results. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "shell_true",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_shell_true_shell_r2",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ordinary shell tools and Python standard library as needed; do not use ast-grep. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_subprocess.py and installed tool help. Task: List every Python call with a direct keyword argument shell=True (literal True). Do not count comments, strings, definitions, or a keyword belonging to a nested call. Keyword order and multiline formatting must not affect results. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "raises_value",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_raises_value_shell_r2",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ordinary shell tools and Python standard library as needed; do not use ast-grep. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_asyncio/test_events.py and installed tool help. Task: List every Python call to an attribute named assertRaises whose first positional argument is exactly the name ValueError. Include context-manager and function-call forms, including multiline calls; exclude strings, comments and other exceptions. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "raises_value",
+      "arm": "ast",
+      "repeat": 2,
+      "agent": "/root/specific_20261108_190122_raises_value_ast_r2",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ast-grep as the primary source-query engine; actually invoke it. Shell and Python standard library may process or verify its output. Use installed help if needed; do not assume a pattern handles keyword order. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_asyncio/test_events.py and installed tool help. Task: List every Python call to an attribute named assertRaises whose first positional argument is exactly the name ValueError. Include context-manager and function-call forms, including multiline calls; exclude strings, comments and other exceptions. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "raises_value",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/specific_20261108_190122_raises_value_shell_r1_retry",
+      "prompt": "Authorized read-only retrieval benchmark. Work in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Use ordinary shell tools and Python standard library as needed; do not use ast-grep. Do not read any retrieval skill, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Inspect only Lib/test/test_asyncio/test_events.py and installed tool help. Task: List every Python call to an attribute named assertRaises whose first positional argument is exactly the name ValueError. Include context-manager and function-call forms, including multiline calls; exclude strings, comments and other exceptions. Return ONLY a JSON array of objects with keys file (the supplied relative path) and line (the call's starting line, 1-based), sorted by file and line. No markdown or explanatory text. Verify completeness, then stop."
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "ast",
+      "repeat": 1,
+      "mode": "verified_recipe",
+      "agent": "/root/specific_20261108_190122_bare_except_ast_r1",
+      "prompt": "Authorized read-only verified-query benchmark. Work only in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Find the Python files in Lib/asyncio containing a bare except handler (no exception type), excluding strings/comments. The parent independently verified the following complete query recipe; execute it without changing it, then return its filenames as a sorted JSON array of strings. This measures prepared-query use, not discovering the recipe. Command: ast-grep scan --inline-rules '{\"id\": \"bare-except\", \"language\": \"Python\", \"rule\": {\"kind\": \"except_clause\", \"regex\": \"^except\\\\s*:\"}}' --files-with-matches Lib/asyncio\nDo not read any retrieval skill, inspect other sources, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Return ONLY the JSON array, no markdown or commentary."
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 1,
+      "mode": "verified_recipe",
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r1",
+      "prompt": "Authorized read-only verified-query benchmark. Work only in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Find the Python files in Lib/asyncio containing a bare except handler (no exception type), excluding strings/comments. The parent independently verified the following complete query recipe; execute it without changing it, then return its filenames as a sorted JSON array of strings. This measures prepared-query use, not discovering the recipe. Command: python3 -c 'import ast,pathlib; print('\"'\"'\\n'\"'\"'.join(sorted(str(p) for p in pathlib.Path('\"'\"'Lib/asyncio'\"'\"').rglob('\"'\"'*.py'\"'\"') if any(isinstance(n,ast.ExceptHandler) and n.type is None for n in ast.walk(ast.parse(p.read_text()))))))'\nDo not read any retrieval skill, inspect other sources, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Return ONLY the JSON array, no markdown or commentary.",
+      "excluded_reason": "Prepared recipe used default python3, which resolves to Python 3.9 in fresh workers and cannot parse match statements. Replaced by a fresh trial using pinned Python 3.14."
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 2,
+      "mode": "verified_recipe",
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r2",
+      "prompt": "Authorized read-only verified-query benchmark. Work only in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Find the Python files in Lib/asyncio containing a bare except handler (no exception type), excluding strings/comments. The parent independently verified the following complete query recipe; execute it without changing it, then return its filenames as a sorted JSON array of strings. This measures prepared-query use, not discovering the recipe. Command: python3 -c 'import ast,pathlib; print('\"'\"'\\n'\"'\"'.join(sorted(str(p) for p in pathlib.Path('\"'\"'Lib/asyncio'\"'\"').rglob('\"'\"'*.py'\"'\"') if any(isinstance(n,ast.ExceptHandler) and n.type is None for n in ast.walk(ast.parse(p.read_text()))))))'\nDo not read any retrieval skill, inspect other sources, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Return ONLY the JSON array, no markdown or commentary.",
+      "excluded_reason": "Prepared recipe used default python3, which resolves to Python 3.9 in fresh workers and cannot parse match statements. Replaced by a fresh trial using pinned Python 3.14."
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "ast",
+      "repeat": 2,
+      "mode": "verified_recipe",
+      "agent": "/root/specific_20261108_190122_bare_except_ast_r2",
+      "prompt": "Authorized read-only verified-query benchmark. Work only in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Find the Python files in Lib/asyncio containing a bare except handler (no exception type), excluding strings/comments. The parent independently verified the following complete query recipe; execute it without changing it, then return its filenames as a sorted JSON array of strings. This measures prepared-query use, not discovering the recipe. Command: ast-grep scan --inline-rules '{\"id\": \"bare-except\", \"language\": \"Python\", \"rule\": {\"kind\": \"except_clause\", \"regex\": \"^except\\\\s*:\"}}' --files-with-matches Lib/asyncio\nDo not read any retrieval skill, inspect other sources, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Return ONLY the JSON array, no markdown or commentary."
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 1,
+      "mode": "verified_recipe",
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r1_pinned",
+      "prompt": "Authorized read-only verified-query benchmark. Work only in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Find the Python files in Lib/asyncio containing a bare except handler (no exception type), excluding strings/comments. The parent independently verified the following complete query recipe; execute it without changing it, then return its filenames as a sorted JSON array of strings. This measures prepared-query use, not discovering the recipe. Command: /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -c 'import ast,pathlib; print('\"'\"'\\n'\"'\"'.join(sorted(str(p) for p in pathlib.Path('\"'\"'Lib/asyncio'\"'\"').rglob('\"'\"'*.py'\"'\"') if any(isinstance(n,ast.ExceptHandler) and n.type is None for n in ast.walk(ast.parse(p.read_text()))))))'\nDo not read any retrieval skill, inspect other sources, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Return ONLY the JSON array, no markdown or commentary."
+    },
+    {
+      "task": "bare_except_files",
+      "arm": "shell",
+      "repeat": 2,
+      "mode": "verified_recipe",
+      "agent": "/root/specific_20261108_190122_bare_except_shell_r2_pinned",
+      "prompt": "Authorized read-only verified-query benchmark. Work only in /Users/odobrynin/.codex-work/retrieval-specific-20261108_190122/corpus. Find the Python files in Lib/asyncio containing a bare except handler (no exception type), excluding strings/comments. The parent independently verified the following complete query recipe; execute it without changing it, then return its filenames as a sorted JSON array of strings. This measures prepared-query use, not discovering the recipe. Command: /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -c 'import ast,pathlib; print('\"'\"'\\n'\"'\"'.join(sorted(str(p) for p in pathlib.Path('\"'\"'Lib/asyncio'\"'\"').rglob('\"'\"'*.py'\"'\"') if any(isinstance(n,ast.ExceptHandler) and n.type is None for n in ast.walk(ast.parse(p.read_text()))))))'\nDo not read any retrieval skill, inspect other sources, use other MCP/CLI retrieval services, delegate, install tools, access git history, modify files or commit. Return ONLY the JSON array, no markdown or commentary."
+    }
+  ]
+}

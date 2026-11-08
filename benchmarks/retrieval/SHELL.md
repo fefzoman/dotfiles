@@ -1,5 +1,9 @@
 # Shell-first retrieval dispatcher: measured comparison
 
+The [tool-specific follow-up](SPECIFIC.md) supersedes the deployment decision
+below: ag/ack were removed; ast-grep remains only for verified structural file
+discovery. This report preserves the earlier candidate and its negative result.
+
 The candidate dispatcher did **not** improve model efficiency on these repairs.
 It consumed **9.9% more tokens** and **7.6% more summed task time** than the
 pre-change dispatcher. Plain shell remained lowest in the aggregate. All 18
