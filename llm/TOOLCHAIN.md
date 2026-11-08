@@ -43,16 +43,16 @@ Solid arrows show the working loop; dotted arrows show guidance and session supp
 
 ### Compact Codex base instructions
 
-Codex's base prompt consumes context before the task starts. `manual/codex-model-instructions.md` reduces the inspected Codex CLI 0.167.0 session's base prompt from 3,320 to 244 words (92.7% fewer words, not a measured token or cost saving). It keeps task completion, authorization, safe changes, verification and honest reporting. Detailed writing rules and repeated workflow explanations were removed.
+Codex's base prompt consumes context before the task starts. `llm/codex-model-instructions.md` reduces the inspected Codex CLI 0.167.0 session's base prompt from 3,320 to 244 words (92.7% fewer words, not a measured token or cost saving). It keeps task completion, authorization, safe changes, verification and honest reporting. Detailed writing rules and repeated workflow explanations were removed.
 
-`install_global_agents` copies this file to `model-instructions.md` in both `~/.codex` and `~/.codex-work`, then sets the absolute `model_instructions_file` path at the top level of each `config.toml`. Reinstalling restores the override. Claude has no persistent setting for this. `install_global_agents` copies `manual/claude-system-prompt.md` to `system-prompt.md` in both Claude homes, and the sourced `claude` shell function passes it with `--system-prompt-file` (skipped when a `--system-prompt*` flag is given). This covers `claude` and `claude-work` in the terminal; the VS Code extension keeps the default prompt. The replacement drops the default memory-system instructions, and its quality has not been benchmarked. `AGENTS.md`, plugin instructions, permission context and tool definitions remain separate.
+`install_global_agents` copies this file to `model-instructions.md` in both `~/.codex` and `~/.codex-work`, then sets the absolute `model_instructions_file` path at the top level of each `config.toml`. Reinstalling restores the override. Claude has no persistent setting for this. `install_global_agents` copies `llm/claude-system-prompt.md` to `system-prompt.md` in both Claude homes, and the sourced `claude` shell function passes it with `--system-prompt-file` (skipped when a `--system-prompt*` flag is given). This covers `claude` and `claude-work` in the terminal; the VS Code extension keeps the default prompt. The replacement drops the default memory-system instructions, and its quality has not been benchmarked. `AGENTS.md`, plugin instructions, permission context and tool definitions remain separate.
 
 To apply only this change, run from the repository root before starting a new session:
 
 ```bash
 for profile in "$HOME/.codex" "$HOME/.codex-work"; do
   mkdir -p "$profile"
-  install -m 0644 manual/codex-model-instructions.md "$profile/model-instructions.md"
+  install -m 0644 llm/codex-model-instructions.md "$profile/model-instructions.md"
   python3 llm/agent_config.py codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
   python3 llm/agent_config.py codex-permissions "$profile/config.toml"
 done
@@ -282,8 +282,8 @@ Each piece has exactly one owner:
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
-| Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `manual/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
-| Claude base prompt | `llm/ai-install.sh` `install_global_agents`, `claude()` | `manual/claude-system-prompt.md` → `system-prompt.md` in both Claude homes; passed with `--system-prompt-file` |
+| Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `llm/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
+| Claude base prompt | `llm/ai-install.sh` `install_global_agents`, `claude()` | `llm/claude-system-prompt.md` → `system-prompt.md` in both Claude homes; passed with `--system-prompt-file` |
 | Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `code-retrieval` into all four profiles; global policies automatically apply `code-retrieval` |
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |

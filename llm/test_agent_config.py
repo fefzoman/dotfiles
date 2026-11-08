@@ -194,7 +194,7 @@ class AgentInstallationTests(unittest.TestCase):
                 self.assertIn("Automatically apply `code-retrieval`", (home / profile / filename).read_text())
                 if agent == "codex":
                     self.assertTrue(agent_config.codex_model_instructions_valid(
-                        str(home / profile / "config.toml"), str(SCRIPT_DIR.parent / "manual/codex-model-instructions.md")))
+                        str(home / profile / "config.toml"), str(SCRIPT_DIR / "codex-model-instructions.md")))
                     self.assertEqual(agent_config.load_toml(str(home / profile / "config.toml"))["model_instructions_file"],
                                      str((home / profile / "model-instructions.md").resolve()))
                 for skill in ("natural-article", "code-retrieval"):

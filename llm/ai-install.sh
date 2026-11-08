@@ -262,13 +262,13 @@ install_global_agents() {
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
     install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
-    install -m 0644 "$SCRIPT_DIR/../manual/codex-model-instructions.md" "$profile/model-instructions.md"
+    install -m 0644 "$SCRIPT_DIR/codex-model-instructions.md" "$profile/model-instructions.md"
     agent_config codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
-    install -m 0644 "$SCRIPT_DIR/../manual/claude-system-prompt.md" "$profile/system-prompt.md"
+    install -m 0644 "$SCRIPT_DIR/claude-system-prompt.md" "$profile/system-prompt.md"
   done
   for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
     for skill in natural-article code-retrieval; do

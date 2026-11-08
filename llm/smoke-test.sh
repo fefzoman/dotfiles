@@ -125,7 +125,7 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     "Codex policy or RTK import is invalid in $profile" \
     agent_config policy-matches "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
   check "Codex compact base instructions are installed in $profile" "Codex compact base instructions are stale in $profile" \
-    agent_config codex-model-instructions-valid "$profile/config.toml" "$SCRIPT_DIR/../manual/codex-model-instructions.md"
+    agent_config codex-model-instructions-valid "$profile/config.toml" "$SCRIPT_DIR/codex-model-instructions.md"
   check "Codex keeps the skills catalog and Superpowers opt-in with Ponytail on in $profile" "Codex context defaults are stale in $profile" \
     agent_config context-efficient codex "$profile"
   check "Codex reaches OpenAI directly in $profile" "Codex still routes through Headroom in $profile" \
@@ -136,7 +136,7 @@ done
 
 for profile in "$HOME/.claude" "$HOME/.claude-work"; do
   check "Claude compact system prompt is installed in $profile" "Claude compact system prompt is stale in $profile" \
-    cmp -s "$SCRIPT_DIR/../manual/claude-system-prompt.md" "$profile/system-prompt.md"
+    cmp -s "$SCRIPT_DIR/claude-system-prompt.md" "$profile/system-prompt.md"
   check "Claude hook entries are unique in $profile" "Duplicate Claude hooks in $profile" \
     agent_config hooks-unique "$profile/settings.json"
   if agent_config statusline-enabled "$profile/settings.json"; then
