@@ -41,6 +41,27 @@ flowchart TB
 
 Solid arrows show the working loop; dotted arrows show guidance and session support. Tools are chosen as needed. `ai-install.sh` wires the stack into personal and work profiles; `smoke-test.sh` checks the setup.
 
+### Compact Codex base instructions
+
+Codex's base prompt consumes context before the task starts. `manual/codex-model-instructions.md` reduces the inspected Codex CLI 0.167.0 session's base prompt from 3,320 to 244 words (92.7% fewer words, not a measured token or cost saving). It keeps task completion, authorization, safe changes, verification and honest reporting. Detailed writing rules and repeated workflow explanations were removed.
+
+`install_global_agents` copies this file to `model-instructions.md` in both `~/.codex` and `~/.codex-work`, then sets the absolute `model_instructions_file` path at the top level of each `config.toml`. Reinstalling restores the override. This is a Codex-specific setting; Claude's base instructions are unchanged. `AGENTS.md`, plugin instructions, permission context and tool definitions remain separate.
+
+To apply only this change, run from the repository root before starting a new session:
+
+```bash
+for profile in "$HOME/.codex" "$HOME/.codex-work"; do
+  mkdir -p "$profile"
+  install -m 0644 manual/codex-model-instructions.md "$profile/model-instructions.md"
+  python3 llm/agent_config.py codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
+  python3 llm/agent_config.py codex-permissions "$profile/config.toml"
+done
+```
+
+The smoke test checks that each configured file matches the repository copy. For a new session, inspect the rollout's `session_meta` event and its `payload.base_instructions.text` to confirm the resolved prompt. Existing sessions can retain their saved base instructions. To restore Codex's default for future sessions, remove the top-level `model_instructions_file` setting; the next installer run will set it again.
+
+Prompt quality after compaction has not been benchmarked. OpenAI [discourages overriding the model instructions](https://github.com/openai/codex/blob/rust-v0.167.0/codex-rs/config/src/config_toml.rs#L251-L255) because performance may degrade. The custom prompt also needs manual review as Codex evolves.
+
 ## 3. Ponytail
 
 Implementation-policy plugin: stop at the earliest rung that works — (1) needed at all? (2) already in the codebase? (3) stdlib? (4) native platform? (5) installed dependency? (6) one line? (7) minimum new code. Minimalism comes **after understanding the real flow**; trust-boundary validation, data-loss prevention, security, accessibility and explicit requirements are never cut.
@@ -261,6 +282,7 @@ Each piece has exactly one owner:
 |---|---|---|
 | Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
+| Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `manual/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
 | Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article` and `code-retrieval` into all four profiles; global policies automatically apply `code-retrieval` |
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
@@ -292,7 +314,9 @@ Both agent templates keep retrieval and correctness requirements while making ge
 
 ### Startup context
 
-The installer sets both Codex profiles to `sandbox_mode = "workspace-write"`, `approval_policy = "never"`, and `sandbox_workspace_write.network_access = true`. Both Claude profiles use `dontAsk`, allow file edits within working directories, and require sandboxed Bash execution with no unsandboxed exceptions. Claude's workspace write block requires version 2.1.314 or later. Its existing network domain lists are preserved because the sandbox rejects an unrestricted `"*"` domain pattern.
+The installer selects `default_permissions = "dotfiles"` and `approval_policy = "never"` in both Codex profiles. This Codex CLI 0.167.0 permission profile extends `:workspace`, enables network access, and explicitly permits writes to each workspace's `.git`, `~/.codex`, `~/.codex-work`, and `~/.config/dotfiles`. Git commits and persistent agent configuration edits therefore fit within the default sandbox. Other paths retain workspace restrictions. Existing extra writable roots and temporary-directory exclusions carry into the profile; legacy workspace settings remain for compatibility. Installer reruns restore these managed defaults. Apply the command block under **Compact Codex base instructions**, then start a new session; a running session cannot change its own enforced sandbox.
+
+Both Claude profiles use `dontAsk`, allow file edits within working directories, and require sandboxed Bash execution with no unsandboxed exceptions. Claude's workspace write block requires version 2.1.314 or later. Its existing network domain lists are preserved because the sandbox rejects an unrestricted `"*"` domain pattern.
 
 `agent_config.py context-efficiency` disables the automatic Codex skills catalog (`skills.include_instructions = false`), retains `skills.max_context_tokens = 2000` for explicit opt-in, and keeps Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` at 8,000 characters. The managed Superpowers variants are disabled and Ponytail is enabled in both clients; enable Superpowers before a new session when requested. Skills and deferred MCP tools stay installed; use an explicit skill path or skill discovery when needed. DLM remains scoped to work profiles. See [the Codex ablation](../benchmarks/codex_toolchain/ABLATION.md); Claude catalog removal was not measured. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
 

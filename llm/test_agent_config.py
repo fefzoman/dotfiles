@@ -192,6 +192,11 @@ class AgentInstallationTests(unittest.TestCase):
                     (SCRIPT_DIR / agent / "__AGENTS.md").read_text(),
                 )
                 self.assertIn("Automatically apply `code-retrieval`", (home / profile / filename).read_text())
+                if agent == "codex":
+                    self.assertTrue(agent_config.codex_model_instructions_valid(
+                        str(home / profile / "config.toml"), str(SCRIPT_DIR.parent / "manual/codex-model-instructions.md")))
+                    self.assertEqual(agent_config.load_toml(str(home / profile / "config.toml"))["model_instructions_file"],
+                                     str((home / profile / "model-instructions.md").resolve()))
                 for skill in ("natural-article", "code-retrieval"):
                     self.assertEqual(
                         (home / profile / f"skills/{skill}/SKILL.md").read_text(),
@@ -362,7 +367,7 @@ fi
     def test_permission_defaults_preserve_unrelated_settings_and_are_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             config, settings = Path(directory) / "config.toml", Path(directory) / "settings.json"
-            config.write_text('sandbox_mode = "read-only"\napproval_policy = "on-request"\n'
+            config.write_text('sandbox_mode = "read-only"\napproval_policy = "on-request"\ndefault_permissions = "old"\n'
                               '[sandbox_workspace_write]\nnetwork_access = false\nwritable_roots = ["/tmp"]\n'
                               '[profiles.custom]\napproval_policy = "on-request"\n')
             settings.write_text(json.dumps({"model": "custom", "permissions": {"deny": ["Read(.env)"]},
@@ -373,8 +378,11 @@ fi
                 agent_config.claude_permissions(str(settings))
                 codex = tomllib.loads(config.read_text())
                 claude = json.loads(settings.read_text())
-                self.assertEqual(codex, {"sandbox_mode": "workspace-write", "approval_policy": "never",
+                self.assertEqual(codex, {"sandbox_mode": "workspace-write", "approval_policy": "never", "default_permissions": "dotfiles",
                                         "sandbox_workspace_write": {"network_access": True, "writable_roots": ["/tmp"]},
+                                        "permissions": {"dotfiles": {"extends": ":workspace", "network": {"enabled": True},
+                                            "filesystem": {"~/.codex": "write", "~/.codex-work": "write", "~/.config/dotfiles": "write",
+                                                           "/tmp": "write", ":workspace_roots": {".git": "write"}}}},
                                         "profiles": {"custom": {"approval_policy": "on-request"}}})
                 self.assertEqual(claude["permissions"], {"defaultMode": "dontAsk", "blockWritesOutsideWorkingDirectories": True,
                                                        "allow": ["Edit", "Write", "NotebookEdit"], "deny": ["Read(.env)"]})
@@ -388,7 +396,11 @@ fi
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.toml"
             agent_config.codex_permissions(str(config))
-            self.assertEqual(tomllib.loads(config.read_text()), {"sandbox_mode": "workspace-write", "approval_policy": "never",
+            data = tomllib.loads(config.read_text())
+            profile = data.pop("permissions")["dotfiles"]
+            self.assertEqual(profile["extends"], ":workspace")
+            self.assertEqual(profile["filesystem"][":workspace_roots"], {".git": "write"})
+            self.assertEqual(data, {"sandbox_mode": "workspace-write", "approval_policy": "never", "default_permissions": "dotfiles",
                                                                "sandbox_workspace_write": {"network_access": True}})
             config.write_text('[sandbox_workspace_write]')
             agent_config.codex_permissions(str(config))
@@ -398,6 +410,46 @@ fi
             with self.assertRaises((SystemExit, tomllib.TOMLDecodeError)):
                 agent_config.codex_permissions(str(config))
             self.assertEqual(config.read_text(), original)
+
+    def test_codex_permissions_preserve_temp_exclusions_and_other_permission_profiles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.toml"
+            config.write_text('[sandbox_workspace_write]\nexclude_tmpdir_env_var = true\nexclude_slash_tmp = true\n'
+                              '[permissions.custom]\nextends = ":read-only"\n')
+            agent_config.codex_permissions(str(config))
+            first = config.read_text()
+            agent_config.codex_permissions(str(config))
+            self.assertEqual(config.read_text(), first)
+            profiles = tomllib.loads(first)["permissions"]
+            self.assertEqual(profiles["custom"], {"extends": ":read-only"})
+            self.assertEqual(profiles["dotfiles"]["filesystem"][":tmpdir"], "read")
+            self.assertEqual(profiles["dotfiles"]["filesystem"][":slash_tmp"], "read")
+
+    def test_codex_model_instructions_preserve_settings_and_are_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config, prompt = Path(tmp) / "config.toml", Path(tmp) / "prompt.md"
+            prompt.write_text("Complete the task safely.\n")
+            source = Path(tmp) / "source.md"
+            source.write_bytes(prompt.read_bytes())
+            for original in ("", 'model = "custom"\nmodel_instructions_file = "/old"\n'
+                             '[profiles.custom]\nmodel_instructions_file = "/keep"\n'):
+                config.write_text(original)
+                expected = tomllib.loads(original) | {"model_instructions_file": str(prompt.resolve())}
+                agent_config.codex_model_instructions(str(config), str(prompt))
+                first = config.read_text()
+                self.assertEqual(tomllib.loads(first), expected)
+                agent_config.codex_model_instructions(str(config), str(prompt))
+                self.assertEqual(config.read_text(), first)
+                self.assertTrue(agent_config.codex_model_instructions_valid(str(config), str(source)))
+            prompt.write_text("")
+            self.assertFalse(agent_config.codex_model_instructions_valid(str(config), str(source)))
+            with self.assertRaises(SystemExit):
+                agent_config.codex_model_instructions(str(config), str(prompt))
+            self.assertEqual(config.read_text(), first)
+            prompt.unlink()
+            with self.assertRaises(FileNotFoundError):
+                agent_config.codex_model_instructions(str(config), str(prompt))
+            self.assertEqual(config.read_text(), first)
 
     def test_effort_defaults_replace_only_the_top_level_codex_key(self):
         with tempfile.TemporaryDirectory() as tmp:

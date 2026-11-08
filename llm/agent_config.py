@@ -28,6 +28,8 @@ WORK_PLUGINS = ("dlm@dlm-user",)
 PONYTAIL = "ponytail@ponytail"
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
 SHELL_END = "# END AI TOOLING SHELL ENVIRONMENT"
+PERMISSIONS_BEGIN = "# BEGIN AI TOOLING CODEX PERMISSIONS"
+PERMISSIONS_END = "# END AI TOOLING CODEX PERMISSIONS"
 
 
 def load(path: str) -> dict:
@@ -153,7 +155,7 @@ def codex_permissions(config: str) -> None:
     if text and not text.endswith("\n"):
         text += "\n"
     expected = tomllib.loads(text)
-    defaults = {"sandbox_mode": "workspace-write", "approval_policy": "never"}
+    defaults = {"sandbox_mode": "workspace-write", "approval_policy": "never", "default_permissions": "dotfiles"}
     expected.update(defaults)
     expected.setdefault("sandbox_workspace_write", {})["network_access"] = True
     first_table = re.search(r"(?m)^[ \t]*\[", text)
@@ -172,6 +174,22 @@ def codex_permissions(config: str) -> None:
         text = text[:table.end()] + (body if found else "network_access = true\n" + body) + text[stop:]
     else:
         text = text.rstrip() + "\n\n[sandbox_workspace_write]\nnetwork_access = true\n"
+    filesystem = dict.fromkeys(("~/.codex", "~/.codex-work", "~/.config/dotfiles"), "write")
+    workspace = expected["sandbox_workspace_write"]
+    filesystem.update(dict.fromkeys(workspace.get("writable_roots", []), "write"))
+    for key, special in (("exclude_tmpdir_env_var", ":tmpdir"), ("exclude_slash_tmp", ":slash_tmp")):
+        if workspace.get(key):
+            filesystem[special] = "read"
+    filesystem[":workspace_roots"] = {".git": "write"}
+    profile = {"extends": ":workspace", "filesystem": filesystem, "network": {"enabled": True}}
+    expected.setdefault("permissions", {})["dotfiles"] = profile
+    block = '[permissions.dotfiles]\nextends = ":workspace"\n\n[permissions.dotfiles.filesystem]\n'
+    block += "".join(f"{json.dumps(key)} = {json.dumps(value)}\n"
+                     for key, value in filesystem.items() if key != ":workspace_roots")
+    block += '\n[permissions.dotfiles.filesystem.\":workspace_roots\"]\n\".git\" = \"write\"\n'
+    block += '\n[permissions.dotfiles.network]\nenabled = true\n'
+    text = re.sub(rf"(?ms)^{re.escape(PERMISSIONS_BEGIN)}\n.*?^{re.escape(PERMISSIONS_END)}\n?", "", text)
+    text = text.rstrip() + f"\n\n{PERMISSIONS_BEGIN}\n{block}{PERMISSIONS_END}\n"
     if tomllib.loads(text) != expected:
         raise SystemExit(f"{config}: set sandbox defaults manually; unsupported TOML layout")
     path.write_text(text)
@@ -201,6 +219,30 @@ def codex_effort(config: str) -> None:
     if tomllib.loads(text).get("model_reasoning_effort") != EFFORT:
         raise SystemExit(f"{config}: set {line} at the top level")
     path.write_text(text, encoding="utf-8")
+
+
+def codex_model_instructions(config: str, instructions: str) -> None:
+    instructions = Path(instructions).resolve(strict=True)
+    if not instructions.read_text(encoding="utf-8").strip():
+        raise SystemExit(f"{instructions}: model instructions must not be empty")
+    path = Path(config)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    expected = tomllib.loads(text)
+    expected["model_instructions_file"] = str(instructions)
+    first_table = re.search(r"(?m)^[ \t]*\[", text)
+    top, tables = (text[:first_table.start()], text[first_table.start():]) if first_table else (text, "")
+    line = f"model_instructions_file = {json.dumps(str(instructions))}\n"
+    top, found = re.subn(r"(?m)^[ \t]*model_instructions_file[ \t]*=[^\n]*\n?", lambda _: line, top)
+    text = (top if found else line + top) + tables
+    if tomllib.loads(text) != expected:
+        raise SystemExit(f"{config}: set model_instructions_file manually; unsupported TOML layout")
+    path.write_text(text, encoding="utf-8")
+
+
+def codex_model_instructions_valid(config: str, source: str) -> bool:
+    installed = load_toml(config).get("model_instructions_file")
+    return bool(installed and Path(installed).is_file()
+                and Path(installed).read_bytes() == Path(source).read_bytes())
 
 
 def statusline(settings: str) -> None:
@@ -476,7 +518,7 @@ def plugins_scoped(agent: str, profile: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, codex_statusline, codex_effort, codex_permissions, claude_permissions, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
+        codex_shell_path, codex_hooks, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
         connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,

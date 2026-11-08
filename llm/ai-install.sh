@@ -251,6 +251,8 @@ install_global_agents() {
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
     install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
+    install -m 0644 "$SCRIPT_DIR/../manual/codex-model-instructions.md" "$profile/model-instructions.md"
+    agent_config codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"

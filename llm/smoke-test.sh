@@ -124,6 +124,8 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
     agent_config policy-matches "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md" "$profile/RTK.md"
+  check "Codex compact base instructions are installed in $profile" "Codex compact base instructions are stale in $profile" \
+    agent_config codex-model-instructions-valid "$profile/config.toml" "$SCRIPT_DIR/../manual/codex-model-instructions.md"
   check "Codex keeps the skills catalog and Superpowers opt-in with Ponytail on in $profile" "Codex context defaults are stale in $profile" \
     agent_config context-efficient codex "$profile"
   check "Codex reaches OpenAI directly in $profile" "Codex still routes through Headroom in $profile" \
