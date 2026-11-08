@@ -38,6 +38,17 @@ code() {
   env -u CLAUDE_CONFIG_DIR CODEX_HOME="$HOME/.codex" code "$@"
 }
 
+# Claude has no persistent setting for this; the VS Code extension keeps the default prompt.
+claude() {
+  local prompt="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/system-prompt.md" arg
+  for arg; do [[ "$arg" == --system-prompt* ]] && prompt=""; done
+  if [[ -n "$prompt" && -f "$prompt" ]]; then
+    command claude --system-prompt-file "$prompt" "$@"
+  else
+    command claude "$@"
+  fi
+}
+
 alias claude-work='CLAUDE_CONFIG_DIR="$HOME/.claude-work" claude'
 alias codex-work='CODEX_HOME="$HOME/.codex-work" codex'
 
@@ -257,6 +268,7 @@ install_global_agents() {
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
+    install -m 0644 "$SCRIPT_DIR/../manual/claude-system-prompt.md" "$profile/system-prompt.md"
   done
   for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
     for skill in natural-article code-retrieval; do

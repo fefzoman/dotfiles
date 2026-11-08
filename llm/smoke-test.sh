@@ -111,7 +111,7 @@ check "Platform plugins are scoped out of personal Claude" "Platform plugins are
 check "Sourcing AI configuration loads functions without running the installer" \
   "AI configuration source-only mode is broken" \
   bash --noprofile --norc -c \
-  'codex() { return 1; }; source "$1"; ! declare -F codex >/dev/null || exit 1; declare -F code >/dev/null; declare -F __codex_answer >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
+  'codex() { return 1; }; source "$1"; ! declare -F codex >/dev/null || exit 1; declare -F code >/dev/null; declare -F __codex_answer >/dev/null; alias "??" >/dev/null; alias codex-work >/dev/null; declare -F claude >/dev/null; alias claude-work >/dev/null; ! declare -F install_ai_tools >/dev/null' \
   _ "$HOME/.config/dotfiles/ai-install.sh"
 
 rtk_dir="$(dirname "$(command -v rtk)")"
@@ -135,6 +135,8 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
 done
 
 for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+  check "Claude compact system prompt is installed in $profile" "Claude compact system prompt is stale in $profile" \
+    cmp -s "$SCRIPT_DIR/../manual/claude-system-prompt.md" "$profile/system-prompt.md"
   check "Claude hook entries are unique in $profile" "Duplicate Claude hooks in $profile" \
     agent_config hooks-unique "$profile/settings.json"
   if agent_config statusline-enabled "$profile/settings.json"; then
