@@ -1,5 +1,9 @@
 # Code retrieval benchmark: skill, Serena, and Context7
 
+For the follow-up on full CPython checkouts, with **Serena and Context7 without
+the retrieval skill**, see [the large-repository benchmark](LARGE.md). Its arms
+and workloads differ; the two experiments are reported separately.
+
 On 2026-11-08, twelve native-agent code-fix trials completed: four distinct tasks,
 three retrieval strategies, and up to three workers in parallel. All twelve fixes
 passed the same parent-run Python 3.14.7 checks, with no changes to their tests.
