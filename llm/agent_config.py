@@ -147,6 +147,49 @@ def effort(settings: str) -> None:
     save(settings, data)
 
 
+def codex_permissions(config: str) -> None:
+    path = Path(config)
+    text = path.read_text() if path.exists() else ""
+    if text and not text.endswith("\n"):
+        text += "\n"
+    expected = tomllib.loads(text)
+    defaults = {"sandbox_mode": "workspace-write", "approval_policy": "never"}
+    expected.update(defaults)
+    expected.setdefault("sandbox_workspace_write", {})["network_access"] = True
+    first_table = re.search(r"(?m)^[ \t]*\[", text)
+    top, tables = (text[:first_table.start()], text[first_table.start():]) if first_table else (text, "")
+    for key, value in defaults.items():
+        line = f"{key} = {json.dumps(value)}\n"
+        top, found = re.subn(rf"(?m)^[ \t]*{key}[ \t]*=[^\n]*\n?", line, top)
+        if not found:
+            top = line + top
+    text = top + tables
+    table = re.search(r"(?m)^\[sandbox_workspace_write\][ \t]*(?:#.*)?\n", text)
+    if table:
+        end = re.search(r"(?m)^[ \t]*\[", text[table.end():])
+        stop = table.end() + end.start() if end else len(text)
+        body, found = re.subn(r"(?m)^[ \t]*network_access[ \t]*=[^\n]*\n?", "network_access = true\n", text[table.end():stop])
+        text = text[:table.end()] + (body if found else "network_access = true\n" + body) + text[stop:]
+    else:
+        text = text.rstrip() + "\n\n[sandbox_workspace_write]\nnetwork_access = true\n"
+    if tomllib.loads(text) != expected:
+        raise SystemExit(f"{config}: set sandbox defaults manually; unsupported TOML layout")
+    path.write_text(text)
+
+
+def claude_permissions(settings: str) -> None:
+    data = load(settings)
+    permissions = data.setdefault("permissions", {})
+    permissions.update(defaultMode="dontAsk", blockWritesOutsideWorkingDirectories=True)
+    allow = permissions.setdefault("allow", [])
+    allow += [tool for tool in ("Edit", "Write", "NotebookEdit") if tool not in allow]
+    sandbox = data.setdefault("sandbox", {})
+    sandbox.update(enabled=True, failIfUnavailable=True, autoAllowBashIfSandboxed=True,
+                   allowUnsandboxedCommands=False, excludedCommands=[])
+    sandbox.setdefault("filesystem", {})["disabled"] = False
+    save(settings, data)
+
+
 def codex_effort(config: str) -> None:
     path = Path(config)
     text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -433,7 +476,7 @@ def plugins_scoped(agent: str, profile: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, codex_statusline, codex_effort, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
+        codex_shell_path, codex_hooks, codex_statusline, codex_effort, codex_permissions, claude_permissions, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
         connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,

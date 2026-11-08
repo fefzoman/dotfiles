@@ -359,6 +359,46 @@ fi
                 agent_config.codex_shell_path(str(config), "/new")
             self.assertEqual(config.read_text(), original)
 
+    def test_permission_defaults_preserve_unrelated_settings_and_are_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config, settings = Path(directory) / "config.toml", Path(directory) / "settings.json"
+            config.write_text('sandbox_mode = "read-only"\napproval_policy = "on-request"\n'
+                              '[sandbox_workspace_write]\nnetwork_access = false\nwritable_roots = ["/tmp"]\n'
+                              '[profiles.custom]\napproval_policy = "on-request"\n')
+            settings.write_text(json.dumps({"model": "custom", "permissions": {"deny": ["Read(.env)"]},
+                                           "sandbox": {"excludedCommands": ["docker *"],
+                                                       "network": {"deniedDomains": ["blocked.example"]}}}))
+            for _ in range(2):
+                agent_config.codex_permissions(str(config))
+                agent_config.claude_permissions(str(settings))
+                codex = tomllib.loads(config.read_text())
+                claude = json.loads(settings.read_text())
+                self.assertEqual(codex, {"sandbox_mode": "workspace-write", "approval_policy": "never",
+                                        "sandbox_workspace_write": {"network_access": True, "writable_roots": ["/tmp"]},
+                                        "profiles": {"custom": {"approval_policy": "on-request"}}})
+                self.assertEqual(claude["permissions"], {"defaultMode": "dontAsk", "blockWritesOutsideWorkingDirectories": True,
+                                                       "allow": ["Edit", "Write", "NotebookEdit"], "deny": ["Read(.env)"]})
+                self.assertEqual(claude["sandbox"], {"enabled": True, "failIfUnavailable": True,
+                                                   "autoAllowBashIfSandboxed": True, "allowUnsandboxedCommands": False,
+                                                   "excludedCommands": [], "filesystem": {"disabled": False},
+                                                   "network": {"deniedDomains": ["blocked.example"]}})
+                self.assertEqual(claude["model"], "custom")
+
+    def test_codex_permissions_create_defaults_and_reject_unsupported_layout_without_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config.toml"
+            agent_config.codex_permissions(str(config))
+            self.assertEqual(tomllib.loads(config.read_text()), {"sandbox_mode": "workspace-write", "approval_policy": "never",
+                                                               "sandbox_workspace_write": {"network_access": True}})
+            config.write_text('[sandbox_workspace_write]')
+            agent_config.codex_permissions(str(config))
+            self.assertTrue(tomllib.loads(config.read_text())["sandbox_workspace_write"]["network_access"])
+            original = 'sandbox_workspace_write = { network_access = false }\n'
+            config.write_text(original)
+            with self.assertRaises((SystemExit, tomllib.TOMLDecodeError)):
+                agent_config.codex_permissions(str(config))
+            self.assertEqual(config.read_text(), original)
+
     def test_effort_defaults_replace_only_the_top_level_codex_key(self):
         with tempfile.TemporaryDirectory() as tmp:
             config, settings = Path(tmp) / "config.toml", Path(tmp) / "settings.json"

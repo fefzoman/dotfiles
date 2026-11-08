@@ -292,6 +292,8 @@ Both agent templates keep retrieval and correctness requirements while making ge
 
 ### Startup context
 
+The installer sets both Codex profiles to `sandbox_mode = "workspace-write"`, `approval_policy = "never"`, and `sandbox_workspace_write.network_access = true`. Both Claude profiles use `dontAsk`, allow file edits within working directories, and require sandboxed Bash execution with no unsandboxed exceptions. Claude's workspace write block requires version 2.1.314 or later. Its existing network domain lists are preserved because the sandbox rejects an unrestricted `"*"` domain pattern.
+
 `agent_config.py context-efficiency` disables the automatic Codex skills catalog (`skills.include_instructions = false`), retains `skills.max_context_tokens = 2000` for explicit opt-in, and keeps Claude’s `SLASH_COMMAND_TOOL_CHAR_BUDGET` at 8,000 characters. The managed Superpowers variants are disabled and Ponytail is enabled in both clients; enable Superpowers before a new session when requested. Skills and deferred MCP tools stay installed; use an explicit skill path or skill discovery when needed. DLM remains scoped to work profiles. See [the Codex ablation](../benchmarks/codex_toolchain/ABLATION.md); Claude catalog removal was not measured. Small configuration tasks use file tools and existing policy rather than loading general procedures. These are startup defaults, not permission changes: sandboxing and approval rules remain intact. Apply installs before starting new sessions, and keep the model, tools, plugins and skills stable throughout each conversation.
 
 ### Superpowers in Codex and Claude

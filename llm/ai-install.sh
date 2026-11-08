@@ -280,6 +280,7 @@ install_codex_hooks() {
     agent_config codex-hooks "$profile/hooks.json" "$SCRIPT_DIR/codex/codex-hooks.json"
     agent_config codex-statusline "$profile/config.toml"
     agent_config codex-effort "$profile/config.toml"
+    agent_config codex-permissions "$profile/config.toml"
   done
 }
 
@@ -321,6 +322,7 @@ configure_claude_settings() {
     agent_config connectors "$profile/settings.json" "$listing"
     agent_config context-trim "$profile/settings.json"
     agent_config effort "$profile/settings.json"
+    agent_config claude-permissions "$profile/settings.json"
   done
 }
 
