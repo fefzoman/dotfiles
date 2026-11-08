@@ -1,5 +1,8 @@
 # Code retrieval benchmark: skill, Serena, and Context7
 
+For Context7's value on external, version-sensitive API questions rather than
+local repairs, see the [direct-documentation comparison](CONTEXT7.md).
+
 Latest: the [tool-specific tests and removal decision](SPECIFIC.md) compare
 ag/ack against rg and exercise ast-grep on actual structural queries. The
 [shell-first dispatcher comparison](SHELL.md) records the preceding candidate's

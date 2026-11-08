@@ -1,0 +1,498 @@
+{
+  "complete": true,
+  "valid_comparison": true,
+  "results": [
+    {
+      "task": "fastapi_lifetime",
+      "arm": "direct",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-30-48-01a1bca4-53f9-78a3-8f4c-945f402ff097.jsonl",
+      "session_sha256": "1e3ef1f00c3cb26899aacf7f64ff9f289f34789e67ab7c7019f809ae39126715",
+      "answer": "{\n  \"version\": \"0.118.0\",\n  \"facts\": {\n    \"cleanup_timing\": \"after_body\",\n    \"depends_scope_supported\": false,\n    \"cleanup_change_version\": \"0.118.0\",\n    \"scope_added_version\": \"0.121.0\"\n  },\n  \"approach\": \"Use a yield dependency that opens the database session and closes it in finally, inject it with Depends(get_session), and return StreamingResponse(stream_rows(session)). The iterator can use that session throughout streaming; cleanup follows completion of the response. Do not pass scope in 0.118.0. The cleanup boundary is 0.118.0, which restored cleanup after sending the response; Depends(scope=\\\"function\\\") arrived in 0.121.0 and would close the dependency before streaming.\",\n  \"sources\": [\n    \"[Official 0.118.0 release notes: streaming dependency cleanup moved after the response](https://fastapi.tiangolo.com/release-notes/#01180)\",\n    \"[Official advanced dependency documentation: cleanup history and scope introduced in 0.121.0](https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope)\",\n    \"[Tagged 0.118.0 dependency implementation: dependency and use_cache parameters, no scope](https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/params.py)\",\n    \"[Tagged 0.118.0 public Depends API](https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/param_functions.py)\",\n    \"[Tagged package version declaration](https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/__init__.py)\"\n  ],\n  \"version_evidence\": \"Retrieved official source under the 0.118.0 Git tag and verified __version__ = \\\"0.118.0\\\". Checked that tag's public Depends implementation and underlying constructor, which lack scope, and matched cleanup semantics against the official 0.118.0 release notes. Official documentation explicitly identifies 0.121.0 as the introduction of Depends(scope=\\\"function\\\").\",\n  \"retrieval\": {\n    \"library_id\": null,\n    \"indexed_version_available\": null,\n    \"fallback_used\": false\n  }\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://fastapi.tiangolo.com/release-notes/#01180",
+          "https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope",
+          "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/params.py",
+          "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/param_functions.py",
+          "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/__init__.py"
+        ]
+      },
+      "usage": {
+        "input_tokens": 81179,
+        "cached_input_tokens": 56576,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 788,
+        "reasoning_output_tokens": 0,
+        "calls": 4,
+        "total_tokens": 81967,
+        "uncached_input_tokens": 24603
+      },
+      "elapsed_seconds": 32.998,
+      "method_compliant": true,
+      "observed_cli_commands": [],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "fastapi_lifetime",
+      "arm": "context7",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-31-01-01a1bca4-868c-7160-857c-8489cb838143.jsonl",
+      "session_sha256": "ca6f0b155505d16e45db07348e331f94e7603b8c4225805c93ec7fe9e88b03a3",
+      "answer": "{\n  \"version\": \"0.118.0\",\n  \"facts\": {\n    \"cleanup_timing\": \"after_body\",\n    \"depends_scope_supported\": false,\n    \"cleanup_change_version\": \"0.118.0\",\n    \"scope_added_version\": \"0.121.0\"\n  },\n  \"approach\": \"Use a yielding session dependency with try/finally cleanup, inject it using Depends(get_session) without a scope argument, and return StreamingResponse(iterator_using(session)). The session remains available while the body streams; dependency cleanup runs afterward. Do not close the session before returning the response.\",\n  \"sources\": [\n    \"[FastAPI 0.118.0 tagged dependency documentation: cleanup after streaming](https://github.com/fastapi/fastapi/blob/0.118.0/docs/en/docs/advanced/advanced-dependencies.md#dependencies-with-yield-and-streamingresponse-technical-details)\",\n    \"[FastAPI 0.118.0 tagged Depends implementation: dependency and use_cache parameters only](https://github.com/fastapi/fastapi/blob/0.118.0/fastapi/param_functions.py#L2165-L2219)\",\n    \"[Official version history explanation: scope support added in 0.121.0](https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope)\"\n  ],\n  \"version_evidence\": \"Context7 resolved /websites/fastapi_tiangolo but listed no indexed versions; its returned documentation includes newer scope APIs. I therefore verified the exact 0.118.0 Git tag directly: its documentation explicitly places cleanup after the response is sent, and its Depends signature has no scope parameter. Official current documentation explicitly identifies 0.121.0 as the scope introduction boundary.\",\n  \"retrieval\": {\n    \"library_id\": \"/websites/fastapi_tiangolo\",\n    \"indexed_version_available\": false,\n    \"fallback_used\": true\n  }\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/fastapi/fastapi/blob/0.118.0/docs/en/docs/advanced/advanced-dependencies.md#dependencies-with-yield-and-streamingresponse-technical-details",
+          "https://github.com/fastapi/fastapi/blob/0.118.0/fastapi/param_functions.py#L2165-L2219",
+          "https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope"
+        ]
+      },
+      "usage": {
+        "input_tokens": 91705,
+        "cached_input_tokens": 70912,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 847,
+        "reasoning_output_tokens": 0,
+        "calls": 5,
+        "total_tokens": 92552,
+        "uncached_input_tokens": 20793
+      },
+      "elapsed_seconds": 35.62,
+      "method_compliant": true,
+      "observed_cli_commands": [
+        "docs",
+        "library"
+      ],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_records",
+      "arm": "context7",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_context7_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-31-15-01a1bca4-bd9b-7e20-a1b6-054b75262a76.jsonl",
+      "session_sha256": "93f65f34a38671a6e543494e71e7264e909b82b37c2e5fb0522f626bd53bd283",
+      "answer": "{\n  \"version\": \"4.1.12\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"const enumKeys = z.enum([\\\"id\\\", \\\"name\\\"]); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects { id: \\\"123\\\" }; partial accepts it. Both reject numeric values and unknown keys. Zod 3's enum-keyed z.record already allowed missing enum keys.\",\n  \"sources\": [\n    \"[Version-pinned record documentation and Zod 3 contrast](https://github.com/colinhacks/zod/blob/v4.1.12/packages/docs/content/api.mdx#L1802-L1819)\",\n    \"[Version-pinned record tests, including missing keys and partial records](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts)\",\n    \"[partialRecord implementation preserves key and value schemas while disabling exhaustiveness](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts#L1415-L1427)\",\n    \"[Record parser validates supplied keys and values](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L2574-L2682)\",\n    \"[Package manifest confirms version 4.1.12](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json#L1-L3)\"\n  ],\n  \"version_evidence\": \"Context7 resolved /colinhacks/zod, but its listed versions excluded 4.1.12 and its documentation results referenced main. I therefore retrieved official source and documentation at tag v4.1.12, verified that the package manifest declares 4.1.12, and checked that tag's tests and implementation. No runtime tests were executed.\",\n  \"retrieval\": {\n    \"library_id\": \"/colinhacks/zod\",\n    \"indexed_version_available\": false,\n    \"fallback_used\": true\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/docs/content/api.mdx#L1802-L1819",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts#L1415-L1427",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L2574-L2682",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json#L1-L3"
+        ]
+      },
+      "usage": {
+        "input_tokens": 95147,
+        "cached_input_tokens": 85120,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1130,
+        "reasoning_output_tokens": 0,
+        "calls": 6,
+        "total_tokens": 96277,
+        "uncached_input_tokens": 10027
+      },
+      "elapsed_seconds": 46.33,
+      "method_compliant": true,
+      "observed_cli_commands": [
+        "docs",
+        "library"
+      ],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_records",
+      "arm": "direct",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_direct_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-31-55-01a1bca5-594f-7d72-ac06-7d13c4a95c0e.jsonl",
+      "session_sha256": "543ee4f027eedb2d6ce6f366bced5e5b05b11dd3db559ee8e9407b1f85f3f9b4",
+      "answer": "{\n  \"version\": \"4.1.12\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"const enumKeys = z.enum([\\\"id\\\", \\\"name\\\"]); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects { id: \\\"123\\\" }; partial accepts it. Both reject numeric values and unknown enum keys. Zod 3's enum-keyed z.record was already partial.\",\n  \"sources\": [\n    \"[Version manifest](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json)\",\n    \"[Required enum keys and partial-record tests](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts#L23-L67)\",\n    \"[partialRecord implementation](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts#L1415-L1428)\",\n    \"[Record key and value validation](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L2574-L2683)\",\n    \"[String validation rejects nonstrings](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L353-L373)\",\n    \"[Zod 3 partial enum-record tests](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v3/tests/record.test.ts#L62-L124)\"\n  ],\n  \"version_evidence\": \"Retrieved the official repository's v4.1.12-tagged package.json and verified its version field is \\\"4.1.12\\\". All implementation and test evidence was retrieved from that same tag.\",\n  \"retrieval\": {\n    \"library_id\": null,\n    \"indexed_version_available\": null,\n    \"fallback_used\": false\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts#L23-L67",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts#L1415-L1428",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L2574-L2683",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L353-L373",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v3/tests/record.test.ts#L62-L124"
+        ]
+      },
+      "usage": {
+        "input_tokens": 98093,
+        "cached_input_tokens": 89600,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1052,
+        "reasoning_output_tokens": 27,
+        "calls": 6,
+        "total_tokens": 99145,
+        "uncached_input_tokens": 8493
+      },
+      "elapsed_seconds": 41.461,
+      "method_compliant": true,
+      "observed_cli_commands": [],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "direct",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_direct_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-32-08-01a1bca5-8bec-7092-8677-332a32cddd01.jsonl",
+      "session_sha256": "aeca967678f37f1d09a2b79454bcaae3b6f8091ae3f3e7f54c52dd06cdc240ff",
+      "answer": "{\n  \"version\": \"4.0.1\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"import { z } from 'zod'; const enumKeys = z.enum(['id', 'name']); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects { id: 'a' }; partial accepts it, but rejects { id: 123 } and { extra: 'a' }. Zod 3 enum-keyed records already allowed missing enum keys while validating supplied keys and values.\",\n  \"sources\": [\n    \"[Exact package version](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json)\",\n    \"[Zod 4 record exhaustiveness and partial-record tests](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts)\",\n    \"[partialRecord implementation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts#L1358-L1369)\",\n    \"[Record key/value validation and union handling](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts)\",\n    \"[Zod 3 enum-record tests](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v3/tests/record.test.ts)\"\n  ],\n  \"version_evidence\": \"Retrieved official source files at tag v4.0.1; packages/zod/package.json explicitly declares version 4.0.1. Behavior was verified from that tag's tests and implementation, not current unversioned documentation. No runtime tests were executed.\",\n  \"retrieval\": {\n    \"library_id\": null,\n    \"indexed_version_available\": null,\n    \"fallback_used\": false\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts#L1358-L1369",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v3/tests/record.test.ts"
+        ]
+      },
+      "usage": {
+        "input_tokens": 97633,
+        "cached_input_tokens": 87296,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1256,
+        "reasoning_output_tokens": 15,
+        "calls": 6,
+        "total_tokens": 98889,
+        "uncached_input_tokens": 10337
+      },
+      "elapsed_seconds": 42.774,
+      "method_compliant": true,
+      "observed_cli_commands": [],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "context7",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_context7_r1",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-32-27-01a1bca5-d5ee-7933-931e-938d779f35a9.jsonl",
+      "session_sha256": "d826f0d130218093e9a65ec444004514495d1d7e30d00fa15ef9d046f4957f09",
+      "answer": "{\n  \"version\": \"4.0.1\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"import { z } from 'zod/v4'; const enumKeys = z.enum(['id', 'name']); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys.or(z.never()), z.string()); Only partial accepts { id: 'x' }; neither schema accepts number values or ordinary keys outside the enum. Zod 3 enum-keyed records already allowed missing keys and inferred Partial<Record<...>>.\",\n  \"sources\": [\n    \"[Version-tagged records documentation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/docs/content/api.mdx#records)\",\n    \"[Partial-record implementation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts)\",\n    \"[Record parser: key and value validation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts)\",\n    \"[Zod 3 record tests](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v3/tests/record.test.ts)\",\n    \"[Package version](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json)\"\n  ],\n  \"version_evidence\": \"Context7 listed v4.0.1, and querying that version returned official GitHub URLs tagged v4.0.1. Direct inspection of the same tag's package.json confirmed version 4.0.1; tagged documentation, implementation and tests supported the behavior. No runtime tests were executed.\",\n  \"retrieval\": {\n    \"library_id\": \"/colinhacks/zod/v4.0.1\",\n    \"indexed_version_available\": true,\n    \"fallback_used\": true\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/docs/content/api.mdx#records",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v3/tests/record.test.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json"
+        ]
+      },
+      "usage": {
+        "input_tokens": 119298,
+        "cached_input_tokens": 98944,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1404,
+        "reasoning_output_tokens": 23,
+        "calls": 7,
+        "total_tokens": 120702,
+        "uncached_input_tokens": 20354
+      },
+      "elapsed_seconds": 53.544,
+      "method_compliant": true,
+      "observed_cli_commands": [
+        "docs",
+        "library"
+      ],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "fastapi_lifetime",
+      "arm": "context7",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-33-05-01a1bca6-6aa8-7dd3-86e6-616a73851468.jsonl",
+      "session_sha256": "3a07448cab396c36583d16b37bf2f9ed205f090deb6a21c7763b458be4d1a779",
+      "answer": "{\n  \"version\": \"0.118.0\",\n  \"facts\": {\n    \"cleanup_timing\": \"after_body\",\n    \"depends_scope_supported\": false,\n    \"cleanup_change_version\": \"0.118.0\",\n    \"scope_added_version\": \"0.121.0\"\n  },\n  \"approach\": \"Use a yield dependency that closes the session in finally (or a context manager), inject it with Depends(get_session), and return StreamingResponse(iterator_using_session(session)). Do not pass scope. The session remains available while the body streams, and dependency cleanup follows response completion. The earlier before-response behavior was reverted in 0.118.0; scope=\\\"function\\\" arrived in 0.121.0.\",\n  \"sources\": [\n    \"[FastAPI 0.118.0 tagged dependency documentation](https://github.com/fastapi/fastapi/blob/0.118.0/docs/en/docs/advanced/advanced-dependencies.md)\",\n    \"[FastAPI 0.118.0 Depends implementation](https://github.com/fastapi/fastapi/blob/0.118.0/fastapi/param_functions.py#L2165-L2219)\",\n    \"[Official scope introduction history](https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope)\"\n  ],\n  \"version_evidence\": \"Context7 resolved /websites/fastapi_tiangolo but listed no indexed versions. Its current documentation reported both boundaries. Because exact-version indexing was unavailable, I verified official source under the 0.118.0 Git tag: its dependency documentation explicitly states cleanup occurs after the response is sent, and its Depends signature accepts dependency and use_cache only, with no scope parameter. Official current documentation dates scope=\\\"function\\\" support to 0.121.0.\",\n  \"retrieval\": {\n    \"library_id\": \"/websites/fastapi_tiangolo\",\n    \"indexed_version_available\": false,\n    \"fallback_used\": true\n  }\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/fastapi/fastapi/blob/0.118.0/docs/en/docs/advanced/advanced-dependencies.md",
+          "https://github.com/fastapi/fastapi/blob/0.118.0/fastapi/param_functions.py#L2165-L2219",
+          "https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope"
+        ]
+      },
+      "usage": {
+        "input_tokens": 91269,
+        "cached_input_tokens": 71936,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 827,
+        "reasoning_output_tokens": 0,
+        "calls": 5,
+        "total_tokens": 92096,
+        "uncached_input_tokens": 19333
+      },
+      "elapsed_seconds": 36.167,
+      "method_compliant": true,
+      "observed_cli_commands": [
+        "docs",
+        "library"
+      ],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "fastapi_lifetime",
+      "arm": "direct",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-33-16-01a1bca6-9505-7d23-b6dc-0bab3e82a278.jsonl",
+      "session_sha256": "5fa662d2bb9c07c51597f6cd0f96589e6ecb2b03a6eacfcc400fb7a604020016",
+      "answer": "{\n  \"version\": \"0.118.0\",\n  \"facts\": {\n    \"cleanup_timing\": \"after_body\",\n    \"depends_scope_supported\": false,\n    \"cleanup_change_version\": \"0.118.0\",\n    \"scope_added_version\": \"0.121.0\"\n  },\n  \"approach\": \"Use a yield dependency that opens the database session and closes it in finally, inject it with Depends(get_db), and return StreamingResponse(iter_rows(db)). The iterator can use the session throughout body streaming; dependency cleanup follows response completion. Do not pass scope in 0.118.0. This keeps the session occupied for the stream's duration.\",\n  \"sources\": [\n    \"[FastAPI 0.118.0 release notes: dependency cleanup moved after response completion](https://fastapi.tiangolo.com/release-notes/#01180)\",\n    \"[Official advanced dependency documentation: streaming lifetime and scope introduction in 0.121.0](https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope)\",\n    \"[FastAPI 0.118.0 tagged source: Depends accepts dependency and use_cache, not scope](https://github.com/fastapi/fastapi/blob/0.118.0/fastapi/param_functions.py#L2165-L2190)\"\n  ],\n  \"version_evidence\": \"Read the official 0.118.0 release entry, which explicitly states the streaming cleanup fix, and inspected Depends in the repository's exact 0.118.0 tag. The official advanced documentation explicitly dates scope support to 0.121.0. No runtime test was performed.\",\n  \"retrieval\": {\n    \"library_id\": null,\n    \"indexed_version_available\": null,\n    \"fallback_used\": false\n  }\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://fastapi.tiangolo.com/release-notes/#01180",
+          "https://fastapi.tiangolo.com/advanced/advanced-dependencies/#dependencies-with-yield-and-scope",
+          "https://github.com/fastapi/fastapi/blob/0.118.0/fastapi/param_functions.py#L2165-L2190"
+        ]
+      },
+      "usage": {
+        "input_tokens": 60705,
+        "cached_input_tokens": 42880,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 587,
+        "reasoning_output_tokens": 0,
+        "calls": 3,
+        "total_tokens": 61292,
+        "uncached_input_tokens": 17825
+      },
+      "elapsed_seconds": 24.567,
+      "method_compliant": true,
+      "observed_cli_commands": [],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_records",
+      "arm": "direct",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_direct_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-33-39-01a1bca6-eef1-7ed1-9b17-18163c3c3a8f.jsonl",
+      "session_sha256": "b8f9157562ee84fd0db59121f6e2ec8e4fc74eac7b854b202a29e9df17585e5a",
+      "answer": "{\"version\":\"4.1.12\",\"facts\":{\"record_accepts_missing_name\":false,\"partial_api\":\"z.partialRecord\",\"partial_accepts_missing_name\":true,\"partial_accepts_number_value\":false,\"partial_accepts_unknown_key\":false,\"zod3_enum_record_partial\":true},\"approach\":\"const enumKeys = z.enum([\\\"id\\\", \\\"name\\\"]); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects { id: \\\"123\\\" }; partial accepts it. Both reject numeric values and unknown keys. Zod 3's z.record(enumKeys, z.string()) already allowed missing enum keys and inferred Partial<Record<\\\"id\\\" | \\\"name\\\", string>>.\",\"sources\":[\"[Exact-version package manifest](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json)\",\"[Required and partial record tests](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts#L334-L356)\",\"[partialRecord implementation](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts#L1415-L1427)\",\"[Record parser validates present keys and values](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L2574-L2683)\",\"[Zod 3 enum-record behavior tests](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v3/tests/record.test.ts#L10-L125)\"],\"version_evidence\":\"Retrieved official source files from the v4.1.12 Git tag and verified that packages/zod/package.json declares version \\\"4.1.12\\\". Behavior is supported by that tag's tests and implementation; runtime tests were not executed.\",\"retrieval\":{\"library_id\":null,\"indexed_version_available\":null,\"fallback_used\":false},\"cleanup_timing\":\"after_body\"}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts#L334-L356",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts#L1415-L1427",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts#L2574-L2683",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v3/tests/record.test.ts#L10-L125"
+        ]
+      },
+      "usage": {
+        "input_tokens": 61881,
+        "cached_input_tokens": 52736,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 829,
+        "reasoning_output_tokens": 0,
+        "calls": 4,
+        "total_tokens": 62710,
+        "uncached_input_tokens": 9145
+      },
+      "elapsed_seconds": 28.547,
+      "method_compliant": true,
+      "observed_cli_commands": [],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_records",
+      "arm": "context7",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_context7_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-34-01-01a1bca7-4697-7110-93e3-20748f998b23.jsonl",
+      "session_sha256": "bd592e618b58dff6f5fba7a36711552de96cf413753b2846210c6139bad0c917",
+      "answer": "{\n  \"version\": \"4.1.12\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"const enumKeys = z.enum([\\\"id\\\", \\\"name\\\"]); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects { id: \\\"123\\\" }; partial accepts it, but rejects { id: 123 } and { extra: \\\"123\\\" }. Both schemas reject wrong value types and unknown keys. Zod 3 enum-keyed z.record did not require every enum key.\",\n  \"sources\": [\n    \"[Version-pinned documentation: enum exhaustiveness and Zod 3 contrast](https://github.com/colinhacks/zod/blob/v4.1.12/packages/docs/content/api.mdx#records)\",\n    \"[Version-pinned tests: exhaustive and partial enum records](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts)\",\n    \"[Version-pinned partialRecord implementation](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts)\",\n    \"[Version-pinned record parser: validates present keys and values](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts)\",\n    \"[Package metadata declaring 4.1.12](https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json)\"\n  ],\n  \"version_evidence\": \"Anonymous Context7 CLI library resolution listed no 4.1.12 index. Its docs query returned main-branch documentation, insufficient to establish exact-version behavior. Fallback retrieved official v4.1.12-tagged documentation, tests, implementations and package metadata; the metadata explicitly declares version 4.1.12. No runtime tests were executed.\",\n  \"retrieval\": {\n    \"library_id\": \"/colinhacks/zod\",\n    \"indexed_version_available\": false,\n    \"fallback_used\": true\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/docs/content/api.mdx#records",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/classic/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/src/v4/core/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.1.12/packages/zod/package.json"
+        ]
+      },
+      "usage": {
+        "input_tokens": 94573,
+        "cached_input_tokens": 82944,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1073,
+        "reasoning_output_tokens": 0,
+        "calls": 6,
+        "total_tokens": 95646,
+        "uncached_input_tokens": 11629
+      },
+      "elapsed_seconds": 43.775,
+      "method_compliant": true,
+      "observed_cli_commands": [
+        "docs",
+        "library"
+      ],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "context7",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_context7_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-34-15-01a1bca7-7c67-7d12-8aea-0906a074566f.jsonl",
+      "session_sha256": "4422d5875d663583545f111b6a71e6fc2fb29bbb5e9f1b0131d61455a7bc9a41",
+      "answer": "{\n  \"version\": \"4.0.1\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"import * as z from 'zod/v4'; const enumKeys = z.enum(['id', 'name']); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects {id: 'x'}; partial accepts it, but rejects {id: 123} and {other: 'x'}. Zod 3 enum-keyed z.record did not require every enum key; Zod 4 makes it exhaustive.\",\n  \"sources\": [\n    \"[Version-tagged record documentation and Zod 3 contrast](https://github.com/colinhacks/zod/blob/v4.0.1/packages/docs/content/api.mdx)\",\n    \"[Version-tagged exhaustive-record tests](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts)\",\n    \"[partialRecord implementation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts)\",\n    \"[Record parser validates present keys and values](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts)\",\n    \"[Package declares version 4.0.1](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json)\"\n  ],\n  \"version_evidence\": \"Context7 library resolution explicitly listed v4.0.1. Queries used /colinhacks/zod/v4.0.1 and returned documentation URLs under that tag. Directly retrieved the same tag's package.json, which declares 4.0.1, and its documentation, tests and implementation. Context7 snippets did not establish partial-record rejection of invalid keys and values, so tagged official source supplied that evidence. No runtime tests were executed.\",\n  \"retrieval\": {\n    \"library_id\": \"/colinhacks/zod/v4.0.1\",\n    \"indexed_version_available\": true,\n    \"fallback_used\": true\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/docs/content/api.mdx",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json"
+        ]
+      },
+      "usage": {
+        "input_tokens": 116855,
+        "cached_input_tokens": 96768,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 1393,
+        "reasoning_output_tokens": 19,
+        "calls": 7,
+        "total_tokens": 118248,
+        "uncached_input_tokens": 20087
+      },
+      "elapsed_seconds": 55.275,
+      "method_compliant": true,
+      "observed_cli_commands": [
+        "docs",
+        "library"
+      ],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "direct",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_direct_r2",
+      "session": "/Users/odobrynin/.codex/sessions/2026/11/08/rollout-2026-11-08T21-34-31-01a1bca7-bb7d-7f80-8534-dd1dd0ba1bf5.jsonl",
+      "session_sha256": "0f587f58d6162405a919e74c3644416afad1cb6505ddf46a31c19f1f09980d93",
+      "answer": "{\n  \"version\": \"4.0.1\",\n  \"facts\": {\n    \"record_accepts_missing_name\": false,\n    \"partial_api\": \"z.partialRecord\",\n    \"partial_accepts_missing_name\": true,\n    \"partial_accepts_number_value\": false,\n    \"partial_accepts_unknown_key\": false,\n    \"zod3_enum_record_partial\": true\n  },\n  \"approach\": \"import { z } from 'zod/v4'; const enumKeys = z.enum(['id', 'name']); const required = z.record(enumKeys, z.string()); const partial = z.partialRecord(enumKeys, z.string()); required rejects { id: 'x' }; partial accepts it. Both reject number values and unknown keys. Zod 3 enum-keyed z.record schemas allowed missing enum keys and inferred Partial<Record<...>>.\",\n  \"sources\": [\n    \"[Version-tagged Zod 4 record tests: exhaustiveness and partial-record inference](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts)\",\n    \"[Version-tagged partialRecord implementation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts)\",\n    \"[Version-tagged record parser: key and value validation](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts)\",\n    \"[Bundled Zod 3 record tests: partial inference, missing-key acceptance and unknown-key rejection](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v3/tests/record.test.ts)\"\n  ],\n  \"version_evidence\": \"Retrieved official repository sources at tag v4.0.1 and verified that [the package manifest](https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/package.json) declares version 4.0.1. Conclusions follow the tagged tests and implementation; no runtime tests were executed.\",\n  \"retrieval\": {\n    \"library_id\": null,\n    \"indexed_version_available\": null,\n    \"fallback_used\": false\n  },\n  \"cleanup_timing\": \"after_body\"\n}",
+      "grade": {
+        "facts": true,
+        "evidence": true,
+        "official_urls": [
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/classic/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v4/core/schemas.ts",
+          "https://github.com/colinhacks/zod/blob/v4.0.1/packages/zod/src/v3/tests/record.test.ts"
+        ]
+      },
+      "usage": {
+        "input_tokens": 59682,
+        "cached_input_tokens": 53120,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 955,
+        "reasoning_output_tokens": 39,
+        "calls": 4,
+        "total_tokens": 60637,
+        "uncached_input_tokens": 6562
+      },
+      "elapsed_seconds": 32.183,
+      "method_compliant": true,
+      "observed_cli_commands": [],
+      "excluded_reason": null,
+      "contexts": [
+        [
+          "gpt-6.1-sol",
+          "medium"
+        ]
+      ]
+    }
+  ]
+}

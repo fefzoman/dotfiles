@@ -1,0 +1,249 @@
+{
+  "root": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603",
+  "stamp": "20261108_192603",
+  "parent_thread_id": "01a1bc67-9e5e-7fe3-a08e-a3915c44e734",
+  "session_date": "2026/11/08",
+  "anonymous": true,
+  "cli_executable": "/Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7",
+  "cli_version": "0.10.0",
+  "tasks": {
+    "fastapi_lifetime": {
+      "package": "FastAPI",
+      "version": "0.118.0",
+      "question": "For FastAPI 0.118.0 specifically, a dependency yields a database session and a StreamingResponse iterator uses that session while emitting the body. Does dependency cleanup occur before or after the body finishes? Is Depends(scope=\"function\") supported in this pinned release? Give the compatible dependency/response approach and identify the version boundary relevant to that answer."
+    },
+    "zod_records": {
+      "package": "Zod",
+      "version": "4.1.12",
+      "question": "For Zod 4.1.12 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior."
+    },
+    "zod_indexed": {
+      "package": "Zod",
+      "version": "4.0.1",
+      "question": "For Zod 4.0.1 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior.",
+      "cohort": "Best-case indexed-version check added after resolver metadata, before any docs query or worker results. Same contract as the 4.1.12 case; not an independent library task."
+    }
+  },
+  "comparison": "Direct official-documentation lookup versus anonymous Context7 CLI with official-source version verification and fallback; no skill loaded.",
+  "criterion": "Correct cited answers first. Retain only if a task shows a repeatable >=10% aggregate token or elapsed-time benefit without correctness/version loss. Two repetitions are exploratory, not statistical proof.",
+  "trials": [
+    {
+      "task": "fastapi_lifetime",
+      "arm": "direct",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r1",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r1",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r1. Use direct official documentation/tagged-source lookup with web or shell tools. Do not invoke Context7 CLI or any MCP retrieval service. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For FastAPI 0.118.0 specifically, a dependency yields a database session and a StreamingResponse iterator uses that session while emitting the body. Does dependency cleanup occur before or after the body finishes? Is Depends(scope=\"function\") supported in this pinned release? Give the compatible dependency/response approach and identify the version boundary relevant to that answer. Return ONLY a JSON object with version='0.118.0', facts containing exactly these keys: cleanup_timing, depends_scope_supported, cleanup_change_version, scope_added_version. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "fastapi_lifetime",
+      "arm": "context7",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r1",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r1",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r1. Use anonymous Context7 CLI 0.10.0 as your initial documentation route. Executable: /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7. Use literal library and docs commands with --json and CTX7_TELEMETRY_DISABLED=1. Resolve a real ID, prefer matching listed versions, and never invent a version suffix. Verify source URLs/content cover the pinned version. If coverage/query fails or is ambiguous, use official documentation/tagged source as fallback and disclose that gap. Never use MCP, login/setup, API keys or saved credentials. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For FastAPI 0.118.0 specifically, a dependency yields a database session and a StreamingResponse iterator uses that session while emitting the body. Does dependency cleanup occur before or after the body finishes? Is Depends(scope=\"function\") supported in this pinned release? Give the compatible dependency/response approach and identify the version boundary relevant to that answer. Return ONLY a JSON object with version='0.118.0', facts containing exactly these keys: cleanup_timing, depends_scope_supported, cleanup_change_version, scope_added_version. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_records",
+      "arm": "context7",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_context7_r1",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_context7_r1",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_context7_r1. Use anonymous Context7 CLI 0.10.0 as your initial documentation route. Executable: /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7. Use literal library and docs commands with --json and CTX7_TELEMETRY_DISABLED=1. Resolve a real ID, prefer matching listed versions, and never invent a version suffix. Verify source URLs/content cover the pinned version. If coverage/query fails or is ambiguous, use official documentation/tagged source as fallback and disclose that gap. Never use MCP, login/setup, API keys or saved credentials. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.1.12 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.1.12', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_records",
+      "arm": "direct",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_direct_r1",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_direct_r1",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_direct_r1. Use direct official documentation/tagged-source lookup with web or shell tools. Do not invoke Context7 CLI or any MCP retrieval service. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.1.12 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.1.12', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "direct",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_direct_r1",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_direct_r1",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_direct_r1. Use direct official documentation/tagged-source lookup with web or shell tools. Do not invoke Context7 CLI or any MCP retrieval service. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.0.1 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.0.1', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "context7",
+      "repeat": 1,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_context7_r1",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_context7_r1",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_context7_r1. Use anonymous Context7 CLI 0.10.0 as your initial documentation route. Executable: /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7. Use literal library and docs commands with --json and CTX7_TELEMETRY_DISABLED=1. Resolve a real ID, prefer matching listed versions, and never invent a version suffix. Verify source URLs/content cover the pinned version. If coverage/query fails or is ambiguous, use official documentation/tagged source as fallback and disclose that gap. Never use MCP, login/setup, API keys or saved credentials. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.0.1 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.0.1', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "fastapi_lifetime",
+      "arm": "context7",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r2",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r2",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_context7_r2. Use anonymous Context7 CLI 0.10.0 as your initial documentation route. Executable: /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7. Use literal library and docs commands with --json and CTX7_TELEMETRY_DISABLED=1. Resolve a real ID, prefer matching listed versions, and never invent a version suffix. Verify source URLs/content cover the pinned version. If coverage/query fails or is ambiguous, use official documentation/tagged source as fallback and disclose that gap. Never use MCP, login/setup, API keys or saved credentials. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For FastAPI 0.118.0 specifically, a dependency yields a database session and a StreamingResponse iterator uses that session while emitting the body. Does dependency cleanup occur before or after the body finishes? Is Depends(scope=\"function\") supported in this pinned release? Give the compatible dependency/response approach and identify the version boundary relevant to that answer. Return ONLY a JSON object with version='0.118.0', facts containing exactly these keys: cleanup_timing, depends_scope_supported, cleanup_change_version, scope_added_version. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "fastapi_lifetime",
+      "arm": "direct",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r2",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r2",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_fastapi_lifetime_direct_r2. Use direct official documentation/tagged-source lookup with web or shell tools. Do not invoke Context7 CLI or any MCP retrieval service. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For FastAPI 0.118.0 specifically, a dependency yields a database session and a StreamingResponse iterator uses that session while emitting the body. Does dependency cleanup occur before or after the body finishes? Is Depends(scope=\"function\") supported in this pinned release? Give the compatible dependency/response approach and identify the version boundary relevant to that answer. Return ONLY a JSON object with version='0.118.0', facts containing exactly these keys: cleanup_timing, depends_scope_supported, cleanup_change_version, scope_added_version. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_records",
+      "arm": "direct",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_direct_r2",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_direct_r2",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_direct_r2. Use direct official documentation/tagged-source lookup with web or shell tools. Do not invoke Context7 CLI or any MCP retrieval service. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.1.12 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.1.12', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_records",
+      "arm": "context7",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_records_context7_r2",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_context7_r2",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_records_context7_r2. Use anonymous Context7 CLI 0.10.0 as your initial documentation route. Executable: /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7. Use literal library and docs commands with --json and CTX7_TELEMETRY_DISABLED=1. Resolve a real ID, prefer matching listed versions, and never invent a version suffix. Verify source URLs/content cover the pinned version. If coverage/query fails or is ambiguous, use official documentation/tagged source as fallback and disclose that gap. Never use MCP, login/setup, API keys or saved credentials. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.1.12 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.1.12', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "context7",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_context7_r2",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_context7_r2",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_context7_r2. Use anonymous Context7 CLI 0.10.0 as your initial documentation route. Executable: /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7. Use literal library and docs commands with --json and CTX7_TELEMETRY_DISABLED=1. Resolve a real ID, prefer matching listed versions, and never invent a version suffix. Verify source URLs/content cover the pinned version. If coverage/query fails or is ambiguous, use official documentation/tagged source as fallback and disclose that gap. Never use MCP, login/setup, API keys or saved credentials. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.0.1 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.0.1', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    },
+    {
+      "task": "zod_indexed",
+      "arm": "direct",
+      "repeat": 2,
+      "agent": "/root/ctx_evidence_20261108_192603_zod_indexed_direct_r2",
+      "path": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_direct_r2",
+      "prompt": "Authorized read-only documentation benchmark. Workspace: /Users/odobrynin/.codex-work/context7-evidence-20261108_192603/ctx_evidence_20261108_192603_zod_indexed_direct_r2. Use direct official documentation/tagged-source lookup with web or shell tools. Do not invoke Context7 CLI or any MCP retrieval service. This trial overrides automatic retrieval-skill loading: do not read or apply any skill. Do not inspect benchmark files, other trials, parent history, private data or credentials; do not install dependencies, change configuration, delegate or commit. Public query output may be saved only in your workspace. Do not guess facts from memory: retrieve evidence. Question: For Zod 4.0.1 specifically, define a string-valued record with enum keys \"id\" and \"name\". Does z.record(enumKeys, z.string()) accept an object with only id? What API implements a genuinely partial enum-keyed record? State whether wrong value types and unknown keys are accepted, and contrast the relevant Zod 3 behavior. Return ONLY a JSON object with version='4.0.1', facts containing exactly these keys: record_accepts_missing_name, partial_api, partial_accepts_missing_name, partial_accepts_number_value, partial_accepts_unknown_key, zod3_enum_record_partial. Also include approach (short compatible API/schema example or explanation), sources (Markdown links inside JSON strings, official sources only), version_evidence (explain how you verified the exact version), and retrieval with library_id (null for direct lookup), indexed_version_available (boolean/null), fallback_used (boolean). Use JSON booleans for yes/no facts, API names and version numbers as strings; cleanup_timing must be before_body or after_body. No markdown fence or trailing prose; this JSON format overrides default final-answer style. Stop once all facts are supported."
+    }
+  ],
+  "parent_preflight": {
+    "FastAPI": {
+      "id": "/websites/fastapi_tiangolo",
+      "versions": []
+    },
+    "Zod": {
+      "id": "/colinhacks/zod",
+      "versions": [
+        "v3.24.2",
+        "v4.0.1",
+        "v4.3.6",
+        "v4.6.5",
+        "v4.6.7",
+        "v3.25.76"
+      ]
+    },
+    "docs_queries_run": 0
+  },
+  "expected": {
+    "fastapi_lifetime": {
+      "cleanup_timing": "after_body",
+      "depends_scope_supported": false,
+      "cleanup_change_version": "0.118.0",
+      "scope_added_version": "0.121.0"
+    },
+    "zod_records": {
+      "record_accepts_missing_name": false,
+      "partial_api": "z.partialRecord",
+      "partial_accepts_missing_name": true,
+      "partial_accepts_number_value": false,
+      "partial_accepts_unknown_key": false,
+      "zod3_enum_record_partial": true
+    },
+    "zod_indexed": {
+      "record_accepts_missing_name": false,
+      "partial_api": "z.partialRecord",
+      "partial_accepts_missing_name": true,
+      "partial_accepts_number_value": false,
+      "partial_accepts_unknown_key": false,
+      "zod3_enum_record_partial": true
+    }
+  },
+  "oracle_sources": {
+    "fastapi_lifetime": [
+      "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/docs/en/docs/advanced/advanced-dependencies.md",
+      "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/params.py",
+      "https://fastapi.tiangolo.com/advanced/advanced-dependencies/"
+    ],
+    "zod_records": [
+      "https://raw.githubusercontent.com/colinhacks/zod/v4.1.12/packages/zod/src/v4/classic/tests/record.test.ts",
+      "https://raw.githubusercontent.com/colinhacks/zod/v4.1.12/packages/zod/src/v4/core/schemas.ts",
+      "https://zod.dev/v4/changelog"
+    ],
+    "zod_indexed": [
+      "https://raw.githubusercontent.com/colinhacks/zod/v4.0.1/packages/zod/src/v4/classic/tests/record.test.ts",
+      "https://raw.githubusercontent.com/colinhacks/zod/v4.0.1/packages/zod/src/v4/core/schemas.ts",
+      "https://zod.dev/v4/changelog"
+    ]
+  },
+  "oracle_snapshots": [
+    {
+      "url": "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/docs/en/docs/advanced/advanced-dependencies.md",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/bba3bc3f01-advanced-dependencies.md",
+      "sha256": "a8ab3477e1c70d7bc49f6145bb39a41c4a2afb763599dfadb9741d531ee4a069"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/fastapi/fastapi/0.118.0/fastapi/params.py",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/d68b7dd97b-params.py",
+      "sha256": "838e746b150142040938376d33b581c596d08fd67ae229c5bda76b8078a405b5"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.1.12/packages/docs/content/api.mdx",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/1f933cb1ca-api.mdx",
+      "sha256": "1a6e8af1ad8b265a7caab6d66399d7349a5d9bd766f27622f06861a264021468"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.1.12/packages/zod/src/v4/classic/schemas.ts",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/6be4023fe4-schemas.ts",
+      "sha256": "54eaecef4567d63c8f02a1af3ec317d84fa32c22f75a298d8e4debf07ee420fa"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.1.12/packages/zod/src/v4/core/schemas.ts",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/bc92c4652d-schemas.ts",
+      "sha256": "3bfa8bd6d7d4c92d24a0d5a5fd6d2419d0547f51b23ce564c9bc6bfda86eb2a1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.1.12/packages/zod/package.json",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/664a774637-package.json",
+      "sha256": "8fafce7fd929141a91d78d66fa4b275415ac68cd9c81f9e3160868a5fab4122f"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.0.1/packages/docs/content/api.mdx",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/1b1126c19c-api.mdx",
+      "sha256": "f5f9f5db3a9461a2546593916b666712ad0f3948e51e3e6c27f31df018a1e1a6"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.0.1/packages/zod/src/v4/classic/schemas.ts",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/39e30c1cd5-schemas.ts",
+      "sha256": "f6856027f9db1203568f4bee15f3ef0a3b9248b6b5e47de2d94bdb4695580ddf"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.0.1/packages/zod/src/v4/core/schemas.ts",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/1e2a5b2235-schemas.ts",
+      "sha256": "989119f7c6b4d4b01de52506f0ece0a8ace8aa634c887e988f9704dbed38a18c"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/colinhacks/zod/v4.0.1/packages/zod/package.json",
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/oracle/daa43fe92c-package.json",
+      "sha256": "31fb1bee01d1c9d61ed00a4059acf244aefecee0a43facebc36a249172a51070"
+    }
+  ],
+  "oracle_review": "Pinned official FastAPI docs/Depends signatures and Zod record docs, parser, partialRecord implementation, and package versions reviewed. No library runtime tests were executed.",
+  "resolver_snapshots": [
+    {
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/fastapi-library-preflight.json",
+      "sha256": "8d1885e468971f69407591b724269294cce46196c64765abe9becef5d3751aaa"
+    },
+    {
+      "file": "/Users/odobrynin/.codex-work/context7-evidence-20261108_192603/zod-library-preflight.json",
+      "sha256": "660227e923435dd2745da904ec519f2983afbe4dea1e01041ccdb170956a2969"
+    }
+  ]
+}
