@@ -62,18 +62,10 @@ with_claude_profile() {
   fi
 }
 
-codex_mcp_enabled() {
-  CODEX_HOME="$1" command codex mcp list --json | agent_config codex-mcp-enabled "$2"
-}
-
-claude_mcp_enabled() {
-  with_claude_profile "$1" claude mcp get "$2"
-}
-
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk token-profiler token-count smart-read node uv serena context7-mcp code code-work; do
+for command_name in python codex claude fabric rtk token-profiler token-count smart-read node uv ctx7 code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
@@ -102,6 +94,10 @@ for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude
     check "$skill skill matches the repository in $profile" "$skill skill is missing or stale in $profile" \
       cmp -s "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
   done
+  for reference in "$SCRIPT_DIR/skills/code-retrieval/references/"*.md; do
+    check "Retrieval reference ${reference##*/} matches in $profile" "Retrieval reference is stale in $profile" \
+      cmp -s "$reference" "$profile/skills/code-retrieval/references/${reference##*/}"
+  done
 done
 check "Platform plugins are scoped out of personal Codex" "Platform plugins are enabled in personal Codex" \
   agent_config plugins-scoped codex "$HOME/.codex"
@@ -118,8 +114,8 @@ rtk_dir="$(dirname "$(command -v rtk)")"
 check "RTK produces valid Codex rewrites and respects bypasses" "RTK Codex hook contract is invalid" \
   python -m unittest discover -s "$SCRIPT_DIR/codex" -p test_codex_rtk_hook.py
 for profile in "$HOME/.codex" "$HOME/.codex-work"; do
-  check "Codex RTK, Serena, Context7 guard and compact-warning hooks are configured in $profile" \
-    "Codex RTK, Serena, Context7 guard or compact-warning hooks are invalid in $profile" \
+  check "Codex RTK, Context7 CLI guard and compact-warning hooks are configured in $profile" \
+    "Codex RTK, Context7 CLI guard or compact-warning hooks are invalid in $profile" \
     agent_config codex-hooks-valid "$SCRIPT_DIR/codex/codex-hooks.json" "$profile/hooks.json"
   check "Codex policy and RTK import are valid in $profile" \
     "Codex policy or RTK import is invalid in $profile" \
@@ -168,20 +164,22 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     cmp -s "$SCRIPT_DIR/claude/checkpoint.md" "$profile/commands/checkpoint.md"
   check "smart-read hint is enabled in $profile" "smart-read hint is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
-  check "Context7 version guard is enabled in $profile" "Context7 version guard is missing in $profile" \
+  check "Context7 CLI version guard is enabled in $profile" "Context7 CLI version guard is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Claude limits skills, keeps Superpowers opt-in and Ponytail on in $profile" "Claude context defaults are stale in $profile" \
     agent_config context-efficient claude "$profile"
 done
 
-for server in serena context7; do
-  for profile in "$HOME/.codex" "$HOME/.codex-work"; do
-    check "$server MCP is enabled in $profile" "$server MCP is not enabled in $profile" \
-      codex_mcp_enabled "$profile" "$server"
-  done
-  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
-    check "$server MCP is enabled in $profile" "$server MCP is not enabled in $profile" \
-      claude_mcp_enabled "$profile" "$server"
+check "Context7 CLI starts without MCP" "Context7 CLI cannot start" ctx7 --version
+for retired in serena serena-agent serena-hooks context7-mcp; do
+  check "$retired executable is absent" "$retired executable is still installed" \
+    bash -c '! command -v "$1" >/dev/null 2>&1' _ "$retired"
+done
+check "Retired backend state is absent" "Retired backend state remains" test ! -e "$HOME/.serena"
+for agent in codex claude; do
+  for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do
+    check "Legacy retrieval MCPs are absent in $profile" "Legacy retrieval MCPs remain in $profile" \
+      agent_config retrieval-mcps-absent "$agent" "$profile"
   done
 done
 

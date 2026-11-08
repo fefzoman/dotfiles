@@ -5,14 +5,13 @@
 | Tool | Layer | Question | Effect |
 |---|---|---|---|
 | **Ponytail** | Solution policy | How much should we build? | Smaller implementations; fewer abstractions/dependencies/files |
-| **Serena** | Internal code intelligence | How does this repo work? | Symbol-level retrieval, reference tracing, semantic editing |
 | **Context7** | External dependency knowledge | How does this library/API work in this version? | Current library/API docs and examples |
 | **RTK** | Shell execution | How much terminal output does the model need? | Rewrites supported commands to compact equivalents |
 | **Superpowers** | Implementation discipline | How do we implement and verify the change? | Conditional TDD, debugging, verification, and review skills |
 
 The tools act at different stages; their savings overlap, so percentages are **never added**.
 
-This repo installs the stack for personal and work profiles of Codex and Claude Code: Serena and Context7 as user-level MCP servers, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile.
+This repo installs the stack for personal and work profiles of Codex and Claude Code: smart-read and Context7 as shell CLIs, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile.
 
 Two local safeguards complement them, neither runs `/compact` automatically:
 
@@ -28,8 +27,8 @@ flowchart TB
     agent <-->|"requests / responses"| models["Model providers"]
     policy["AGENTS.md / CLAUDE.md<br/>Ponytail: scope · Superpowers: discipline"] -.-> agent
 
-    agent <-->|"repo navigation"| code["Serena + smart-read"]
-    agent <-->|"dependency docs"| docs["Context7"]
+    agent <-->|"repo navigation"| code["Retrieval skill + smart-read"]
+    agent <-->|"dependency docs"| docs["Context7 CLI"]
     agent <-->|"edit, test, git"| shell["File tools + shell<br/>RTK compacts shell output"]
 
     session["Hooks + checkpoints + pitstop<br/>guard context, save and resume"] -.-> agent
@@ -80,28 +79,17 @@ claude plugin marketplace add DietrichGebert/ponytail && claude plugin install p
 
 **Risk:** over-minimization that skips understanding, validation, security or required edge cases (the rules guard against this).
 
-## 4. Serena
+## 4. Local code retrieval
 
-Semantic code-intelligence MCP server exposing IDE-like, language-server-backed symbol operations: `get_symbols_overview`, `find_symbol`, `find_referencing_symbols`, `replace_symbol_body`. It replaces *grep huge repo → read whole files → infer relationships* with *find symbol → inspect structure → trace references → read only needed bodies → edit at the symbol boundary*.
-
-Setup (`configure_agent_mcps` in `llm/ai-install.sh`, all four profiles):
-
-```bash
-codex mcp add serena -- serena start-mcp-server --context=codex --project-from-cwd --open-web-dashboard false
-claude mcp add --scope user serena -- serena start-mcp-server --context=claude-code --project-from-cwd --open-web-dashboard false
-```
-
-Upstream's `serena setup codex` writes the equivalent Codex entry. Verify with `/mcp`. Codex App sessions not started in the project dir: say "Activate the current dir as project using serena." Serena activation and reminder hooks are removed from both clients: configuration-only tasks should not load the manual or activate a language server. For symbol work, read the manual once and pass its session ID to activation; session-end cleanup remains enabled.
-
-**Retrieval order:** activate project if needed → overview → target symbol → references/callers when siblings may be affected → bodies only when needed → smallest correct edit. Use raw file/search tools for non-code files, generated artifacts, exact-text search, unsupported languages, and tiny known files.
-
-**Reduces:** full-file reads, broad grep output, context spent discovering structure, edits in the wrong layer, time finding callers. Value grows with repo size and reference complexity.
-
-**Costs:** LSP startup/indexing, extra MCP process/state, per-language LSP limits, duplication if more than one Serena instance is configured.
+The retrieval skill chooses bounded `rg`/`sed` reads for known identifiers and
+smart-read for behavior discovery or unclear structure. Trace imports, aliases,
+overrides, callers, and tests before changing shared behavior. Text matches do
+not prove symbol identity; use focused tests or report unresolved dynamic edges.
+No semantic MCP backend or language-server initialization is required.
 
 ### smart-read
 
-Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-read/`, installed with `uv tool`) covers what is left: finding code by behavior ("where are spend retries configured") and reading part of a large SQL, Terraform, YAML or Markdown file. File reads were 30–55% of re-read input in the largest Claude sessions, mostly whole files printed with `cat`. It is a CLI, so both clients use it through the shell with no extra tool schemas.
+`smart-read` (`llm/smart-read/`, installed with `uv tool`) supports finding code by behavior ("where are spend retries configured") and reading part of a large SQL, Terraform, YAML or Markdown file. File reads were 30–55% of re-read input in the largest Claude sessions, mostly whole files printed with `cat`. It is a CLI, so both clients use it through the shell with no extra tool schemas.
 
 - `search "<question>" [--path P] [-k N]` inside the target Git repository:
   - Fuses BM25, trigram, and existing local code embeddings (`jina-embeddings-v2-base-code`); pending chunks use lexical retrieval. Search never creates embeddings or starts workers. Agents default to `--lexical` to avoid loading models.
@@ -111,23 +99,28 @@ Serena needs a symbol name and a supported language. `smart-read` (`llm/smart-re
 - Model choice and retrieval quality are in `llm/smart-read/README.md`.
 - `read_hint.py`, a PreToolUse hook for Claude Read/Bash and Codex Bash, adds a short note pointing at `smart-read` before a whole-file read of 80 or more lines, including `rtk cat`, `rtk proxy cat` and large skill files; at 300 or more it denies the first such read of that file in a session, and repeating the call goes through. Ranged and piped reads pass through.
 
-## 5. Context7
+## 5. Context7 CLI
 
-Current docs/examples for third-party libraries and APIs — external knowledge, not repo navigation. Serena: "how does OUR code work?" (where is our FastAPI app initialized?). Context7: "how does THIS dependency work?" (how does `StreamingResponse` behave in the current FastAPI?).
+Context7 supplies external library contracts, not local source navigation. The
+installer uses `npm install --global --prefix "$HOME/.local" ctx7@latest`.
+Do not use MCP, `ctx7 setup`, login, or saved credentials/API keys. Anonymous
+`ctx7 library` and `ctx7 docs` commands work without account setup; see the
+[official CLI documentation](https://context7.com/docs/clients/cli).
 
-Install via `npx ctx7 setup --codex`, or `codex plugin marketplace add upstash/context7 && codex plugin add context7@context7-marketplace`. `AGENTS.md` should say only *when* to use it, not how to bootstrap it.
+Load the retrieval skill's optional `references/library-docs.md` only when an
+unfamiliar/version-sensitive contract remains unresolved. Identify the installed
+or requested version, resolve a library ID, query that version, and verify the
+returned source. Reuse the resolution within the session and stop once settled.
+On quota/network failure, report it and use matching official documentation.
 
-**Use when** the work depends on third-party APIs, version-specific behavior, recently changed frameworks, SDK/provider config, or unfamiliar dependencies already in the repo. Not on every task.
+`context7_version_guard.py` is a Bash hook in both clients. It checks literal
+`ctx7 docs` and library-qualified `ctx7 search` requests against existing Python
+and Node package pins. Explicit upgrade targets remain supported. The hook does
+not interpret arbitrary generated shell code and does not verify returned docs;
+the agent must still check the source version and qualifications.
 
-**Version guard:** in Claude Code and Codex, `llm/context7_version_guard.py` (`PreToolUse`) denies `query-docs` when the project's `.venv`, `venv`, `uv.lock`, `poetry.lock`, `requirements*.txt` or `node_modules` pins the library and neither `libraryId` nor the query names that version. Upgrade research can use an explicit versioned library ID or `target version: X.Y.Z` in the query. This checks the request; the agent must still verify the returned source covers the target.
-
-**Decision rule:** about this repo → Serena; about an external library/API → Context7; stable, known language/runtime behavior → neither.
-
-**Interactions:**
-- Ponytail asks "can an installed dependency do this?"; Context7 answers "yes, use library X's API", so the agent reuses it instead of building or adding something.
-- With Serena, e.g.: Serena finds where the project uses SQLAlchemy → Context7 gets the relevant API behavior → agent applies it to the existing pattern.
-
-**Reduces:** stale API assumptions, hallucinated methods/options, unnecessary web searches, custom code for features an installed library already has, version-mismatch rework. **Cost:** docs are context; use conditionally, not reflexively.
+Docs cost context and network time. Use this route conditionally, not on every
+local fix, and never send secrets or confidential source in external queries.
 
 ## 6. RTK
 
@@ -157,7 +150,7 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 ### Idle compaction
 
-`llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour (5 minutes on an API key or in usage overage); the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK and Serena shrink tool output and can't touch this. Claude now also has native idle compaction; the measurements describe the earlier sessions, not the savings over that native feature.
+`llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour (5 minutes on an API key or in usage overage); the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK and bounded source reads shrink tool output and can't touch this. Claude now also has native idle compaction; the measurements describe the earlier sessions, not the savings over that native feature.
 
 Fix: have the model write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
@@ -247,7 +240,7 @@ The installer sets `effortLevel = "medium"` in both Claude profiles and a top-le
 
 ### Investigation, output and waiting
 
-The agent selects what to retrieve; tools keep unnecessary text out of context. Use Serena and smart-read for code and passages, RTK for supported shell output, and explicit field selection for shell envelopes and equivalent MCP representations. Preserve distinct content, errors, warnings and resource links. Large logs stay local with bounded diagnostics and a recovery path. There is no model-based summarizer or universal tool-result rewrite hook.
+The agent selects what to retrieve; tools keep unnecessary text out of context. Use bounded shell reads and smart-read for code and passages, RTK for supported shell output, and explicit field selection for shell envelopes and equivalent MCP representations. Preserve distinct content, errors, warnings and resource links. Large logs stay local with bounded diagnostics and a recovery path. There is no model-based summarizer or universal tool-result rewrite hook.
 
 Running commands retain their native process/session IDs. Wait about 30 seconds with the client's native mechanism, increasing to 60 seconds when progress is unchanged while maintaining user updates; avoid separate sleeps and repeated log tails. Cancellation and final exit status remain part of verification. A new wait daemon is unnecessary.
 
@@ -263,12 +256,12 @@ Nested-call attribution has regression coverage in [the profiler tests](token-pr
 
 Prevent waste as early as possible — earlier cuts remove downstream work entirely:
 
-Ponytail (unneeded implementation) → Serena (unneeded repo reads) → Context7 (stale/guessed API knowledge) → RTK (shell-output volume).
+Ponytail (unneeded implementation) → retrieval skill (unneeded reads) → Context7 CLI (unresolved API contracts) → RTK (shell-output volume).
 
 **Example — "Deleted users still appear in /users."** Without the stack: broad grep, whole-file reads, patch only the named route, noisy full test run, large logs/diffs over several turns. With it:
 
 1. **Ponytail**: find the root cause, fix it once in the shared path.
-2. **Serena**: find the endpoint, shared service/repository symbol, and all callers.
+2. **Retrieval skill**: locate the endpoint and shared implementation, then trace callers and tests.
 3. **Context7**, only if the fix depends on third-party behavior.
 4. Read only required bodies and docs; make the smallest root-cause diff.
 5. **RTK** compacts test/git output.
@@ -280,7 +273,7 @@ Each piece has exactly one owner:
 
 | Piece | Owner | Mechanism |
 |---|---|---|
-| Serena, Context7 MCP | `llm/ai-install.sh` `configure_agent_mcps` | Removed and re-added at user scope in all four profiles on every run |
+| Context7 CLI | `llm/ai-install.sh` `install_context7_cli`, `remove_retrieval_mcps` | Installs `ctx7`; uninstalls the retired backend and MCP package; removes legacy registrations in all four profiles |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `llm/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
 | Claude base prompt | `llm/ai-install.sh` `install_global_agents`, `claude()` | `llm/claude-system-prompt.md` → `system-prompt.md` in both Claude homes; passed with `--system-prompt-file` |
@@ -290,25 +283,30 @@ Each piece has exactly one owner:
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
 | Superpowers | `llm/ai-install.sh` `install_superpowers`, then `agent_config.py context-efficiency` | Installs the plugin but disables automatic activation in all four profiles; enable before a new session when requested |
 
-Two Serena servers on one project mean duplicate tools, duplicate indexing/LSP processes, more memory, confused activation/state, and uncertain tool choice.
+Apply the retrieval-only migration with running agents closed, then start new sessions. Cached tools in an existing session do not disappear when persisted registrations are removed.
 
 Plugin scope is applied at installation for future sessions, not switched inside a live conversation. Platform plugin installation remains externally managed: the installer does not install missing plugins or enable disabled work selections. Use `codex-work` or `claude-work` for platform tasks once the plugin is installed there. Orca-managed account homes are not modified. Smoke checks verify personal scope, unique hook entries, policy imports and skill copies; reinstalling managed hooks preserves unrelated commands even when they share a hook group.
 
 ## 10. Hook coexistence
 
-Codex lifecycle hooks have distinct jobs: RTK → `PreToolUse` Bash rewriting; Serena → session-end cleanup; Ponytail → optional session activation, mode tracking, subagent rules. `context-efficiency` removes old Serena activation/reminder/reset hooks from both clients while preserving unrelated hooks. RTK 0.49.0 `init --codex` manages instructions; this repo separately merges the RTK adapter into user-level `hooks.json`; Serena documents user-level hooks in `~/.codex/hooks.json`; Ponytail's plugin carries its own. Merge entries, never replace a hook file blindly, and confirm in Codex's hook view that all are active. New or changed hooks require review in `/hooks`.
+Codex lifecycle hooks have distinct jobs: RTK rewrites supported Bash commands;
+read hints and the Context7 CLI guard inspect Bash requests; idle hooks preserve
+checkpoints; Ponytail carries its optional plugin procedures. Migration removes
+retired backend hooks and old documentation-MCP matchers while preserving other
+commands, even in shared groups. Merge hooks rather than replacing user files,
+and review new or changed Codex hooks in `/hooks`.
 
 ## 11. `AGENTS.md`
 
-Describe behavior, not install manuals: use Serena when symbol lookup helps; Context7 conditionally for third-party APIs; use RTK for supported commands; keep general plugin procedures opt-in; minimize context at the source. `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
+Describe behavior, not install manuals: use bounded source retrieval; Context7 CLI conditionally for unresolved API contracts; use RTK for supported commands; keep general plugin procedures opt-in; minimize context at the source. `llm/codex/__AGENTS.md` and `llm/claude/__AGENTS.md` stay short because every always-on line costs context. If an installer adds a managed RTK block, preserve or reconcile it rather than deleting it.
 
 Both agent templates keep retrieval and correctness requirements while making general plugin procedures opt-in. Resolve conflicts in this order: explicit user requirements, applicable agent policy, then Superpowers defaults.
 
 ## 12. Task workflow
 
 1. Understand the request.
-2. Activate/check Serena when semantic code work is needed; locate symbols and references.
-3. Query Context7 narrowly if third-party behavior matters.
+2. Use the retrieval dispatcher to locate implementations and trace callers.
+3. Query Context7 CLI narrowly if a dependency contract remains unresolved.
 4. Apply Ponytail's ladder; edit the fewest files.
 5. Run the narrowest useful validation (RTK compacts output).
 6. Inspect the final diff; `@ponytail-review` for non-trivial changes when available.
@@ -333,7 +331,7 @@ Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026)
 
 | Situation | Action |
 |---|---|
-| Serena can't handle a file/language | Built-in filesystem/search tools, narrowly |
+| Source structure remains unclear | smart-read outline, complete bodies, and focused tests |
 | Dependency docs unnecessary/stable | Skip Context7 |
 | Context7 lacks the library/version | Authoritative upstream docs, or inspect the installed package narrowly |
 | Exact raw output required | `RTK_DISABLED=1 <command>` |
@@ -343,20 +341,11 @@ Superpowers 7.0.0 (Codex, October 12, 2026) and 6.4.1 (Claude, October 13, 2026)
 
 ## 14. Expected impact
 
-| Dimension | Ponytail | Serena | Context7 | RTK |
-|---|---:|---:|---:|---:|
-| Generated LOC | High | Low | Medium | None |
-| Files/dependencies added | High | Low | Medium | None |
-| Code-reading tokens | Indirect | High | Low | Low |
-| External-doc tokens | None | None | High/targeted | None |
-| Shell-output tokens | Indirect | Low | None | High |
-| Conversation/context tokens | Indirect | Medium | Medium | Medium |
-| Repository understanding | Medium | High | None | None |
-| Dependency/API accuracy | Medium | Low | High | None |
-| Runtime overhead | Very low | Index/LSP | Retrieval/network | Very low |
-| Main failure mode | Underbuilding | LSP/tool mismatch | Unnecessary/stale retrieval | Hidden raw detail |
-
-Not additive: if Serena avoids a whole-file read, RTK and the prompt cache have nothing left to save on it.
+The stack targets different sources of waste: Ponytail limits unnecessary code,
+the retrieval dispatcher limits unnecessary reads, Context7 CLI resolves missing
+API contracts, and RTK limits noisy shell output. Their savings overlap and are
+not additive. Neither a large repository nor an available tool proves a saving;
+measure complete correct tasks with actual model usage, not retrieved-text estimates.
 
 ### Measured overhead and the resulting defaults
 
@@ -396,7 +385,7 @@ The [ablation report](../benchmarks/codex_toolchain/ABLATION.md) and [machine-re
 
 ## 15. What to measure
 
-Per task: model input/output tokens; raw vs RTK shell bytes; full-file reads; Serena symbolic retrievals; Context7 lookups and whether they changed decisions; diff LOC; files changed; dependencies added; latency; test pass/fail; reruns caused by missing context.
+Per task: model input/output tokens; raw vs RTK shell bytes; full-file reads; smart-read searches/outlines; Context7 CLI lookups and whether they changed decisions; diff LOC; files changed; dependencies added; latency; test pass/fail; reruns caused by missing context.
 
 Same-thread quota-reset experiment, one row per pause: context just before and after `/compact`; pause duration; first resumed call's total, cached and fresh input; fresh input across the first ten resumed calls; provider-cache warmth. Compare against a similar uncompacted cycle; don't sum RTK and cache percentages (scopes overlap).
 

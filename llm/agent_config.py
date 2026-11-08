@@ -12,7 +12,7 @@ STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
 CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
 CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
-OBSOLETE_CODEX_HOOK = r"(?:^|/)serena-hooks\s+reset(?:\s|$)|idle_compact\.py\"?\s+clear$"
+OBSOLETE_CODEX_HOOK = r"(?:^|/)serena-hooks(?:\s|$)|idle_compact\.py\"?\s+clear$"
 READ_HINT = 'python3 "$HOME/.config/dotfiles/read_hint.py"'
 HEADROOM_URL = "http://127.0.0.1:8787"
 # ENABLE_TOOL_SEARCH was set by Headroom's install, whose revert drops it; keep tool loading unchanged.
@@ -81,20 +81,30 @@ def codex_shell_path(config: str, path: str) -> None:
     config.write_text(text, encoding="utf-8")
 
 
-def codex_hooks(target: str, required: str) -> None:
+def remove_legacy_hooks(target: str) -> None:
     data = load(target)
-    events = data.setdefault("hooks", {})
+    if isinstance(data.get("description"), str):
+        data["description"] = data["description"].replace("Serena session cleanup, ", "")
+    events = data.get("hooks", {})
     for event, groups in list(events.items()):
         for group in groups:
             group["hooks"] = [
                 hook
                 for hook in group.get("hooks", [])
                 if not re.search(OBSOLETE_CODEX_HOOK, hook.get("command") or "")
+                and not ("mcp__" in (group.get("matcher") or "") and hook.get("command") == CONTEXT7_GUARD)
             ]
         events[event] = [group for group in groups if group.get("hooks")]
         if not events[event]:
             del events[event]
 
+    save(target, data)
+
+
+def codex_hooks(target: str, required: str) -> None:
+    remove_legacy_hooks(target)
+    data = load(target)
+    events = data.setdefault("hooks", {})
     for event, groups in load(required)["hooks"].items():
         installed_groups = events.setdefault(event, [])
         for required_group in groups:
@@ -302,7 +312,8 @@ def scope_plugins(agent: str, profile: str) -> None:
 
 
 def context7_guard(settings: str) -> None:
-    pre_tool_hook(settings, "mcp__context7__query-docs|mcp__claude_ai_Context7__query-docs", CONTEXT7_GUARD)
+    remove_legacy_hooks(settings)
+    pre_tool_hook(settings, "Bash", CONTEXT7_GUARD)
 
 
 def read_hint(settings: str) -> None:
@@ -393,13 +404,7 @@ def context_efficiency(agent: str, profile: str) -> None:
         data.setdefault("enabledPlugins", {}).update(dict.fromkeys(plugins[1:], False), **{PONYTAIL: True})
         save(str(path), data)
     path = profile / ("hooks.json" if agent == "codex" else "settings.json")
-    data = load(str(path))
-    for event, groups in list(data.get("hooks", {}).items()):
-        for group in groups:
-            group["hooks"] = [h for h in group.get("hooks", []) if not re.search(
-                r"(?:^|/)serena-hooks\s+(?:activate|remind|reset)(?:\s|$)", h.get("command") or "")]
-        data["hooks"][event] = [g for g in groups if g.get("hooks")]
-    save(str(path), data)
+    remove_legacy_hooks(str(path))
 
 
 def context_efficient(agent: str, profile: str) -> bool:
@@ -459,6 +464,17 @@ def codex_mcp_enabled(name: str) -> bool:
     return any(s.get("name") == name and s.get("enabled") for s in json.load(sys.stdin))
 
 
+def retrieval_mcps_absent(agent: str, profile: str) -> bool:
+    profile = Path(profile)
+    if agent == "codex":
+        return not {"serena", "context7"}.intersection(load_toml(str(profile / "config.toml")).get("mcp_servers", {}))
+    if agent != "claude":
+        raise ValueError(f"Unknown agent: {agent}")
+    data = load(str(profile.parent / ".claude.json" if profile.name == ".claude" else profile / ".claude.json"))
+    return all(not {"serena", "context7"}.intersection(entry.get("mcpServers", {}))
+               for entry in [data, *data.get("projects", {}).values()])
+
+
 def claude_plugin_enabled(plugin_id: str = "ponytail@ponytail", *alternatives: str) -> bool:
     return any(p.get("id") in (plugin_id, *alternatives) and p.get("enabled", True) for p in json.load(sys.stdin))
 
@@ -498,7 +514,9 @@ def codex_rtk_path(config: str, rtk_dir: str) -> bool:
 def codex_hooks_valid(required: str, installed: str) -> bool:
     entries = list(hook_entries(load(installed)))
     installed = set(entries)
-    obsolete = any(command and re.search(OBSOLETE_CODEX_HOOK, command) for *_, command in installed)
+    obsolete = any((command and re.search(OBSOLETE_CODEX_HOOK, command))
+                   or ("mcp__" in (matcher or "") and command == CONTEXT7_GUARD)
+                   for _, matcher, _, command in installed)
     return len(entries) == len(installed) and set(hook_entries(load(required))) <= installed and not obsolete
 
 
@@ -521,8 +539,8 @@ def plugins_scoped(agent: str, profile: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
-        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled,
+        codex_shell_path, codex_hooks, remove_legacy_hooks, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, context7_guard, idle_compact, attribution, scope_plugins,
+        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled, retrieval_mcps_absent,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
     )

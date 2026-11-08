@@ -63,6 +63,11 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 PYTHON_VERSION=3.13
 
+if (( $# > 1 )) || [[ -n "${1:-}" && "${1:-}" != --retrieval-only ]]; then
+  echo "Usage: $0 [--retrieval-only]" >&2
+  exit 2
+fi
+
 agent_config() {
   python "$SCRIPT_DIR/agent_config.py" "$@"
 }
@@ -113,12 +118,10 @@ install_ai_tools() {
     exit 1
   fi
 
-  npm install --global --prefix "$HOME/.local" @upstash/context7-mcp@latest
+  install_context7_cli
   curl -fsSL https://claude.ai/install.sh | bash -s latest
   curl -fsSL https://raw.githubusercontent.com/danielmiessler/Fabric/main/scripts/installer/install.sh |
     env INSTALL_DIR="$HOME/.local/bin" bash
-  UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
-    --python "$PYTHON_VERSION" --upgrade serena-agent
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/smart-read"
 }
@@ -224,56 +227,70 @@ install_superpowers() {
   done
 }
 
-configure_agent_mcps() {
-  local claude_bin codex_bin context7_bin profile serena_bin server
+install_context7_cli() {
+  npm uninstall --global --prefix "$HOME/.local" @upstash/context7-mcp
+  npm install --global --prefix "$HOME/.local" ctx7@latest
+  if command -v uv >/dev/null 2>&1; then
+    if uv tool list | grep -q '^serena-agent '; then
+      UV_TOOL_BIN_DIR="$HOME/.local/bin" uv tool uninstall serena-agent
+    fi
+    uv cache clean serena-agent
+  fi
+  rm -rf -- "$HOME/.serena"
+}
 
+remove_retrieval_mcps() {
+  local claude_bin codex_bin profile server
   claude_bin="$(type -P claude)"
   codex_bin="$(type -P codex)"
-  context7_bin="$(type -P context7-mcp)"
-  serena_bin="$(type -P serena)"
-
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     for server in serena context7; do
-      CODEX_HOME="$profile" "$codex_bin" mcp remove "$server" >/dev/null 2>&1 || true
+      CODEX_HOME="$profile" "$codex_bin" mcp remove "$server"
     done
-    CODEX_HOME="$profile" "$codex_bin" mcp add serena -- \
-      "$serena_bin" start-mcp-server --context=codex --project-from-cwd \
-      --open-web-dashboard false
-    CODEX_HOME="$profile" "$codex_bin" mcp add context7 -- \
-      "$context7_bin" --transport stdio
   done
-
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     for server in serena context7; do
-      with_claude_profile "$profile" "$claude_bin" mcp remove \
-        --scope user "$server" >/dev/null 2>&1 || true
+      if with_claude_profile "$profile" "$claude_bin" mcp get "$server" >/dev/null 2>&1; then
+        with_claude_profile "$profile" "$claude_bin" mcp remove --scope user "$server"
+      fi
     done
-    with_claude_profile "$profile" "$claude_bin" mcp add --scope user serena -- \
-      "$serena_bin" start-mcp-server --context=claude-code --project-from-cwd \
-      --open-web-dashboard false
-    with_claude_profile "$profile" "$claude_bin" mcp add --scope user context7 -- \
-      "$context7_bin" --transport stdio
   done
 }
 
 install_global_agents() {
   local profile skill
+  local skills=(natural-article code-retrieval)
+  [[ "${1:-}" != --retrieval-only ]] || skills=(code-retrieval)
 
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
     install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
-    install -m 0644 "$SCRIPT_DIR/codex-model-instructions.md" "$profile/model-instructions.md"
-    agent_config codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
+    if [[ "${1:-}" == --retrieval-only && -f "$profile/RTK.md" ]]; then
+      printf '\n@%s/RTK.md\n' "$profile" >> "$profile/AGENTS.md"
+    fi
+    if [[ "${1:-}" != --retrieval-only ]]; then
+      install -m 0644 "$SCRIPT_DIR/codex-model-instructions.md" "$profile/model-instructions.md"
+      agent_config codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
+    fi
   done
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
-    install -m 0644 "$SCRIPT_DIR/claude-system-prompt.md" "$profile/system-prompt.md"
+    if [[ "${1:-}" == --retrieval-only && -f "$profile/RTK.md" ]]; then
+      printf '\n@RTK.md\n' >> "$profile/CLAUDE.md"
+    fi
+    if [[ "${1:-}" != --retrieval-only ]]; then
+      install -m 0644 "$SCRIPT_DIR/claude-system-prompt.md" "$profile/system-prompt.md"
+    fi
   done
   for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-    for skill in natural-article code-retrieval; do
+    for skill in "${skills[@]}"; do
       mkdir -p "$profile/skills/$skill"
       install -m 0644 "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
+      if [[ -d "$SCRIPT_DIR/skills/$skill/references" ]]; then
+        mkdir -p "$profile/skills/$skill/references"
+        install -m 0644 "$SCRIPT_DIR/skills/$skill/references/"*.md "$profile/skills/$skill/references/"
+      fi
     done
   done
 }
@@ -359,6 +376,26 @@ install_shell_config() {
   fi
 }
 
+if [[ "${1:-}" == --retrieval-only ]]; then
+  warn_live_sessions || exit 1
+  install_context7_cli
+  remove_retrieval_mcps
+  install_global_agents --retrieval-only
+  install_claude_hook context7_version_guard.py context7-guard
+  for profile in "$HOME/.codex" "$HOME/.codex-work"; do
+    agent_config context7-guard "$profile/hooks.json"
+  done
+  for profile in "$HOME/.claude" "$HOME/.claude-work"; do
+    agent_config remove-legacy-hooks "$profile/settings.json"
+  done
+  for agent in codex claude; do
+    for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do
+      agent_config retrieval-mcps-absent "$agent" "$profile" || exit 1
+    done
+  done
+  exit 0
+fi
+
 warn_live_sessions || exit 1
 echo "==> Installing AI command-line tools..."
 install_ai_tools
@@ -366,7 +403,7 @@ echo "==> Installing VS Code commands..."
 install_vscode_commands
 echo "==> Installing global Codex and Claude instructions..."
 install_global_agents
-echo "==> Installing Codex Serena, Context7 guard and compact-warning hooks..."
+echo "==> Installing Codex Context7 CLI guard and compact-warning hooks..."
 install_codex_hooks
 echo "==> Configuring RTK for Codex and Claude profiles..."
 configure_rtk
@@ -386,8 +423,8 @@ echo "==> Installing Superpowers for Codex and Claude profiles..."
 install_superpowers
 echo "==> Keeping platform plugins in work profiles; preserving work plugin selections..."
 scope_platform_plugins
-echo "==> Configuring Serena and Context7 for Codex and Claude profiles..."
-configure_agent_mcps
+echo "==> Removing legacy retrieval MCP servers from Codex and Claude profiles..."
+remove_retrieval_mcps
 echo "==> Limiting startup context and making Superpowers opt-in..."
 configure_context_efficiency || exit 1
 echo "==> Installing Codex and Claude token profiler..."

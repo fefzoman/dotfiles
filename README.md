@@ -41,7 +41,7 @@ The smoke test makes no model or API requests. `llm/ai-install.sh` runs the
 non-strict test automatically after installation.
 
 `base-macos.sh` / `base-linux.sh` (sharing `base-common.sh`) own general machine tooling, while `llm/ai-install.sh` owns
-Codex, Claude Code, Fabric, RTK, Ponytail, Serena, Context7, the token
+Codex, Claude Code, Fabric, RTK, Ponytail, Context7 CLI, the token
 profiler, and AI profile shell commands. It configures every applicable tool
 for personal and work Codex/Claude profiles and installs `llm/codex/__AGENTS.md`
 in both Codex profiles and `llm/claude/__AGENTS.md` in both Claude profiles.
@@ -173,8 +173,7 @@ Python, Vim, Vimdoc, and YAML.
 | Fabric | Pattern-based text transformation through a selected model provider; it does not inherit Codex CLI tools or live environment access | `fabric --setup`, `fabric --listpatterns`, `fabric -p summarize < FILE`, `fabric --stream 'PROMPT'` |
 | RTK | Compacts supported shell output before it enters an agent's context | `rtk gain`, `rtk gain --history`, `rtk discover --all --since 7`, `RTK_DISABLED=1 COMMAND` |
 | Ponytail | Guides agents toward the smallest correct implementation | Codex: `@ponytail`, `@ponytail-review`; Claude: `/ponytail`, `/ponytail-review` |
-| Serena | Semantic repository navigation and symbol-level code operations through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `serena --help` |
-| Context7 | Retrieves current third-party library and API documentation through MCP | Used automatically by Codex/Claude; verify with `/mcp`; CLI: `context7-mcp --help` |
+| Context7 CLI | Version-aware third-party library and API documentation without MCP | `ctx7 library PACKAGE "question" --json`, then `ctx7 docs /RETURNED/ID "VERSION: question" --json` |
 | token-profiler | Local usage, inner-session, context, and optimization reports for all four agent profiles | `token-profiler codex`, `token-profiler codex-work short`, `token-profiler claude current`, `token-profiler codex top --by command` |
 | tiktoken | Tokenizer used by token-profiler for diagnostic attribution estimates | `python -c 'import tiktoken; print(tiktoken.get_encoding("o200k_base"))'` |
 | token-count | Counts tokens in a UTF-8 file; defaults to `o200k_base`, with optional OpenAI model selection | `token-count FILE`, `token-count FILE --model gpt-4o`, `token-count --help` |
@@ -203,8 +202,8 @@ attributes. Override both `ALACRITTY_VERSION` and `ALACRITTY_SHA256` together
 to install another release.
 
 On Debian and Ubuntu, system dependencies and Alacritty come from APT. Current
-Neovim, Node 22 LTS, kubectl, yq, Terraform, LazyGit, Codex, Claude Code, Serena,
-Context7, Treesitter CLI, Python 3.13, and the JetBrainsMono Nerd Font are
+Neovim, Node 22 LTS, kubectl, yq, Terraform, LazyGit, Codex, Claude Code,
+Context7 CLI, Treesitter CLI, Python 3.13, and the JetBrainsMono Nerd Font are
 installed under `~/.local`, so no Linuxbrew is required.
 
 ## RTK
@@ -241,13 +240,24 @@ Claude user and enabled plugin hooks run by default; project hooks require trust
 Ponytail defaults to `full`; Codex uses `@ponytail` commands and Claude uses
 `/ponytail` commands.
 
-## Serena and Context7
+## Context7 CLI and retrieval
 
-Serena and Context7 are installed locally and registered as user-level MCP
-servers in `~/.codex`, `~/.codex-work`, `~/.claude`, and `~/.claude-work`.
-Serena starts with the client-specific context and detects the project from the
-working directory. Context7 works anonymously by default; set
-`CONTEXT7_API_KEY` for higher limits or private repositories.
+The installer installs the official `ctx7` CLI for all four Codex/Claude profiles,
+without registering a documentation MCP server. Queries run anonymously; do not
+run `ctx7 setup` or `ctx7 login`, or supply saved credentials/API keys.
+
+The `code-retrieval` skill is a short dispatcher: exact identifiers use bounded
+shell reads, behavior discovery uses smart-read, and unresolved library contracts
+load the optional structured CLI lookup procedure. Resolve a returned library ID,
+query the pinned version, and verify the source version before relying on it.
+Both clients retain a Bash hook checking literal CLI queries against project pins.
+
+To migrate an existing installation without upgrading unrelated tools, close
+running agents and run `bash llm/ai-install.sh --retrieval-only`. This removes the
+retired semantic backend and its state, removes both legacy retrieval MCP entries,
+installs `ctx7`, and updates policies, skill references, and managed hooks. Start
+new agent sessions afterward; existing sessions retain their loaded tool schemas.
+Historical benchmark records remain available for comparison.
 
 ## Token Profiler
 
@@ -273,7 +283,7 @@ show exact usage for the latest inner session, where a gap greater than 30
 minutes starts a new work period.
 
 Optimization reporting keeps scopes separate: exact cache reuse, estimated RTK
-project savings, observed Serena/Context7
+project savings, historical retrieval-MCP
 activity, and Ponytail activation status. The profiler does not add overlapping
 savings or invent a Ponytail savings number. Exact token totals remain
 authoritative.
@@ -312,7 +322,7 @@ changing `PY_VERSION` carries packages over. Global npm packages live in
 | `~/.bashrc` | Oh My Bash, aliases, completions, terminal variables, word navigation |
 | `~/.config/dotfiles/ai-install.sh` | Sourced Codex/Claude profiles, Codex `??` helper, and AI telemetry settings |
 | `~/.codex/AGENTS.md`, `~/.codex-work/AGENTS.md` | Global Codex policy installed from `llm/codex/__AGENTS.md` |
-| `~/.codex/hooks.json`, `~/.codex-work/hooks.json` | Serena activation/reminder/cleanup and context-warning hooks |
+| `~/.codex/hooks.json`, `~/.codex-work/hooks.json` | RTK, Context7 CLI version guard, read hints, idle checkpoints, and context-warning hooks |
 | `~/.claude/CLAUDE.md`, `~/.claude-work/CLAUDE.md` | Global Claude policy installed from `llm/claude/__AGENTS.md` |
 | `~/.bash_profile` | Loads `~/.bashrc` for login shells |
 | `~/.oh-my-bash/custom/themes/font/font.theme.sh` | Two-line prompt with clock, host, path, Git branch, and status arrow |

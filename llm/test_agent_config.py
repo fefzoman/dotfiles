@@ -16,6 +16,94 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class AgentInstallationTests(unittest.TestCase):
+    def test_retrieval_only_migration_preserves_model_permissions_and_unrelated_hooks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            binaries = home / ".local/bin"
+            binaries.mkdir(parents=True)
+            for name, code in (("npm", 0), ("uv", 0), ("codex", 0), ("claude", 1), ("pgrep", 1)):
+                path = binaries / name
+                path.write_text(f"#!/bin/sh\nexit {code}\n")
+                path.chmod(0o755)
+            original = 'model="custom"\nmodel_reasoning_effort="high"\napproval_policy="on-request"\n'
+            for agent in ("codex", "claude"):
+                for name in (f".{agent}", f".{agent}-work"):
+                    profile = home / name
+                    profile.mkdir()
+                    (profile / "RTK.md").write_text("custom RTK guidance\n")
+                    if agent == "codex":
+                        (profile / "config.toml").write_text(original)
+                    agent_config.save(str(profile / ("hooks.json" if agent == "codex" else "settings.json")),
+                                      {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+                                          {"type": "command", "command": "custom-check"}]}]}})
+            result = subprocess.run(["bash", str(SCRIPT_DIR / "ai-install.sh"), "--retrieval-only"],
+                                    env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for agent in ("codex", "claude"):
+                for name in (f".{agent}", f".{agent}-work"):
+                    profile = home / name
+                    reference = f"@{profile}/RTK.md" if agent == "codex" else "@RTK.md"
+                    self.assertTrue(agent_config.policy_matches(str(SCRIPT_DIR / agent / "__AGENTS.md"),
+                                    str(profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")),
+                                    str(profile / "RTK.md"), reference))
+                    self.assertEqual((profile / "RTK.md").read_text(), "custom RTK guidance\n")
+            for name in (".codex", ".codex-work"):
+                self.assertEqual((home / name / "config.toml").read_text(), original)
+                entries = list(agent_config.hook_entries(agent_config.load(str(home / name / "hooks.json"))))
+                self.assertIn(("PreToolUse", "Bash", "command", "custom-check"), entries)
+                self.assertIn(("PreToolUse", "Bash", "command", agent_config.CONTEXT7_GUARD), entries)
+
+    def test_retrieval_cleanup_removes_both_mcps_from_all_profiles_without_adding_any(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "bin").mkdir()
+            for name in ("codex", "claude"):
+                path = home / "bin" / name
+                path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n')
+                path.chmod(0o755)
+            result = self.run_installer_function("remove_retrieval_mcps", home, 'export PATH="$HOME/bin:$PATH"')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = (home / "calls").read_text().splitlines()
+            self.assertEqual(sum("mcp remove" in call for call in calls), 8)
+            self.assertFalse(any("mcp add" in call for call in calls))
+
+    def test_cli_install_removes_only_retired_tool_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / "bin").mkdir()
+            for name in ("npm", "uv"):
+                path = home / "bin" / name
+                path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n'
+                                'if [ "$*" = "tool list" ]; then echo "serena-agent v1"; fi\n')
+                path.chmod(0o755)
+            (home / ".serena").mkdir()
+            (home / "unrelated").write_text("keep")
+            result = self.run_installer_function("install_context7_cli", home, 'export PATH="$HOME/bin:$PATH"')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = (home / "calls").read_text()
+            self.assertIn("ctx7@latest", calls)
+            self.assertIn("tool uninstall serena-agent", calls)
+            self.assertIn("cache clean serena-agent", calls)
+            self.assertFalse((home / ".serena").exists())
+            self.assertEqual((home / "unrelated").read_text(), "keep")
+
+    def test_retrieval_mcp_check_preserves_custom_servers_and_checks_claude_project_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            for agent in ("codex", "claude"):
+                profile = home / f".{agent}"
+                profile.mkdir()
+                if agent == "codex":
+                    path = profile / "config.toml"
+                    path.write_text('[mcp_servers.custom]\ncommand="keep"\n')
+                else:
+                    path = home / ".claude.json"
+                    path.write_text('{"mcpServers":{"custom":{}}}')
+                self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile)))
+                path.write_text('[mcp_servers.context7]\ncommand="old"\n' if agent == "codex" else
+                                '{"projects":{"/repo":{"mcpServers":{"serena":{}}}}}')
+                self.assertFalse(agent_config.retrieval_mcps_absent(agent, str(profile)))
+
     def test_context_efficiency_preserves_custom_settings_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory)
@@ -24,7 +112,7 @@ class AgentInstallationTests(unittest.TestCase):
                               'max_context_tokens = 9000\n[plugins."superpowers@superpowers-dev"]\nenabled = true\n'
                               '[plugins."ponytail@ponytail"]\nenabled = false\n'
                               '[plugins."custom@local"]\nenabled = true\n'
-                              '[mcp_servers.serena]\ncommand = "serena"\n')
+                              '[mcp_servers.custom]\ncommand = "custom"\n')
             settings = profile / "settings.json"
             settings.write_text('{"env":{"CUSTOM":"yes"},"enabledPlugins":{"custom@local":true,"ponytail@ponytail":false}}')
             for agent in ("codex", "claude"):
@@ -36,7 +124,7 @@ class AgentInstallationTests(unittest.TestCase):
                 self.assertEqual(first, (config if agent == "codex" else settings).read_text())
             data = agent_config.load_toml(str(config))
             self.assertEqual(data["model"], "custom")
-            self.assertEqual(data["mcp_servers"], {"serena": {"command": "serena"}})
+            self.assertEqual(data["mcp_servers"], {"custom": {"command": "custom"}})
             self.assertEqual(data["skills"], {"include_instructions": False, "max_context_tokens": 2000})
             self.assertFalse(data["plugins"]["superpowers@superpowers-dev"]["enabled"])
             self.assertTrue(data["plugins"]["custom@local"]["enabled"])
@@ -47,18 +135,31 @@ class AgentInstallationTests(unittest.TestCase):
             self.assertTrue(data["enabledPlugins"]["custom@local"])
             self.assertTrue(data["enabledPlugins"]["ponytail@ponytail"])
 
-    def test_context_efficiency_removes_only_eager_serena_hooks(self):
+    def test_context_efficiency_removes_all_retired_hooks_but_keeps_custom(self):
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory)
             for agent, filename in (("codex", "hooks.json"), ("claude", "settings.json")):
                 path = profile / filename
-                agent_config.save(str(path), {"hooks": {"SessionStart": [{"hooks": [
+                agent_config.save(str(path), {"description": "custom Serena session cleanup, retain", "hooks": {"SessionStart": [{"hooks": [
                     {"type": "command", "command": "serena-hooks activate --client=" + agent},
                     {"type": "command", "command": "custom-check"}]}], "SessionEnd": [{"hooks": [
                     {"type": "command", "command": "serena-hooks cleanup --client=" + agent}]}]}})
                 agent_config.context_efficiency(agent, str(profile))
                 commands = [e[3] for e in agent_config.hook_entries(agent_config.load(str(path)))]
-                self.assertEqual(commands, ["custom-check", "serena-hooks cleanup --client=" + agent])
+                self.assertEqual(commands, ["custom-check"])
+                self.assertEqual(agent_config.load(str(path))["description"], "custom retain")
+
+    def test_context7_guard_migrates_mcp_hook_to_cli_without_dropping_custom_hooks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "settings.json")
+            agent_config.save(path, {"hooks": {"PreToolUse": [{"matcher": "mcp__context7__query-docs", "hooks": [
+                {"type": "command", "command": agent_config.CONTEXT7_GUARD},
+                {"type": "command", "command": "custom-check"}]}]}})
+            for _ in range(2):
+                agent_config.context7_guard(path)
+            entries = list(agent_config.hook_entries(agent_config.load(path)))
+            self.assertIn(("PreToolUse", "Bash", "command", agent_config.CONTEXT7_GUARD), entries)
+            self.assertEqual(len(entries), 2)
 
     def test_context_efficiency_rejects_unsupported_toml_without_writing(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -202,6 +303,9 @@ class AgentInstallationTests(unittest.TestCase):
                         (home / profile / f"skills/{skill}/SKILL.md").read_text(),
                         (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text(),
                     )
+                for source in (SCRIPT_DIR / "skills/code-retrieval/references").glob("*.md"):
+                    self.assertEqual((home / profile / "skills/code-retrieval/references" / source.name).read_bytes(),
+                                     source.read_bytes())
 
     def test_superpowers_installation_and_reuse(self):
         for mode in ("installed", "upstream", "failure"):

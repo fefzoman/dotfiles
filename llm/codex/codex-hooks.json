@@ -1,5 +1,5 @@
 {
-  "description": "RTK command rewriting, Serena session cleanup, Context7 version guard, smart-read hints for large whole-file reads, and Codex context warnings and idle checkpoints, and prompt-cache switch and instruction-edit notes.",
+  "description": "RTK command rewriting, Context7 CLI version guard, smart-read hints for large whole-file reads, and Codex context warnings and idle checkpoints, and prompt-cache switch and instruction-edit notes.",
   "hooks": {
     "PreToolUse": [
       {
@@ -14,12 +14,7 @@
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/read_hint.py\"",
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__context7__query-docs",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/context7_version_guard.py\"",
@@ -31,10 +26,6 @@
     "SessionEnd": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "serena-hooks cleanup --client=codex"
-          },
           {
             "type": "command",
             "command": "python3 \"$HOME/.config/dotfiles/idle_compact.py\" end --client codex",

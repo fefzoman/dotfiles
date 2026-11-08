@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Claude and Codex PreToolUse hook: deny Context7 queries that ignore the project's pinned version."""
+"""Claude and Codex Bash hook: deny literal ctx7 queries that ignore pinned versions."""
 
 import json
+import argparse
 import re
+import shlex
 import sys
 import tomllib
 from pathlib import Path
@@ -79,15 +81,54 @@ def check(tool_input: dict, cwd: Path) -> str | None:
     pins = ", ".join(f"{version} ({source})" for version, source in found.items())
     return (
         f"The project pins {library_id.rsplit('/', 1)[-1]} {pins}. Query that version: use "
-        f"'{library_id}/<version>' if resolve-library-id listed it, otherwise name the version in the query. "
+        f"'{library_id}/<version>' if ctx7 library listed it, otherwise name the version in the query. "
         "For upgrade research, write 'target version: X.Y.Z' and verify the returned source covers that target."
     )
+
+
+def cli_inputs(command: str):
+    if "ctx7" not in command:
+        return
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()")
+    lexer.whitespace_split = True
+    tokens = list(lexer)
+    parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False, exit_on_error=False)
+    parser.add_argument("action", choices=("docs", "search", "library"))
+    parser.add_argument("arguments", nargs="*")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--language")
+    parser.add_argument("--base-url")
+    parser.add_argument("--library", action="append", default=[])
+    parser.add_argument("--library-version", default="")
+    # shortcut: inspect literal CLI calls, extend this if generated shell commands become common.
+    for index, token in enumerate(tokens):
+        if Path(token).name != "ctx7":
+            continue
+        words = []
+        for word in tokens[index + 1:]:
+            if word in {";", "&&", "||", "|", "&", "(", ")"}:
+                break
+            words.append(word)
+        try:
+            args, extra = parser.parse_known_intermixed_args(words)
+        except argparse.ArgumentError:
+            continue
+        if extra:
+            continue
+        if args.action == "docs" and len(args.arguments) == 2:
+            yield {"libraryId": args.arguments[0], "query": args.arguments[1]}
+        elif args.action == "search" and len(args.arguments) == 1:
+            for library in args.library:
+                yield {"libraryId": library if library.startswith("/") else f"/_/{library}",
+                       "query": f"{args.arguments[0]} {args.library_version}"}
 
 
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
-        reason = check(payload.get("tool_input") or {}, Path(payload.get("cwd") or ".").resolve())
+        cwd = Path(payload.get("cwd") or ".").resolve()
+        reason = next((reason for query in cli_inputs((payload.get("tool_input") or {}).get("command", ""))
+                       if (reason := check(query, cwd))), None)
     except (OSError, ValueError, KeyError):
         return
     if reason:
