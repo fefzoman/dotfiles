@@ -1,0 +1,743 @@
+{
+  "root": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316",
+  "arms": [
+    "shell",
+    "previous_skill",
+    "dispatcher",
+    "context7_cli"
+  ],
+  "transport": "cli",
+  "repeats": 2,
+  "parent_thread_id": "01a1ba28-34f7-7300-b012-c7b99e7601a3",
+  "session_date": "2026/11/08",
+  "fork_turns": "none",
+  "max_parallel_workers": 3,
+  "agent_prefix": "cli_20261108_104316",
+  "cli_executable": "/Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7",
+  "cli_version": "0.10.0",
+  "repository": "https://github.com/python/cpython",
+  "revision": "ebf955df7a89ed0c7968f79faec1de49f61ed7cb",
+  "tracked_files": 5220,
+  "python_files": 2114,
+  "python_lines": 1032831,
+  "python_executable": "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+  "tool_names": [],
+  "agents": {
+    "/root/cli_20261108_104316_conflicts_previous_skill_r1": [
+      "conflicts",
+      "previous_skill"
+    ],
+    "/root/cli_20261108_104316_conflicts_dispatcher_r1": [
+      "conflicts",
+      "dispatcher"
+    ],
+    "/root/cli_20261108_104316_conflicts_context7_cli_r1": [
+      "conflicts",
+      "context7_cli"
+    ],
+    "/root/cli_20261108_104316_conflicts_shell_r1": [
+      "conflicts",
+      "shell"
+    ],
+    "/root/cli_20261108_104316_interpolation_dispatcher_r1": [
+      "interpolation",
+      "dispatcher"
+    ],
+    "/root/cli_20261108_104316_interpolation_context7_cli_r1": [
+      "interpolation",
+      "context7_cli"
+    ],
+    "/root/cli_20261108_104316_interpolation_shell_r1": [
+      "interpolation",
+      "shell"
+    ],
+    "/root/cli_20261108_104316_interpolation_previous_skill_r1": [
+      "interpolation",
+      "previous_skill"
+    ],
+    "/root/cli_20261108_104316_symlinks_context7_cli_r1": [
+      "symlinks",
+      "context7_cli"
+    ],
+    "/root/cli_20261108_104316_symlinks_shell_r1": [
+      "symlinks",
+      "shell"
+    ],
+    "/root/cli_20261108_104316_symlinks_previous_skill_r1": [
+      "symlinks",
+      "previous_skill"
+    ],
+    "/root/cli_20261108_104316_symlinks_dispatcher_r1": [
+      "symlinks",
+      "dispatcher"
+    ],
+    "/root/cli_20261108_104316_conflicts_dispatcher_r2": [
+      "conflicts",
+      "dispatcher"
+    ],
+    "/root/cli_20261108_104316_conflicts_context7_cli_r2": [
+      "conflicts",
+      "context7_cli"
+    ],
+    "/root/cli_20261108_104316_conflicts_shell_r2": [
+      "conflicts",
+      "shell"
+    ],
+    "/root/cli_20261108_104316_conflicts_previous_skill_r2": [
+      "conflicts",
+      "previous_skill"
+    ],
+    "/root/cli_20261108_104316_interpolation_context7_cli_r2": [
+      "interpolation",
+      "context7_cli"
+    ],
+    "/root/cli_20261108_104316_interpolation_shell_r2": [
+      "interpolation",
+      "shell"
+    ],
+    "/root/cli_20261108_104316_interpolation_previous_skill_r2": [
+      "interpolation",
+      "previous_skill"
+    ],
+    "/root/cli_20261108_104316_interpolation_dispatcher_r2": [
+      "interpolation",
+      "dispatcher"
+    ],
+    "/root/cli_20261108_104316_symlinks_shell_r2": [
+      "symlinks",
+      "shell"
+    ],
+    "/root/cli_20261108_104316_symlinks_previous_skill_r2": [
+      "symlinks",
+      "previous_skill"
+    ],
+    "/root/cli_20261108_104316_symlinks_dispatcher_r2": [
+      "symlinks",
+      "dispatcher"
+    ],
+    "/root/cli_20261108_104316_symlinks_context7_cli_r2": [
+      "symlinks",
+      "context7_cli"
+    ]
+  },
+  "trials": [
+    {
+      "task": "conflicts",
+      "arm": "previous_skill",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_conflicts_previous_skill_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r1-prompt.txt",
+      "skill_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r1-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "dispatcher",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_conflicts_dispatcher_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r1-prompt.txt",
+      "skill_path": "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r1-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "context7_cli",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_conflicts_context7_cli_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Before editing, use literal ctx7 library and ctx7 docs commands to verify the relevant Python 3.14 contract. Verify the returned source version.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r1-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r1-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_conflicts_shell_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Do not use Context7 CLI or any MCP tools.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r1-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r1-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "dispatcher",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_interpolation_dispatcher_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r1-prompt.txt",
+      "skill_path": "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r1-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "context7_cli",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_interpolation_context7_cli_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Before editing, use literal ctx7 library and ctx7 docs commands to verify the relevant Python 3.14 contract. Verify the returned source version.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r1-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r1-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_interpolation_shell_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Do not use Context7 CLI or any MCP tools.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r1-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r1-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "previous_skill",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_interpolation_previous_skill_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r1-prompt.txt",
+      "skill_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r1-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "context7_cli",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_symlinks_context7_cli_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Before editing, use literal ctx7 library and ctx7 docs commands to verify the relevant Python 3.14 contract. Verify the returned source version.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r1-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r1-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "shell",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_symlinks_shell_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Do not use Context7 CLI or any MCP tools.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r1-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r1-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "previous_skill",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_symlinks_previous_skill_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r1-prompt.txt",
+      "skill_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r1-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "dispatcher",
+      "repeat": 1,
+      "agent": "/root/cli_20261108_104316_symlinks_dispatcher_r1",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r1",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r1, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r1-prompt.txt",
+      "skill_path": "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r1-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "dispatcher",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_conflicts_dispatcher_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r2-prompt.txt",
+      "skill_path": "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_dispatcher_r2-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "context7_cli",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_conflicts_context7_cli_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Before editing, use literal ctx7 library and ctx7 docs commands to verify the relevant Python 3.14 contract. Verify the returned source version.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r2-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_context7_cli_r2-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_conflicts_shell_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Do not use Context7 CLI or any MCP tools.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r2-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_shell_r2-baseline.log"
+      }
+    },
+    {
+      "task": "conflicts",
+      "arm": "previous_skill",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_conflicts_previous_skill_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The command-line parser's conflict_handler='resolve' leaves obsolete actions in help/usage after an option is replaced. Fix conflict resolution so fully replaced actions leave their owning container, while actions retaining non-conflicting aliases remain usable and visible. Preserve the default conflict error behavior, argument groups, and parent parsers.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_argparse\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r2-prompt.txt",
+      "skill_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_argparse"
+      ],
+      "allowed_file": "Lib/argparse.py",
+      "baseline_commit": "33e0bc93d91475f5d0baeba6eeee1f9eee352805",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "8be3cb2087e309a22a3421a4e99601e37aaec30a3f8f8a8ffb0407187357dab6",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/conflicts_previous_skill_r2-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "context7_cli",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_interpolation_context7_cli_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Before editing, use literal ctx7 library and ctx7 docs commands to verify the relevant Python 3.14 contract. Verify the returned source version.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r2-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_context7_cli_r2-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_interpolation_shell_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Do not use Context7 CLI or any MCP tools.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r2-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_shell_r2-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "previous_skill",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_interpolation_previous_skill_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r2-prompt.txt",
+      "skill_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_previous_skill_r2-baseline.log"
+      }
+    },
+    {
+      "task": "interpolation",
+      "arm": "dispatcher",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_interpolation_dispatcher_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: Extended configuration interpolation resolves nested ${section:option} values against the caller's section rather than the referenced section. Fix the shared recursive path so nested unqualified references use the referenced section and its defaults. Preserve custom option normalization, raw reads, missing-option errors, and bounded cycle detection.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_configparser\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r2-prompt.txt",
+      "skill_path": "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_configparser"
+      ],
+      "allowed_file": "Lib/configparser.py",
+      "baseline_commit": "2c38ead938e2e48a8685b029e59905d2a9d5c882",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "d2d1d93915c085d0560381fb326be61e28ab94751e3329cf6811b9ab8abfadc2",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/interpolation_dispatcher_r2-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "shell",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_symlinks_shell_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Do not use Context7 CLI or any MCP tools.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r2-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_shell_r2-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "previous_skill",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_symlinks_previous_skill_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r2-prompt.txt",
+      "skill_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_previous_skill_r2-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "dispatcher",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_symlinks_dispatcher_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Read and apply ONLY the retrieval skill at /Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md. Read its optional references only when needed. Use Context7 CLI only for an unresolved version-sensitive contract, not reflexively.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r2-prompt.txt",
+      "skill_path": "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md",
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_dispatcher_r2-baseline.log"
+      }
+    },
+    {
+      "task": "symlinks",
+      "arm": "context7_cli",
+      "repeat": 2,
+      "agent": "/root/cli_20261108_104316_symlinks_context7_cli_r2",
+      "path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r2",
+      "prompt": "One authorized isolated implementation trial. Work only in /Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r2, a complete CPython v3.14.0 checkout. This prompt controls retrieval for the benchmark: do not automatically read any other installed retrieval skill. Serena has been removed from persisted setup; the current runtime may expose stale tool names. Do not call Serena, its manual, or Context7 MCP. Do not initialize removed backends. Do not load or apply any retrieval skill, including the automatically named code-retrieval skill. Use ordinary shell source retrieval. Before editing, use literal ctx7 library and ctx7 docs commands to verify the relevant Python 3.14 contract. Verify the returned source version.\n\nFix this seeded regression: The object-oriented filesystem path API's file and directory classification follows symlinks even when follow_symlinks=False. Fix both classification methods at their shared implementation layer. Real files/directories must still classify correctly; symlinks must not classify as their targets when following is disabled. Preserve default following behavior and existing missing/invalid-path handling.\n\nThe official ctx7 0.10.0 executable is /Users/odobrynin/.codex-work/context7-cli/node_modules/.bin/ctx7; use that literal path or prepend its parent to PATH. Use --json noninteractively, with CTX7_TELEMETRY_DISABLED=1 and no credentials or API keys. Never run ctx7 setup/login or use saved authentication. If anonymous queries fail, report the failure and use matching official docs, never silently rely on memory. Discover the implementation and trace affected callers and existing tests before editing. Change only the existing implementation file needed for this fix. Do not alter tests, docs, configs, or unrelated code. Do not fetch upstream answers, use git history to recover the answer, install dependencies, create indexes/embeddings, delegate, launch CLI agents, or commit. Existing tests cover the regression; do not add tests in this controlled trial. Run in your workspace: PYTHONPATH=Lib /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14 -m test -q test_pathlib\nInspect the final diff. Final answer under 100 words: fix, checks, limitations. Stop after this one task.",
+      "prompt_path": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r2-prompt.txt",
+      "skill_path": null,
+      "command": [
+        "/opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+        "-m",
+        "test",
+        "-q",
+        "test_pathlib"
+      ],
+      "allowed_file": "Lib/pathlib/__init__.py",
+      "baseline_commit": "f457f335a32ade88aaec8583c288331f6832e5de",
+      "tests_sha256": "f749cb888b6c0d0f10478282e5a50f920e8bb0affdc8ce97d1ecb2cddf9148ed",
+      "source_sha256": "9b5ee20ba3f4ac2669ad441daaa9c768b20d977be53ba877de95c81b235fdd46",
+      "baseline_grade": {
+        "exit_code": 2,
+        "log": "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/symlinks_context7_cli_r2-baseline.log"
+      }
+    }
+  ],
+  "previous_skill_revision": "54cdc6f",
+  "previous_skill_normalization": "Remove only retired Serena escalation sentence",
+  "skill_files": {
+    "/Users/odobrynin/.codex-work/retrieval-cli-20261108-104316/previous-code-retrieval/SKILL.md": "3f990830e246fe8d23966064c5057ed70dcae16acd9db6b4854a72dd8c25cf98",
+    "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/SKILL.md": "86ad94a343e044afcf8ed16cc0eba5efbea0ebafe688bb44d09bd8644b77545e",
+    "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/references/library-docs.md": "611b85c60498c6cca214529eeedb36a0ef9326e316fa5b71e3ba717d0ddf8643",
+    "/Users/odobrynin/dotfiles/llm/skills/code-retrieval/references/local-code.md": "39a31b5121b080b41e4d43b0837d10712ece9e1eb304fa6a556112fcdacda3ca"
+  },
+  "runtime_mcp_schemas_still_exposed": false,
+  "runtime_retrieval_mcp_names": [],
+  "setup_commit": "a82aadb",
+  "setup_preflight_agent": "/root/retrieval_cli_clean_preflight",
+  "archived_attempt": "cli-blocked-manifest.json",
+  "launch_message_template": "Authorized clean benchmark trial. Read {prompt_path} and execute its one task. That prompt controls retrieval and overrides automatic skill loading for this experiment. Do not load any skill before reading it. No Serena or Context7 MCP tools are available or permitted. Do not initialize removed backends. No delegation. Work only in the workspace named by the prompt.",
+  "installed_policy_hashes": {
+    "/Users/odobrynin/.codex/AGENTS.md": "211884133102b9d2de67875843ca2f90e74fb1598deb76cc3148324a64b62ea1",
+    "/Users/odobrynin/.codex/RTK.md": "278274ef3d08c858d4247cc91419c4d74ef922b95719e987b22e896aef10e1fc"
+  }
+}

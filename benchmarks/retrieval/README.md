@@ -1,5 +1,10 @@
 # Code retrieval benchmark: skill, Serena, and Context7
 
+The [CLI-only follow-up](CLI.md) compares plain shell, the previous skill, the
+refactored dispatcher, and Context7 CLI in 24 clean trials, with no retrieval MCP
+tools exposed. An [earlier contaminated attempt](CLI-BLOCKED.md) is archived
+separately and excluded from that comparison.
+
 For the follow-up on full CPython checkouts, with **Serena and Context7 without
 the retrieval skill**, see [the large-repository benchmark](LARGE.md). Its arms
 and workloads differ; the two experiments are reported separately.

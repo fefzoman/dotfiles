@@ -3,10 +3,23 @@ import subprocess
 import tempfile
 import unittest
 
-from large import grade, mcp_calls, source_scope_ok, tests_digest
+from large import cli_method_compliant, grade, mcp_calls, source_scope_ok, tests_digest
 
 
 class LargeTrialTests(unittest.TestCase):
+    def test_cli_methods_reject_mcp_skill_leaks_and_missing_cli_queries(self):
+        for arm in ("shell", "context7_cli"):
+            trial = dict(arm=arm)
+            self.assertFalse(cli_method_compliant(trial, ["mcp__serena__initial_instructions"], [], ["library", "docs"]))
+            self.assertFalse(cli_method_compliant(trial, [], ["code-retrieval/SKILL.md"], ["library", "docs"]))
+        self.assertTrue(cli_method_compliant(dict(arm="shell"), [], [], []))
+        self.assertFalse(cli_method_compliant(dict(arm="context7_cli"), [], [], ["library"]))
+        self.assertTrue(cli_method_compliant(dict(arm="context7_cli"), [], [], ["library", "docs"]))
+        trial = dict(arm="dispatcher", skill_path="/new/code-retrieval/SKILL.md")
+        self.assertFalse(cli_method_compliant(trial, [], ["/old/code-retrieval/SKILL.md"], []))
+        self.assertTrue(cli_method_compliant(trial, [], ["/new/code-retrieval/SKILL.md"], []))
+        self.assertFalse(cli_method_compliant(trial, [], ["/new/code-retrieval/SKILL.md /old/code-retrieval/SKILL.md"], []))
+
     def test_scope_rejects_extra_files_and_changed_history(self):
         self.assertTrue(source_scope_ok(["Lib/x.py"], [".serena/project.yml"], "Lib/x.py", "a", "a"))
         for changed, untracked, head in [([], [], "a"), (["Lib/x.py", "Lib/test/test_x.py"], [], "a"),

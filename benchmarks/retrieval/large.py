@@ -177,8 +177,28 @@ def prepare(base, root, python):
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
 
 
-def collect():
-    manifest = json.loads(MANIFEST.read_text())
+def cli_method_compliant(trial, calls, skill_reads, cli_commands):
+    if calls:
+        return False
+    expected = trial.get("skill_path")
+    if not expected and skill_reads:
+        return False
+    observed = {path for call in skill_reads
+                for path in re.findall(r"/[^\s\"'`\\]+code-retrieval/SKILL\.md", call)}
+    if observed != ({expected} if expected else set()):
+        return False
+    if trial["arm"] == "shell":
+        return not cli_commands
+    if trial["arm"] == "context7_cli":
+        return {"library", "docs"} <= set(cli_commands)
+    return True
+
+
+def collect(manifest_path=MANIFEST):
+    manifest = json.loads(manifest_path.read_text())
+    for name, digest in manifest.get("skill_files", {}).items():
+        if hashlib.sha256(Path(name).read_bytes()).hexdigest() != digest:
+            raise ValueError(f"Skill changed during experiment: {name}")
     sessions = {}
     for home in (Path.home() / ".codex", Path.home() / ".codex-work"):
         for path in (home / "sessions" / manifest["session_date"]).glob("*.jsonl"):
@@ -195,7 +215,7 @@ def collect():
                 sessions[name] = path
     results = []
     for trial in manifest["trials"]:
-        name = next(n for n, pair in manifest["agents"].items() if pair == [trial["task"], trial["arm"]])
+        name = trial.get("agent") or next(n for n, pair in manifest["agents"].items() if pair == [trial["task"], trial["arm"]])
         if name not in sessions:
             continue
         path = sessions[name]
@@ -214,10 +234,10 @@ def collect():
         head = run(["git", "rev-parse", "HEAD"], workspace, check=True).stdout.strip()
         scope_ok = source_scope_ok(changed, untracked, trial["allowed_file"], head, trial["baseline_commit"])
         patch = run(["git", "diff", "HEAD"], workspace, check=True).stdout
-        grade_result = grade(workspace, trial["command"], Path(manifest["root"]) / f"{trial['task']}-{trial['arm']}-grade.log")
+        grade_result = grade(workspace, trial["command"], Path(manifest["root"]) / f"{workspace.name}-grade.log")
         contexts = sorted({(r["payload"].get("model"), r["payload"].get("effort"))
                            for r in rows if r["type"] == "turn_context"})
-        calls, skill_reads = [], []
+        calls, skill_reads, cli_commands = [], [], []
         for row in rows:
             p = row["payload"]
             if row["type"] != "response_item" or p.get("type") not in ("function_call", "custom_tool_call"):
@@ -226,16 +246,21 @@ def collect():
             calls.extend(mcp_calls(call, manifest["tool_names"]))
             if "code-retrieval/SKILL.md" in call:
                 skill_reads.append(call)
-        method_ok = method_compliant(trial["arm"], calls)
-        skill_ok = bool(skill_reads) if trial["arm"] == "skill" else not skill_reads
+            cli_commands.extend(re.findall(r"ctx7[\"']?\s+(library|docs|search)\b", call))
+        if manifest.get("transport") == "cli":
+            method_ok = cli_method_compliant(trial, calls, skill_reads, cli_commands)
+        else:
+            method_ok = method_compliant(trial["arm"], calls)
+            method_ok = method_ok and (bool(skill_reads) if trial["arm"] == "skill" else not skill_reads)
         results.append(dict(task=trial["task"], arm=trial["arm"], agent=name, session=str(path),
                             session_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), usage=totals,
                             per_response_usage=records, contexts=contexts, grade=grade_result,
                             source_scope_ok=scope_ok, tests_unchanged=True, patch=patch,
                             observed_mcp_calls=calls, skill_read_calls=skill_reads,
-                            method_compliant=method_ok and skill_ok))
+                            observed_cli_commands=cli_commands, repeat=trial.get("repeat", 1),
+                            method_compliant=method_ok))
     summary = {}
-    for arm in ARMS:
+    for arm in manifest.get("arms", ARMS):
         group = [r for r in results if r["arm"] == arm]
         summary[arm] = dict(trials=len(group), tests_pass=sum(r["grade"]["exit_code"] == 0 for r in group),
                             **{k: sum(r["usage"][k] for r in group) for k in (*COUNTERS, "calls", "total_tokens", "uncached_input_tokens")})
@@ -243,10 +268,11 @@ def collect():
     valid = complete and all(r["grade"]["exit_code"] == 0 and r["source_scope_ok"] and r["method_compliant"] for r in results)
     valid = (valid and all(len(r["contexts"]) == 1 for r in results)
              and len({tuple(c) for r in results for c in r["contexts"]}) == 1)
-    document = dict(status="complete" if complete else "in progress", valid_comparison=valid,
+    status = "complete" if complete else "blocked" if manifest.get("blocked_reason") else "in progress"
+    document = dict(status=status, valid_comparison=valid, blocked_reason=manifest.get("blocked_reason"),
                     collected_utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    manifest=str(MANIFEST), summary=summary, results=results)
-    (DIRECTORY / "large-results.json").write_text(json.dumps(document, indent=2) + "\n")
+                    manifest=str(manifest_path), summary=summary, results=results)
+    manifest_path.with_name(manifest_path.name.replace("manifest", "results")).write_text(json.dumps(document, indent=2) + "\n")
     print(json.dumps(dict(status=document["status"], valid_comparison=valid, summary=summary), indent=2))
 
 
