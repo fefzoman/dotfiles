@@ -574,6 +574,61 @@
     "ack": "ack v3.10.0 (standalone version)\nRunning under Perl v5.34.1 at /usr/bin/perl\n\nCopyright 2005-2026 Andy Lester.\n\nThis program is free software.  You may modify or distribute it\nunder the terms of the Artistic License v2.0.\n",
     "ast-grep": "ast-grep 0.51.1\n"
   },
-  "blocked_reason": "Prepared only; awaiting explicit authorization to launch benchmark agents.",
-  "baseline_skill_revision": "7e404af"
+  "baseline_skill_revision": "7e404af",
+  "authorization": "User approved fresh native agents after preparation.",
+  "runtime_preflight": {
+    "serena_mcp_available": false,
+    "context7_mcp_available": false
+  },
+  "callsite_audit": {
+    "method": "Literal shell tool names in recorded function/custom-tool call arguments; mention evidence, not a JavaScript execution trace. MCP check matches literal mcp__ names followed by an opening parenthesis.",
+    "tool_trial_counts": {
+      "shell": {
+        "rg": 6,
+        "ag": 0,
+        "ack": 0,
+        "ast-grep": 0,
+        "smart-read": 0
+      },
+      "baseline": {
+        "rg": 6,
+        "ag": 0,
+        "ack": 0,
+        "ast-grep": 0,
+        "smart-read": 0
+      },
+      "optimized": {
+        "rg": 6,
+        "ag": 0,
+        "ack": 0,
+        "ast-grep": 0,
+        "smart-read": 0
+      }
+    },
+    "literal_mcp_calls_found": [],
+    "session_sha256": {
+      "/root/shell_20261108_183945_conflicts_baseline_r1": "44266c7ae5be335cf4122f0c523ce8aeea9cea9ab3cdd1db767e159c53ba73ac",
+      "/root/shell_20261108_183945_conflicts_optimized_r1": "d67cbaa664d36aa468ae2ca5c3427b402af306af7e9ccbd8fb2b7fc167f47593",
+      "/root/shell_20261108_183945_conflicts_shell_r1": "900488e7cadf10332f69444ccdf6715834117ffb3fbfbd9957d7b02223beb7a1",
+      "/root/shell_20261108_183945_interpolation_optimized_r1": "f82a623283cb9ee258a05af2a5474bb388dd09cd4d2f37cff3e18dac61531550",
+      "/root/shell_20261108_183945_interpolation_shell_r1": "618edd648f9ce387d170e740981e049b7ddc8be505207107fa3e58d75a45b5a9",
+      "/root/shell_20261108_183945_interpolation_baseline_r1": "48c0ca60b41df3b14cb3277a0ffb0aa2445201f2eda67aaf8806150a942e29db",
+      "/root/shell_20261108_183945_symlinks_shell_r1": "7485c08c0867293d5104ca72b370d48f47d7a25c551ddc14bf192099cd2e598d",
+      "/root/shell_20261108_183945_symlinks_baseline_r1": "355804550055c9dcfe9da78eddecc0b69676c0e02649bbb7643e1820379b55ad",
+      "/root/shell_20261108_183945_symlinks_optimized_r1": "079fc7e75ae3f523698a472b0807603a414cbb759ec0ac331150211d003941a0",
+      "/root/shell_20261108_183945_conflicts_optimized_r2": "67ff4febeaa024146c26f6ff0434b5dd7ddc7032352b12876a3a50b9dbdbd035",
+      "/root/shell_20261108_183945_conflicts_shell_r2": "2ce0a61939764631600ef3bd7e96b30e6c6e70487d4de357b42cfe781b534dd9",
+      "/root/shell_20261108_183945_conflicts_baseline_r2": "0fb828919a1444ae1f7cc23984d3981caa9e528262bddbd8a80a0068b4439827",
+      "/root/shell_20261108_183945_interpolation_shell_r2": "c4f93e41a545d98b0fa89259e4ebf5a2745ac0bdc57dbb2f66cf723edbb06b1d",
+      "/root/shell_20261108_183945_interpolation_baseline_r2": "7834bf036792444e25e97201410ebfe2b630b338f6f18c2543803054c6297422",
+      "/root/shell_20261108_183945_interpolation_optimized_r2": "fd8ecdb6d9053c8c12a00fa56ffa14a6c042f05f0cb0eb98ae20a7f6c6b6bcdb",
+      "/root/shell_20261108_183945_symlinks_baseline_r2": "efcc1bb7dc1ec655915bca13aaec7d49d09d8be3cc8b577e99fd6008fba4cf4d",
+      "/root/shell_20261108_183945_symlinks_optimized_r2": "bb577777dadcb01051e1bc21d27a0d48a85a0d5c8c1aa5150e8e90baca4a2d3a",
+      "/root/shell_20261108_183945_symlinks_shell_r2": "9ac2084dc85d11d80ac5efa90e60936cf778419111d36f62764509fecdb53e41"
+    }
+  },
+  "measured_context": {
+    "model": "gpt-6.1-sol",
+    "effort": "medium"
+  }
 }
