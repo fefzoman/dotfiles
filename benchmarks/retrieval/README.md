@@ -1,58 +1,93 @@
-# Retrieval skill, Serena, and Context7 token benchmark
+# Code retrieval benchmark: skill, Serena, and Context7
 
-The intended comparison uses twelve independent Codex trials: three code questions
-with and without Serena, and three Python 3.14 documentation questions with and
-without Context7. Both arms receive the same retrieval skill. This measures the
-incremental effect of a retrieval tool, not a skill and a tool as interchangeable
-products. Each question has one paired comparison, not repeated samples.
+On 2026-11-08, twelve native-agent code-fix trials completed: four distinct tasks,
+three retrieval strategies, and up to three workers in parallel. All twelve fixes
+passed the same parent-run Python 3.14.7 checks, with no changes to their tests.
+These are actual model usage counters, not counts of retrieved text.
 
-`run.py` inherits the configured model and reasoning effort without changing the
-user's configuration. It uses an isolated Codex home, an authentication-file
-symlink, and a temporary workspace containing three source files. It alternates
-pair order, records CLI events and final answers, and reads actual usage from
-`turn.completed`. Input already includes cached input; reasoning output is not
-added a second time. Total tokens are input plus output. Cached and uncached input
-are also reported separately. No monetary cost is estimated.
+| Retrieval strategy | Trials passing | Model calls | Input + output tokens | Cached input | Uncached input |
+|---|---:|---:|---:|---:|---:|
+| Skill-guided shell retrieval | 4/4 | 27 | 405,110 | 357,248 | 44,322 |
+| Skill + Serena retrieval | 4/4 | 37 | 641,294 | 564,096 | 71,646 |
+| Skill + Context7 verification | 4/4 | 31 | 542,393 | 481,792 | 55,895 |
 
-## Current result: blocked, not a token-saving result
+Skill-guided shell retrieval consumed **36.8% fewer total tokens than Serena** and
+**25.3% fewer than Context7** in this sample. Conversely, Serena added 58.3% and
+Context7 added 33.9% relative to the skill baseline. This does not establish that
+either tool is generally worse: these were small, self-contained fixes, where
+initialization and extra model calls can outweigh retrieval savings.
 
-The first attempt on 2026-11-08 could not retrieve evidence. Nested shell calls
-failed with `sandbox-exec: sandbox_apply: Operation not permitted`, and the
-configured Serena MCP tools were absent from the nested session. Neither answer
-explained the requested source behavior. The batch was interrupted after the
-first completed pair; a third trial had started but is not included in the results.
-No valid paired comparison or twelve-trial result was produced.
+## Tasks and execution
 
-[results.json](results.json) retains the two completed failed trials and their
-usage, solely as diagnostic evidence. Their token counts must not be compared as
-retrieval savings. The temporary artifact directory recorded there holds prompts,
-event logs, and session telemetry; the operating system may purge it. Do not commit
-or share its `home/auth.json` symlink or authentication material.
+Each fresh agent read the current retrieval skill, traced `app.py` and its
+`test_app.py` callers, implemented a fix in `app.py` only, ran tests, and inspected
+the result. All agents used `gpt-6.1-sol` with `medium` reasoning, verified against
+every session's recorded context. They inherited the same runtime/tool availability;
+the strategy was controlled through the trial prompt, not different tool schemas.
 
-The runner now stops after the first trial with no successful retrieval instead
-of spending tokens on the rest of a blocked batch. A successful tool call alone
-does not establish answer quality: review every answer against its source before
-comparing usage. Library resolution, required initialization, retries, and
-follow-up requests made inside a trial count toward its actual usage. Preparation
-in the parent session, schema discovery here, and the connectivity preflight are
-outside the trial totals. Alternating order does not remove cache effects.
+| Code task | Skill | Serena | Context7 |
+|---|---:|---:|---:|
+| Parse UTF-8 TOML with precise Decimal floats and preserved errors | 109,607 | 171,543 | 116,214 |
+| Enforce subprocess timeout, cleanup, and nonzero-exit errors | 85,135 | 136,589 | 125,560 |
+| Classify paths without following symlinks or suppressing OS errors | 105,789 | 193,640 | 147,867 |
+| Parse boolean CLI flags with intermixed paths and no abbreviations | 104,579 | 139,522 | 152,752 |
 
-## Reproduction
+There are four distinct code tasks, not twelve distinct questions: every task was
+run once per strategy so the totals compare matching workloads. Strategies were
+interleaved across waves of different tasks. No documentation-only task is included.
+Context7 verified relevant Python 3.14 standard-library APIs before implementation;
+Serena retrieved source symbols and references through the existing server. It
+automatically expanded/migrated the four local fixture project configurations;
+their Python language and read/write settings were preserved.
 
-In an environment that permits nested sandboxed Codex execution and exposes the
-configured MCP servers:
+## Accounting and audit
+
+[code-results.json](code-results.json) contains per-trial totals, per-response usage,
+observed MCP calls, model/effort contexts, patches, test results, and session hashes.
+[code-manifest.json](code-manifest.json) retains exact prompts, baseline sources,
+source/test hashes, workspace paths, and agent identities. Source and tests are
+also defined in [code_tasks.py](code_tasks.py).
+
+`collect_code.py` matches native-agent sessions to their parent thread and agent
+path, deduplicates response IDs, and sums per-response `token_usage_record` usage.
+The sums must match each session's final `thread_token_usage`. Cached input is
+already part of input; reasoning is already part of output. Neither is added a
+second time. No monetary cost is estimated. Parent preparation, the preflight,
+parent grading, and review are outside the measured agent workloads.
+
+All twelve parent grades passed, all test-file hashes matched their baselines,
+and the recorded retrieval calls matched their strategy. Three of the four
+skill-baseline agents nevertheless called Serena's manual because of a runtime
+instruction; three Context7 agents did too. Those costs remain in the totals.
+Thus the baseline means **no Serena source retrieval**, not a Serena-free runtime.
+The collector's method check deliberately permits manual initialization and checks
+call names; it is not a semantic proof that every tool result was used correctly.
+
+Some agent shells resolved `python3` to Python 3.9.6. Their failed attempts and
+interpreter discovery remain in their usage; the parent independently ran every
+final fix with the same explicit Python 3.14 executable. This adds noise, as do
+cache hits, shared infrastructure, scheduling, and one sample per task/strategy.
+The tiny fixtures and narrow test contracts do not cover large-repository discovery,
+long-lived reuse, other libraries, or complex implementations. In particular, the
+path-metadata mock expects `Path.stat(follow_symlinks=False)`, not every semantically
+equivalent pathlib implementation. No statistical significance is claimed.
+
+## Checks and reproduction
 
 ```sh
-python3 -m unittest discover -s benchmarks/retrieval -p test_run.py
-python3 benchmarks/retrieval/run.py
+python3 -m unittest discover -s benchmarks/retrieval -p 'test_*.py'
+python3 benchmarks/retrieval/collect_code.py
 ```
 
-This starts up to twelve model sessions using the existing configured model and
-effort, with a 240-second timeout each. It uses the installed Codex CLI, Serena,
-and Context7, without installing dependencies or bypassing the sandbox.
-Context7 is instructed to remain anonymous. The documentation baseline fetches
-official Python 3.14 sources, while Context7 must resolve and query that version.
+The first command tests accounting. The second regrades the retained workspaces
+and regenerates results from retained native session logs; it needs the recorded
+Python executable and local artifacts. To repeat the model experiment, create fresh
+workspaces from `code_tasks.py`, restore baseline sources and tests, and launch one
+fresh native agent per manifest prompt with the same model/effort. Use at most
+three workers, distinct workspace paths, and record the new parent/agent identities
+in a new manifest before collection. Do not reuse already-fixed workspaces.
 
-A live-tool request-and-result token count is a possible narrower fallback, but
-it would exclude model reasoning, repeated context, schemas, and caching. It is
-not a substitute for the requested end-to-end consumed-token measurement.
+The earlier nested-CLI attempt remains in [results.json](results.json) as blocked
+diagnostic evidence, with its legacy runner in `run.py`. Its shell sandbox and MCP
+access failed; those failed trials are excluded from every table above. No sandbox
+was bypassed, no dependencies were installed, and no production code was changed.
