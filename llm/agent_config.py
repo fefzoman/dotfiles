@@ -204,7 +204,10 @@ def claude_permissions(settings: str) -> None:
     sandbox = data.setdefault("sandbox", {})
     sandbox.update(enabled=True, failIfUnavailable=True, autoAllowBashIfSandboxed=True,
                    allowUnsandboxedCommands=False, excludedCommands=[])
-    sandbox.setdefault("filesystem", {})["disabled"] = False
+    filesystem = sandbox.setdefault("filesystem", {})
+    filesystem["disabled"] = False
+    writable = filesystem.setdefault("allowWrite", [])
+    writable += [root for root in ("~/.claude", "~/.claude-work", "~/.config/dotfiles") if root not in writable]
     save(settings, data)
 
 

@@ -388,7 +388,8 @@ fi
                                                        "allow": ["Edit", "Write", "NotebookEdit"], "deny": ["Read(.env)"]})
                 self.assertEqual(claude["sandbox"], {"enabled": True, "failIfUnavailable": True,
                                                    "autoAllowBashIfSandboxed": True, "allowUnsandboxedCommands": False,
-                                                   "excludedCommands": [], "filesystem": {"disabled": False},
+                                                   "excludedCommands": [], "filesystem": {"disabled": False, "allowWrite": [
+                                                       "~/.claude", "~/.claude-work", "~/.config/dotfiles"]},
                                                    "network": {"deniedDomains": ["blocked.example"]}})
                 self.assertEqual(claude["model"], "custom")
 
