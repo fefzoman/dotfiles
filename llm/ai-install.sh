@@ -243,7 +243,6 @@ remove_retired_retrieval_tools() {
     if uv tool list | grep -q '^serena-agent '; then
       UV_TOOL_BIN_DIR="$HOME/.local/bin" uv tool uninstall serena-agent
     fi
-    uv cache clean serena-agent
   fi
   rm -rf -- "$HOME/.serena"
 }

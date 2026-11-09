@@ -110,7 +110,7 @@ class AgentInstallationTests(unittest.TestCase):
             self.assertIn(f"npm uninstall --global --prefix {home}/global ctx7 @upstash/context7-mcp", calls)
             self.assertNotIn("npm install", calls)
             self.assertIn("tool uninstall serena-agent", calls)
-            self.assertIn("cache clean serena-agent", calls)
+            self.assertFalse(any(call.startswith("uv cache ") for call in calls.splitlines()))
             self.assertFalse((home / ".serena").exists())
             for relative in (".codex-work/context7-cli", "custom-config/context7", ".context7"):
                 self.assertFalse((home / relative).exists())
