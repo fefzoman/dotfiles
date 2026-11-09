@@ -570,6 +570,7 @@ fi
                               '[profiles.custom]\napproval_policy = "on-request"\n')
             settings.write_text(json.dumps({"model": "custom", "permissions": {"deny": ["Read(.env)"]},
                                            "sandbox": {"excludedCommands": ["docker *"],
+                                                       "filesystem": {"allowWrite": ["/keep"], "denyWrite": ["/protected"]},
                                                        "network": {"deniedDomains": ["blocked.example"]}}}))
             for _ in range(2):
                 agent_config.codex_permissions(str(config))
@@ -580,9 +581,10 @@ fi
                                         "default_permissions": ":danger-full-access",
                                         "sandbox_workspace_write": {"network_access": False, "writable_roots": ["/tmp"]},
                                         "profiles": {"custom": {"approval_policy": "on-request"}}})
-                self.assertEqual(claude["permissions"], {"defaultMode": "dontAsk", "blockWritesOutsideWorkingDirectories": True,
+                self.assertEqual(claude["permissions"], {"defaultMode": "dontAsk", "blockWritesOutsideWorkingDirectories": False,
                                                        "allow": ["Bash", "Edit", "Write", "NotebookEdit"], "deny": ["Read(.env)"]})
                 self.assertEqual(claude["sandbox"], {"enabled": False, "excludedCommands": ["docker *"],
+                                                   "filesystem": {"allowWrite": ["/keep"], "denyWrite": ["/protected"]},
                                                    "network": {"deniedDomains": ["blocked.example"]}})
                 self.assertEqual(claude["model"], "custom")
 

@@ -189,7 +189,7 @@ def codex_permissions(config: str) -> None:
 def claude_permissions(settings: str) -> None:
     data = load(settings)
     permissions = data.setdefault("permissions", {})
-    permissions.update(defaultMode="dontAsk", blockWritesOutsideWorkingDirectories=True)
+    permissions.update(defaultMode="dontAsk", blockWritesOutsideWorkingDirectories=False)
     allow = permissions.setdefault("allow", [])
     allow += [tool for tool in ("Bash", "Edit", "Write", "NotebookEdit") if tool not in allow]
     data.setdefault("sandbox", {})["enabled"] = False
