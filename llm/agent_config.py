@@ -166,9 +166,12 @@ def codex_permissions(config: str) -> None:
     if text and not text.endswith("\n"):
         text += "\n"
     expected = tomllib.loads(text)
-    defaults = {"sandbox_mode": "workspace-write", "approval_policy": "never", "default_permissions": "dotfiles"}
+    defaults = {"sandbox_mode": "danger-full-access", "approval_policy": "never", "default_permissions": ":danger-full-access"}
     expected.update(defaults)
-    expected.setdefault("sandbox_workspace_write", {})["network_access"] = True
+    profiles = expected.get("permissions", {})
+    profiles.pop("dotfiles", None)
+    if not profiles:
+        expected.pop("permissions", None)
     first_table = re.search(r"(?m)^[ \t]*\[", text)
     top, tables = (text[:first_table.start()], text[first_table.start():]) if first_table else (text, "")
     for key, value in defaults.items():
@@ -177,30 +180,7 @@ def codex_permissions(config: str) -> None:
         if not found:
             top = line + top
     text = top + tables
-    table = re.search(r"(?m)^\[sandbox_workspace_write\][ \t]*(?:#.*)?\n", text)
-    if table:
-        end = re.search(r"(?m)^[ \t]*\[", text[table.end():])
-        stop = table.end() + end.start() if end else len(text)
-        body, found = re.subn(r"(?m)^[ \t]*network_access[ \t]*=[^\n]*\n?", "network_access = true\n", text[table.end():stop])
-        text = text[:table.end()] + (body if found else "network_access = true\n" + body) + text[stop:]
-    else:
-        text = text.rstrip() + "\n\n[sandbox_workspace_write]\nnetwork_access = true\n"
-    filesystem = dict.fromkeys(("~/.codex", "~/.codex-work", "~/.config/dotfiles"), "write")
-    workspace = expected["sandbox_workspace_write"]
-    filesystem.update(dict.fromkeys(workspace.get("writable_roots", []), "write"))
-    for key, special in (("exclude_tmpdir_env_var", ":tmpdir"), ("exclude_slash_tmp", ":slash_tmp")):
-        if workspace.get(key):
-            filesystem[special] = "read"
-    filesystem[":workspace_roots"] = {".git": "write"}
-    profile = {"extends": ":workspace", "filesystem": filesystem, "network": {"enabled": True}}
-    expected.setdefault("permissions", {})["dotfiles"] = profile
-    block = '[permissions.dotfiles]\nextends = ":workspace"\n\n[permissions.dotfiles.filesystem]\n'
-    block += "".join(f"{json.dumps(key)} = {json.dumps(value)}\n"
-                     for key, value in filesystem.items() if key != ":workspace_roots")
-    block += '\n[permissions.dotfiles.filesystem.\":workspace_roots\"]\n\".git\" = \"write\"\n'
-    block += '\n[permissions.dotfiles.network]\nenabled = true\n'
-    text = re.sub(rf"(?ms)^{re.escape(PERMISSIONS_BEGIN)}\n.*?^{re.escape(PERMISSIONS_END)}\n?", "", text)
-    text = text.rstrip() + f"\n\n{PERMISSIONS_BEGIN}\n{block}{PERMISSIONS_END}\n"
+    text = re.sub(rf"(?ms)^{re.escape(PERMISSIONS_BEGIN)}\n.*?^{re.escape(PERMISSIONS_END)}\n?", "", text).rstrip() + "\n"
     if tomllib.loads(text) != expected:
         raise SystemExit(f"{config}: set sandbox defaults manually; unsupported TOML layout")
     path.write_text(text)
@@ -211,14 +191,8 @@ def claude_permissions(settings: str) -> None:
     permissions = data.setdefault("permissions", {})
     permissions.update(defaultMode="dontAsk", blockWritesOutsideWorkingDirectories=True)
     allow = permissions.setdefault("allow", [])
-    allow += [tool for tool in ("Edit", "Write", "NotebookEdit") if tool not in allow]
-    sandbox = data.setdefault("sandbox", {})
-    sandbox.update(enabled=True, failIfUnavailable=True, autoAllowBashIfSandboxed=True,
-                   allowUnsandboxedCommands=False, excludedCommands=[])
-    filesystem = sandbox.setdefault("filesystem", {})
-    filesystem["disabled"] = False
-    writable = filesystem.setdefault("allowWrite", [])
-    writable += [root for root in ("~/.claude", "~/.claude-work", "~/.config/dotfiles") if root not in writable]
+    allow += [tool for tool in ("Bash", "Edit", "Write", "NotebookEdit") if tool not in allow]
+    data.setdefault("sandbox", {})["enabled"] = False
     save(settings, data)
 
 

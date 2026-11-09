@@ -576,18 +576,13 @@ fi
                 agent_config.claude_permissions(str(settings))
                 codex = tomllib.loads(config.read_text())
                 claude = json.loads(settings.read_text())
-                self.assertEqual(codex, {"sandbox_mode": "workspace-write", "approval_policy": "never", "default_permissions": "dotfiles",
-                                        "sandbox_workspace_write": {"network_access": True, "writable_roots": ["/tmp"]},
-                                        "permissions": {"dotfiles": {"extends": ":workspace", "network": {"enabled": True},
-                                            "filesystem": {"~/.codex": "write", "~/.codex-work": "write", "~/.config/dotfiles": "write",
-                                                           "/tmp": "write", ":workspace_roots": {".git": "write"}}}},
+                self.assertEqual(codex, {"sandbox_mode": "danger-full-access", "approval_policy": "never",
+                                        "default_permissions": ":danger-full-access",
+                                        "sandbox_workspace_write": {"network_access": False, "writable_roots": ["/tmp"]},
                                         "profiles": {"custom": {"approval_policy": "on-request"}}})
                 self.assertEqual(claude["permissions"], {"defaultMode": "dontAsk", "blockWritesOutsideWorkingDirectories": True,
-                                                       "allow": ["Edit", "Write", "NotebookEdit"], "deny": ["Read(.env)"]})
-                self.assertEqual(claude["sandbox"], {"enabled": True, "failIfUnavailable": True,
-                                                   "autoAllowBashIfSandboxed": True, "allowUnsandboxedCommands": False,
-                                                   "excludedCommands": [], "filesystem": {"disabled": False, "allowWrite": [
-                                                       "~/.claude", "~/.claude-work", "~/.config/dotfiles"]},
+                                                       "allow": ["Bash", "Edit", "Write", "NotebookEdit"], "deny": ["Read(.env)"]})
+                self.assertEqual(claude["sandbox"], {"enabled": False, "excludedCommands": ["docker *"],
                                                    "network": {"deniedDomains": ["blocked.example"]}})
                 self.assertEqual(claude["model"], "custom")
 
@@ -595,34 +590,27 @@ fi
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.toml"
             agent_config.codex_permissions(str(config))
-            data = tomllib.loads(config.read_text())
-            profile = data.pop("permissions")["dotfiles"]
-            self.assertEqual(profile["extends"], ":workspace")
-            self.assertEqual(profile["filesystem"][":workspace_roots"], {".git": "write"})
-            self.assertEqual(data, {"sandbox_mode": "workspace-write", "approval_policy": "never", "default_permissions": "dotfiles",
-                                                               "sandbox_workspace_write": {"network_access": True}})
-            config.write_text('[sandbox_workspace_write]')
-            agent_config.codex_permissions(str(config))
-            self.assertTrue(tomllib.loads(config.read_text())["sandbox_workspace_write"]["network_access"])
-            original = 'sandbox_workspace_write = { network_access = false }\n'
+            self.assertEqual(tomllib.loads(config.read_text()), {"sandbox_mode": "danger-full-access", "approval_policy": "never",
+                                                                 "default_permissions": ":danger-full-access"})
+            original = '"sandbox_mode" = "read-only"\n'
             config.write_text(original)
             with self.assertRaises((SystemExit, tomllib.TOMLDecodeError)):
                 agent_config.codex_permissions(str(config))
             self.assertEqual(config.read_text(), original)
 
-    def test_codex_permissions_preserve_temp_exclusions_and_other_permission_profiles(self):
+    def test_codex_permissions_remove_managed_profile_and_keep_other_profiles(self):
+        managed = (f'{agent_config.PERMISSIONS_BEGIN}\n[permissions.dotfiles]\nextends = ":workspace"\n'
+                   f'{agent_config.PERMISSIONS_END}\n')
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.toml"
-            config.write_text('[sandbox_workspace_write]\nexclude_tmpdir_env_var = true\nexclude_slash_tmp = true\n'
-                              '[permissions.custom]\nextends = ":read-only"\n')
-            agent_config.codex_permissions(str(config))
-            first = config.read_text()
-            agent_config.codex_permissions(str(config))
-            self.assertEqual(config.read_text(), first)
-            profiles = tomllib.loads(first)["permissions"]
-            self.assertEqual(profiles["custom"], {"extends": ":read-only"})
-            self.assertEqual(profiles["dotfiles"]["filesystem"][":tmpdir"], "read")
-            self.assertEqual(profiles["dotfiles"]["filesystem"][":slash_tmp"], "read")
+            for extra, profiles in (("", None), ('[permissions.custom]\nextends = ":read-only"\n', {"custom": {"extends": ":read-only"}})):
+                config.write_text('default_permissions = "dotfiles"\n' + extra + managed)
+                agent_config.codex_permissions(str(config))
+                first = config.read_text()
+                agent_config.codex_permissions(str(config))
+                self.assertEqual(config.read_text(), first)
+                self.assertNotIn(agent_config.PERMISSIONS_BEGIN, first)
+                self.assertEqual(tomllib.loads(first).get("permissions"), profiles)
 
     def test_codex_model_instructions_preserve_settings_and_are_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
