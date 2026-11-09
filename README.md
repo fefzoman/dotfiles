@@ -265,6 +265,14 @@ and retrieval skills across both clients' personal/work profiles. It preserves
 model, reasoning, permissions, RTK imports and unrelated hooks. Restart clients
 and shells afterward; existing processes retain their loaded settings.
 
+To refresh only the global policies (`AGENTS.md`/`CLAUDE.md`) and the
+`natural-article`/`code-retrieval` skills in all four profiles, keeping RTK
+imports and touching nothing else:
+
+```bash
+bash llm/ai-install.sh --docs-only
+```
+
 ## Token Profiler
 
 `token-profiler` is installed from `llm/token-profiler/` into `~/.local/bin`.

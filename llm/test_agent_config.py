@@ -373,6 +373,34 @@ class AgentInstallationTests(unittest.TestCase):
                     self.assertEqual((home / profile / "skills/code-retrieval/references" / source.name).read_bytes(),
                                      source.read_bytes())
 
+    def test_docs_only_updates_policies_and_skills_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / ".local/bin").mkdir(parents=True)
+            (home / ".local/bin/pgrep").write_text("#!/bin/sh\nexit 1\n")
+            (home / ".local/bin/pgrep").chmod(0o755)
+            for agent in ("codex", "claude"):
+                for name in (f".{agent}", f".{agent}-work"):
+                    (home / name).mkdir()
+                    (home / name / "RTK.md").write_text("custom RTK guidance\n")
+                    (home / name / "config.toml").write_text('model="custom"\n')
+            result = subprocess.run(["bash", str(SCRIPT_DIR / "ai-install.sh"), "--docs-only"],
+                                    env={**os.environ, "HOME": str(home)}, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for agent in ("codex", "claude"):
+                for name in (f".{agent}", f".{agent}-work"):
+                    profile = home / name
+                    reference = f"@{profile}/RTK.md" if agent == "codex" else "@RTK.md"
+                    self.assertTrue(agent_config.policy_matches(str(SCRIPT_DIR / agent / "__AGENTS.md"),
+                                    str(profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")),
+                                    str(profile / "RTK.md"), reference))
+                    for skill in ("natural-article", "code-retrieval"):
+                        self.assertEqual((profile / f"skills/{skill}/SKILL.md").read_text(),
+                                         (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text())
+                    self.assertEqual((profile / "config.toml").read_text(), 'model="custom"\n')
+                    self.assertFalse((profile / "model-instructions.md").exists())
+                    self.assertFalse((profile / "system-prompt.md").exists())
+
     def test_superpowers_installation_and_reuse(self):
         for mode in ("installed", "upstream", "failure"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:

@@ -62,8 +62,8 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 OS="$(uname -s)"
 PYTHON_VERSION=3.13
 
-if (( $# > 1 )) || [[ -n "${1:-}" && "${1:-}" != --retrieval-only ]]; then
-  echo "Usage: $0 [--retrieval-only]" >&2
+if (( $# > 1 )) || [[ -n "${1:-}" && "${1:-}" != --retrieval-only && "${1:-}" != --docs-only ]]; then
+  echo "Usage: $0 [--retrieval-only | --docs-only]" >&2
   exit 2
 fi
 
@@ -268,13 +268,14 @@ install_global_agents() {
   local skills=(natural-article code-retrieval)
   [[ "${1:-}" != --retrieval-only ]] || skills=(code-retrieval)
 
+  # Partial modes skip configure_rtk, so they restore its RTK import themselves.
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     mkdir -p "$profile"
     install -m 0644 "$SCRIPT_DIR/codex/__AGENTS.md" "$profile/AGENTS.md"
-    if [[ "${1:-}" == --retrieval-only && -f "$profile/RTK.md" ]]; then
+    if [[ -n "${1:-}" && -f "$profile/RTK.md" ]]; then
       printf '\n@%s/RTK.md\n' "$profile" >> "$profile/AGENTS.md"
     fi
-    if [[ "${1:-}" != --retrieval-only ]]; then
+    if [[ -z "${1:-}" ]]; then
       install -m 0644 "$SCRIPT_DIR/codex-model-instructions.md" "$profile/model-instructions.md"
       agent_config codex-model-instructions "$profile/config.toml" "$profile/model-instructions.md"
     fi
@@ -282,10 +283,10 @@ install_global_agents() {
   for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     mkdir -p "$profile/commands"
     install -m 0644 "$SCRIPT_DIR/claude/__AGENTS.md" "$profile/CLAUDE.md"
-    if [[ "${1:-}" == --retrieval-only && -f "$profile/RTK.md" ]]; then
+    if [[ -n "${1:-}" && -f "$profile/RTK.md" ]]; then
       printf '\n@RTK.md\n' >> "$profile/CLAUDE.md"
     fi
-    if [[ "${1:-}" != --retrieval-only ]]; then
+    if [[ -z "${1:-}" ]]; then
       install -m 0644 "$SCRIPT_DIR/claude-system-prompt.md" "$profile/system-prompt.md"
     fi
   done
@@ -404,6 +405,12 @@ if [[ "${1:-}" == --retrieval-only ]]; then
       agent_config retrieval-mcps-absent "$agent" "$profile" || exit 1
     done
   done
+  exit 0
+fi
+
+if [[ "${1:-}" == --docs-only ]]; then
+  warn_live_sessions || exit 1
+  install_global_agents --docs-only
   exit 0
 fi
 
