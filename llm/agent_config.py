@@ -269,14 +269,14 @@ def statusline(settings: str) -> None:
     save(settings, data)
 
 
-def pre_tool_hook(settings: str, matcher: str, command: str) -> None:
+def read_hint(settings: str) -> None:
     data = load(settings)
     hooks = data.setdefault("hooks", {})
     groups = hooks.setdefault("PreToolUse", [])
     for entry in groups:
-        entry["hooks"] = [hook for hook in entry.get("hooks", []) if hook.get("command") != command]
+        entry["hooks"] = [hook for hook in entry.get("hooks", []) if hook.get("command") != READ_HINT]
     hooks["PreToolUse"] = [entry for entry in groups if entry["hooks"]] + [
-        {"matcher": matcher, "hooks": [{"type": "command", "command": command, "timeout": 5}]}]
+        {"matcher": "Read|Bash", "hooks": [{"type": "command", "command": READ_HINT, "timeout": 5}]}]
     save(settings, data)
 
 
@@ -320,10 +320,6 @@ def remove_context7_path(config: str) -> None:
     retired = str(Path.home() / ".codex-work/context7-cli/node_modules/.bin")
     if current is not None and retired in current.split(os.pathsep):
         codex_shell_path(config, os.pathsep.join(p for p in current.split(os.pathsep) if p != retired))
-
-
-def read_hint(settings: str) -> None:
-    pre_tool_hook(settings, "Read|Bash", READ_HINT)
 
 
 def idle_compact(settings: str) -> None:
@@ -466,10 +462,6 @@ def codex_plugin_enabled(plugin_id: str = "ponytail@ponytail", *alternatives: st
     )
 
 
-def codex_mcp_enabled(name: str) -> bool:
-    return any(s.get("name") == name and s.get("enabled") for s in json.load(sys.stdin))
-
-
 def claude_mcp_paths(profile: Path) -> list[Path]:
     return ([profile.parent / ".claude.json", profile / ".claude.json"]
             if profile.name == ".claude" else [profile / ".claude.json"])
@@ -566,7 +558,7 @@ COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
         codex_shell_path, codex_hooks, remove_legacy_hooks, remove_context7_path, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, idle_compact, attribution, scope_plugins,
-        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, codex_mcp_enabled, retrieval_mcps_absent, remove_claude_retrieval_mcps,
+        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, retrieval_mcps_absent, remove_claude_retrieval_mcps,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
         context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
     )

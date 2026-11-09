@@ -156,23 +156,24 @@ def redact(text: str) -> str:
 
 
 def records(path: Path, tail: int | None = None) -> list[dict[str, Any]]:
+    out = []
     try:
         with path.open("rb") as stream:
             size = stream.seek(0, os.SEEK_END)
-            stream.seek(max(0, size - tail) if tail else 0)
-            if tail and size > tail:
+            start = max(0, size - tail) if tail else 0
+            stream.seek(max(0, start - 1))
+            if start and stream.read(1) != b"\n":
                 stream.readline()
-            lines = stream.read().splitlines()
+            for line in stream:
+                for raw in line.splitlines():
+                    try:
+                        record = json.loads(raw)
+                    except ValueError:
+                        continue
+                    if isinstance(record, dict) and not record.get("isSidechain"):
+                        out.append(record)
     except OSError:
         return []
-    out = []
-    for raw in lines:
-        try:
-            record = json.loads(raw)
-        except ValueError:
-            continue
-        if isinstance(record, dict) and not record.get("isSidechain"):
-            out.append(record)
     return out
 
 

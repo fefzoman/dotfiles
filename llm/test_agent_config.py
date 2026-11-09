@@ -283,7 +283,7 @@ class AgentInstallationTests(unittest.TestCase):
                         self.assertTrue(plugins["custom@mine"])
                         self.assertEqual(data["custom"], 1)
 
-    def test_pre_tool_hook_keeps_unrelated_hooks_in_same_group(self):
+    def test_read_hint_keeps_unrelated_hooks_in_same_group(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "settings.json")
             custom = {"type": "command", "command": "custom-check"}

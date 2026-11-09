@@ -10,7 +10,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 CONTEXT_THRESHOLD = 120_000
 REMAINING_THRESHOLD = 15.0

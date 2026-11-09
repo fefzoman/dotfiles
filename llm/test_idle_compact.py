@@ -66,6 +66,31 @@ class IdleCompactTest(unittest.TestCase):
             code = func(*args)
         return code, out.getvalue(), err.getvalue()
 
+    def test_records_skip_invalid_and_sidechain_entries(self) -> None:
+        self.transcript.write_bytes(b'{"n": 1}\r\ninvalid\n\xff\n[]\nnull\n'
+                                    b'{"isSidechain": true}\n{"n": 2}\r{"n": 3}')
+        self.assertEqual(ic.records(self.transcript), [{"n": 1}, {"n": 2}, {"n": 3}])
+        self.assertEqual(ic.records(self.home / "missing"), [])
+
+    def test_records_tail_keeps_complete_records_only(self) -> None:
+        first, second = b'{"n": 1}\n', b'{"n": 2}\n'
+        self.transcript.write_bytes(first + second)
+        for tail in (None, 0, len(first + second), len(first + second) + 1):
+            with self.subTest(tail=tail):
+                self.assertEqual(ic.records(self.transcript, tail), [{"n": 1}, {"n": 2}])
+        for tail in (len(second), len(second) + 2):
+            with self.subTest(tail=tail):
+                self.assertEqual(ic.records(self.transcript, tail), [{"n": 2}])
+        self.assertEqual(ic.records(self.transcript, 1), [])
+
+    def test_codex_records_tail_keeps_a_complete_usage_event(self) -> None:
+        event = json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": {
+            "last_token_usage": {"input_tokens": 42}}}}).encode() + b"\n"
+        self.transcript.write_bytes(b'{}\n' + event)
+        recs = ic.codex_records(self.transcript, len(event))
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(ic.usage(recs[0])["input_tokens"], 42)
+
     def test_prompts_exclude_meta_notifications_and_tool_results(self) -> None:
         now = time.time()
         meta = prompt("Base directory for this skill", now) | {"isMeta": True}
