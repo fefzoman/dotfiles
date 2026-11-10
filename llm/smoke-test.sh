@@ -90,13 +90,9 @@ check "Codex pitstop skill matches the repository" "Codex pitstop skill is missi
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
 
 for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-  for skill in natural-article code-retrieval; do
+  for skill in natural-article code-retrieval markdown-to-html; do
     check "$skill skill matches the repository in $profile" "$skill skill is missing or stale in $profile" \
-      cmp -s "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
-  done
-  for reference in "$SCRIPT_DIR/skills/code-retrieval/references/"*.md; do
-    check "Retrieval reference ${reference##*/} matches in $profile" "Retrieval reference is stale in $profile" \
-      cmp -s "$reference" "$profile/skills/code-retrieval/references/${reference##*/}"
+      diff -qr "$SCRIPT_DIR/skills/$skill" "$profile/skills/$skill"
   done
 done
 check "Platform plugins are scoped out of personal Codex" "Platform plugins are enabled in personal Codex" \

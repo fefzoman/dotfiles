@@ -264,7 +264,7 @@ remove_retrieval_mcps() {
 
 install_global_agents() {
   local profile skill
-  local skills=(natural-article code-retrieval)
+  local skills=(natural-article code-retrieval markdown-to-html)
   [[ "${1:-}" != --retrieval-only ]] || skills=(code-retrieval)
 
   # Partial modes skip configure_rtk, so they restore its RTK import themselves.
@@ -292,11 +292,7 @@ install_global_agents() {
   for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
     for skill in "${skills[@]}"; do
       mkdir -p "$profile/skills/$skill"
-      install -m 0644 "$SCRIPT_DIR/skills/$skill/SKILL.md" "$profile/skills/$skill/SKILL.md"
-      if [[ -d "$SCRIPT_DIR/skills/$skill/references" ]]; then
-        mkdir -p "$profile/skills/$skill/references"
-        install -m 0644 "$SCRIPT_DIR/skills/$skill/references/"*.md "$profile/skills/$skill/references/"
-      fi
+      cp -R "$SCRIPT_DIR/skills/$skill/." "$profile/skills/$skill/"
     done
   done
 }
