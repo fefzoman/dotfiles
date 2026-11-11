@@ -207,6 +207,70 @@ class InnerSessionTest(unittest.TestCase):
         self.assertEqual(windows[1]["first_call_share"], 0.7917)
 
 
+class RequestComparisonTest(unittest.TestCase):
+    def compare(self, before, after):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [Path(directory) / name for name in ("before.json", "after.json")]
+            for path, value in zip(paths, (before, after)):
+                path.write_text(json.dumps(value))
+            return token_profiler.compare_requests(*paths)
+
+    def test_append_keeps_logical_prefix_without_printing_secrets(self):
+        before = {"model": "test", "instructions": "secret", "input": [{"content": "private"}]}
+        after = {**before, "input": before["input"] + [{"content": "new"}]}
+        result = self.compare(before, after)
+        self.assertEqual(result["changed_fields"], [])
+        self.assertEqual(result["common_input_prefix"], 1)
+        self.assertEqual(result["after_input_length"], 2)
+        self.assertNotEqual(result["before_request_sha256"], result["after_request_sha256"])
+        self.assertNotIn("secret", json.dumps(result))
+        self.assertNotIn("private", json.dumps(result))
+
+    def test_configuration_and_prefix_changes_for_both_providers(self):
+        for key in ("input", "messages"):
+            with self.subTest(key=key):
+                before = {key: [1, 2], "tools": [], "prompt_cache_key": "secret", "system": None}
+                after = {key: [1, 3], "tools": [{}], "prompt_cache_key": "changed", "extra": 1}
+                result = self.compare(before, after)
+                self.assertEqual(result["common_input_prefix"], 1)
+                self.assertEqual(result["changed_fields"], ["system", "tools", "prompt_cache_key"])
+                self.assertEqual(result["other_fields_changed"], 1)
+
+    def test_incremental_request_is_not_treated_as_full_input(self):
+        result = self.compare({"input": "old"}, {"input": "new", "previous_response_id": "id"})
+        self.assertTrue(result["incremental_request"])
+        self.assertEqual(result["input_unit"], "characters")
+        self.assertEqual(result["common_input_prefix"], 0)
+        self.assertIn("unavailable", result["routing"])
+
+    def test_object_key_order_is_not_a_logical_change(self):
+        result = self.compare({"input": [], "tools": [{"name": "x", "type": "function"}]},
+                              {"tools": [{"type": "function", "name": "x"}], "input": []})
+        self.assertEqual(result["changed_fields"], [])
+        self.assertEqual(result["before_request_sha256"], result["after_request_sha256"])
+
+    def test_invalid_formats_are_rejected(self):
+        for before, after in (([], {}), ({}, {}), ({"input": None}, {"input": []}),
+                              ({"input": []}, {"messages": []}), ({"input": ""}, {"input": []})):
+            with self.subTest(before=before, after=after), self.assertRaises(ValueError):
+                self.compare(before, after)
+
+    def test_cli_available_for_all_profiles_and_errors_do_not_echo_content(self):
+        import contextlib
+        import io
+        for profile in ("codex", "codex-work", "claude", "claude-work"):
+            args = token_profiler.build_parser().parse_args([profile, "compare-requests", "a", "b"])
+            self.assertEqual(args.command, "compare-requests")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "request.json"
+            path.write_text("sensitive-invalid-json")
+            error = io.StringIO()
+            with contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as raised:
+                token_profiler.main(["codex", "compare-requests", str(path), str(path)])
+            self.assertEqual(raised.exception.code, 2)
+            self.assertNotIn("sensitive", error.getvalue())
+
+
 class CodexProgrammaticToolTest(unittest.TestCase):
     def test_dynamic_tool_lookup_is_resolved_without_executing_script(self) -> None:
         script = (

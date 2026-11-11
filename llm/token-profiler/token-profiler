@@ -26,6 +26,7 @@ import argparse
 import collections
 import dataclasses
 import datetime as dt
+import hashlib
 import json
 import math
 import os
@@ -2017,9 +2018,10 @@ def render_cold_calls(report: SessionReport, show_calls: int) -> None:
     if not cold:
         return
     print()
-    print(style(f"COLD / INVALIDATED PREFIX EVENTS — top {min(show_calls, len(cold))}", "bold"))
-    print(style("Unexplained = missed inside the cache TTL with no logged setting change: "
-                "a hook, instruction, tool or proxy changed the prefix.", "dim"))
+    print(style(f"LOW CACHE REUSE — heuristic events, top {min(show_calls, len(cold))}", "bold"))
+    print(style("Unexplained = <50% cached within the 30-minute activity window, "
+                "with no logged setting change; not proof of prefix invalidation. "
+                "Request/routing telemetry is needed to investigate the cause.", "dim"))
     print("─" * 72)
     print("by cause: " + ", ".join(
         f"{reason} {count}× {human_int(fresh)}" for reason, (count, fresh) in cold_causes(report.calls)
@@ -2466,7 +2468,7 @@ def render_top(profile: Profile, by: str, limit: int, sessions: int, include_arc
 
     if by == "cause":
         calls = [call for path in paths for call in analyze_profile_session(path, profile).calls]
-        print(style(f"COLD CALLS BY CAUSE — fresh input across {len(paths)} sessions", "bold", "cyan"))
+        print(style(f"LOW CACHE REUSE BY HEURISTIC — fresh input across {len(paths)} sessions", "bold", "cyan"))
         print("─" * 110)
         for i, (reason, (count, fresh)) in enumerate(cold_causes(calls)[:limit], 1):
             print(f"{i:>2}. {human_int(fresh):>9}  {count:>5}×  {reason}")
@@ -2484,6 +2486,52 @@ def render_top(profile: Profile, by: str, limit: int, sessions: int, include_arc
 
 
 # ----------------------------- CLI -----------------------------
+
+def compare_requests(before: Path, after: Path) -> dict[str, Any]:
+    requests = []
+    for path in (before, after):
+        request = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(request, dict):
+            raise ValueError("Request must be a JSON object")
+        key = "input" if "input" in request else "messages"
+        if not isinstance(request.get(key), (list, str)):
+            raise ValueError("Request must contain input or messages as an array or string")
+        requests.append((request, key))
+    (old, old_key), (new, new_key) = requests
+    if old_key != new_key or type(old[old_key]) is not type(new[new_key]):
+        raise ValueError("Requests must use the same input format")
+
+    def fingerprint(value: Any) -> str:
+        data = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        return hashlib.sha256(data.encode()).hexdigest()
+
+    common = 0
+    for left, right in zip(old[old_key], new[new_key]):
+        if left != right:
+            break
+        common += 1
+    fields = ("model", "instructions", "system", "tools", "tool_choice", "reasoning", "text",
+              "temperature", "top_p", "max_tokens", "max_output_tokens", "service_tier",
+              "prompt_cache_key", "prompt_cache_retention")
+    changed = [key for key in fields if (key in old, old.get(key)) != (key in new, new.get(key))]
+    unexamined = (set(old) | set(new)) - set(fields) - {old_key, "previous_response_id"}
+    return {
+        "comparison": "logical request values; not serialized wire bytes or token prefixes",
+        "changed_fields": changed,
+        "other_fields_changed": sum((key in old, old.get(key)) != (key in new, new.get(key))
+                                    for key in unexamined),
+        "input_unit": "items" if isinstance(old[old_key], list) else "characters",
+        "common_input_prefix": common,
+        "before_input_length": len(old[old_key]),
+        "after_input_length": len(new[new_key]),
+        "before_request_sha256": fingerprint(old),
+        "after_request_sha256": fingerprint(new),
+        "incremental_request": bool(old.get("previous_response_id") or new.get("previous_response_id")),
+        "routing": "backend routing/cache-decision telemetry unavailable; cache keys compared above",
+        "limits": "Matching logical input does not prove cache eligibility or explain a backend miss. "
+                  "Incremental requests require prior response state; traces may contain reconstructed input.",
+    }
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -2504,6 +2552,10 @@ def build_parser() -> argparse.ArgumentParser:
             help="Override this profile's session directory.",
         )
         actions = profile_parser.add_subparsers(dest="command")
+
+        compare = actions.add_parser("compare-requests", help="Compare two captured request JSON files without printing content.")
+        compare.add_argument("before", type=Path)
+        compare.add_argument("after", type=Path)
 
         current = actions.add_parser("current", help="Analyze the newest local session.")
         current.add_argument("--json", action="store_true", help="Emit JSON.")
@@ -2537,6 +2589,14 @@ def main(argv: list[str] | None = None) -> int:
     profile = profile_for(args.profile, args.home)
 
     command = args.command or "current"
+
+    if command == "compare-requests":
+        try:
+            result = compare_requests(args.before, args.after)
+        except (OSError, ValueError, RecursionError):
+            parser.exit(2, "Cannot compare requests: files must be readable JSON requests with matching input formats.\n")
+        print(json.dumps(result, indent=2))
+        return 0
 
     if command in {"current", "session"}:
         selector = args.selector if command == "session" else None

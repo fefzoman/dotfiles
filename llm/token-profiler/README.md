@@ -103,13 +103,45 @@ Optimization measurements retain their original scopes and are never summed:
 - per-tool call/result totals, averages, maxima, and payload share
 - tool-result outliers over 2K tokens with arguments and repeated-query markers
 - largest model calls ranked by both total and fresh input
-- model-call gaps and cache-miss causes: session start, idle past the cache
-  TTL, compaction, a model/effort/fast-mode/CLI-version change, or an
-  unexplained miss inside the TTL (a hook, instruction, tool or proxy changed
-  the prefix); `top --by cause` totals them across sessions
+- model-call gaps and low-cache-reuse heuristics: session start, idle over
+  30 minutes, compaction, a model/effort/fast-mode/CLI-version change, or an
+  unexplained miss; these are correlations, not proven cache causes or a
+  measured cache TTL; `top --by cause` totals them across sessions
 - per-work-window resume context, first-call cold cost/share, and later-call
   fresh-input total/average
 - Ponytail plugin/policy state
+
+Compare captured Codex Responses or Claude Messages request bodies locally:
+
+```bash
+token-profiler codex compare-requests before.json after.json
+token-profiler claude compare-requests before.json after.json
+```
+
+The JSON report contains changed field names, whole-request SHA-256 fingerprints,
+and the common logical input prefix in items or characters—not cached tokens.
+It prints no request values and makes no network calls. Backend routing and
+cache-decision evidence is unavailable; matching requests do not prove cache
+eligibility. Incremental requests require earlier response state.
+
+Codex CLI 0.167.0 supports opt-in [`CODEX_ROLLOUT_TRACE_ROOT`](https://github.com/openai/codex/blob/rust-v0.167.0/codex-rs/rollout-trace/README.md) capture into local
+bundles (`trace.jsonl` links inference events to `payloads/*.json`). Compare the
+referenced inference request payloads, not arbitrary tool payloads. These may
+be logical reconstructions rather than exact wire requests. Capture is **off
+by default** and stores sensitive prompts, source, and tool results; use a
+private directory, enable only for a short diagnostic session, and remove the
+environment variable afterward. No Claude capture mechanism is configured by
+this tool. Request IDs can help provider support investigate backend decisions;
+this comparator cannot reproduce those decisions.
+
+For an explicitly approved, short CLI capture, launch a new diagnostic session:
+
+```bash
+CODEX_ROLLOUT_TRACE_ROOT="$(mktemp -d "$HOME/.codex/cache-trace.XXXXXX")" codex
+```
+
+`mktemp` creates a private directory; the variable applies only to that process.
+This does not enable tracing in an already running desktop or IDE session.
 
 For Codex's programmatic `exec` wrapper, counts identify source call sites rather
 than proven executions: loops and branches are not evaluated. Literal calls and
