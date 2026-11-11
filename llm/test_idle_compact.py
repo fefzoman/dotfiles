@@ -183,6 +183,15 @@ class IdleCompactTest(unittest.TestCase):
         self.assertNotIn("patched a.py", (ic.folder_for("s1") / "checkpoint.md").read_text())
         self.assertIn("### Next steps\nlock", ic.resume(self.cwd, "s1"))
 
+    def test_manual_checkpoint_waits_for_a_reply_written_after_the_stop_hook(self) -> None:
+        now = time.time()
+        recs = [prompt("Fix the token refresh race", now - 60), reply("patched a.py", now - 50, tokens=20_000)]
+        self.run_hook(ic.guard, self.save(recs) | {"prompt": "/checkpoint"})
+        late = recs + [reply("## Idle checkpoint\n### Goal\nFix race", now + 2)]
+        with mock.patch.object(ic.time, "sleep", side_effect=lambda _: self.save(late)):
+            self.assertEqual(self.run_hook(ic.arm, self.save(recs)), (0, "", ""))
+        self.assertIn("### Goal\nFix race", (ic.folder_for("s1") / "checkpoint.md").read_text())
+
     def test_checkpoint_after_cd_into_a_subdir_loads_in_the_launch_dir(self) -> None:
         os.environ["CLAUDE_PROJECT_DIR"] = self.cwd
         sub = Path(self.cwd) / "sub"

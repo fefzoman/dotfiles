@@ -29,6 +29,7 @@ CODEX_CACHE_TTL = 30 * 60
 WARM_SAMPLES = 5
 WARM_RATE = 0.8
 SUMMARY_SECONDS = 300
+MANUAL_WAIT_SECONDS = 10
 SESSION_DAYS = 7
 CHECKPOINT_DAYS = 30
 OUTPUT_CAP = 2000
@@ -574,7 +575,11 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     requested = float(read(marker(session, "manual")) or 0)
     if requested:
         marker(session, "manual").unlink(missing_ok=True)
-        reply = replies_since(recs, requested)
+        reply, deadline = replies_since(recs, requested), time.time() + MANUAL_WAIT_SECONDS
+        # Claude can run the async Stop hook before it writes the reply to the transcript.
+        while client == "claude" and HEADER not in reply and time.time() < deadline:
+            time.sleep(0.5)
+            reply = replies_since(load_records(transcript, TAIL_BYTES), requested)
         folder = folder_for(session)
         if reply and folder:
             store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
