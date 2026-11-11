@@ -1,6 +1,6 @@
 {
   "terminalFontFamily": "JetBrainsMono Nerd Font",
-  "terminalFontSize": 14,
+  "terminalFontSize": 15,
   "terminalFontWeight": 100,
   "terminalFontWeightBold": 500,
   "terminalLineHeight": 1,
@@ -18,7 +18,7 @@
       "importedAt": "2026-10-28T00:00:00.000Z",
       "terminal": {
         "background": "#282828",
-        "foreground": "#BAB7AD",
+        "foreground": "#bab7ad",
         "black": "#282828",
         "red": "#cc241d",
         "green": "#98971a",
@@ -35,9 +35,9 @@
         "brightMagenta": "#d3869b",
         "brightCyan": "#8ec07c",
         "brightWhite": "#ebdbb2",
-        "cursor": "#BAB7AD",
+        "cursor": "#bab7ad",
         "cursorAccent": "#282828",
-        "selectionBackground": "#BAB7AD",
+        "selectionBackground": "#bab7ad",
         "selectionForeground": "#282828"
       }
     }
