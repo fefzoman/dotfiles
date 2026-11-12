@@ -24,6 +24,11 @@ CONTEXT_TRIM_SKILLS = {
 }
 # Cheapest setting passing every trial in benchmarks/claude_matrix and benchmarks/codex_matrix.
 EFFORT = "medium"
+# Bare-name deny rules drop these schemas from the prompt; all unused or rare in local transcripts (2026-11).
+CLAUDE_DENIED_TOOLS = ("Agent", "ScheduleWakeup", "Workflow", "SendFeedback", "ReportFindings", "ShareOnboardingGuide",
+                       "ListAgents", "CronCreate", "CronDelete", "CronList", "DesignSync", "PushNotification",
+                       "RemoteTrigger", "PublishPlugin", "SendToProject", "SendToProjectContext", "EnterWorktree",
+                       "ExitWorktree", "NotebookEdit")
 WORK_PLUGINS = ("dlm@dlm-user",)
 PONYTAIL = "ponytail@ponytail"
 SHELL_BEGIN = "# BEGIN AI TOOLING SHELL ENVIRONMENT"
@@ -191,7 +196,9 @@ def claude_permissions(settings: str) -> None:
     permissions = data.setdefault("permissions", {})
     permissions.update(defaultMode="dontAsk", blockWritesOutsideWorkingDirectories=False)
     allow = permissions.setdefault("allow", [])
-    allow += [tool for tool in ("Bash", "Edit", "Write", "NotebookEdit") if tool not in allow]
+    allow += [tool for tool in ("Bash", "Edit", "Write") if tool not in allow]
+    deny = permissions.setdefault("deny", [])
+    deny += [tool for tool in CLAUDE_DENIED_TOOLS if tool not in deny]
     data.setdefault("sandbox", {})["enabled"] = False
     save(settings, data)
 
