@@ -358,7 +358,7 @@ class AgentInstallationTests(unittest.TestCase):
                     (home / profile / filename).read_text(),
                     (SCRIPT_DIR / agent / "__AGENTS.md").read_text(),
                 )
-                self.assertIn("Automatically apply `code-retrieval`", (home / profile / filename).read_text())
+                self.assertIn("Apply `code-retrieval` when searching", (home / profile / filename).read_text())
                 if agent == "codex":
                     self.assertTrue(agent_config.codex_model_instructions_valid(
                         str(home / profile / "config.toml"), str(SCRIPT_DIR / "codex-model-instructions.md")))

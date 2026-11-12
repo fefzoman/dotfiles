@@ -1,6 +1,6 @@
 ---
 name: code-retrieval
-description: Apply before retrieval; choose the smallest useful read and stop when answered.
+description: Apply before searching code, files, docs or the web for an unknown location; skip for named files, URLs, issue keys and connected tools.
 ---
 
 # Choose one route
