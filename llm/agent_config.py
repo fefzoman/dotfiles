@@ -25,7 +25,7 @@ CONTEXT_TRIM_SKILLS = {
 # Cheapest setting passing every trial in benchmarks/claude_matrix and benchmarks/codex_matrix.
 EFFORT = "medium"
 # Bare-name deny rules drop these schemas from the prompt; all unused or rare in local transcripts (2026-11).
-CLAUDE_DENIED_TOOLS = ("Agent", "ScheduleWakeup", "Workflow", "SendFeedback", "ReportFindings", "ShareOnboardingGuide",
+CLAUDE_DENIED_TOOLS = ("ScheduleWakeup", "Workflow", "SendFeedback", "ReportFindings", "ShareOnboardingGuide",
                        "ListAgents", "CronCreate", "CronDelete", "CronList", "DesignSync", "PushNotification",
                        "RemoteTrigger", "PublishPlugin", "SendToProject", "SendToProjectContext", "EnterWorktree",
                        "ExitWorktree", "NotebookEdit")
