@@ -196,7 +196,7 @@ def claude_permissions(settings: str) -> None:
     permissions = data.setdefault("permissions", {})
     permissions.update(defaultMode="dontAsk", blockWritesOutsideWorkingDirectories=False)
     allow = permissions.setdefault("allow", [])
-    allow += [tool for tool in ("Bash", "Edit", "Write") if tool not in allow]
+    allow += [tool for tool in ("Bash", "Read", "Edit", "Write") if tool not in allow]
     deny = permissions.setdefault("deny", [])
     deny += [tool for tool in CLAUDE_DENIED_TOOLS if tool not in deny]
     data.setdefault("sandbox", {})["enabled"] = False
