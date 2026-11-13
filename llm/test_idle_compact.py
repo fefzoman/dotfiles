@@ -291,6 +291,18 @@ class IdleCompactTest(unittest.TestCase):
         self.assertNotIn("decision", hint)
         self.assertEqual(self.run_hook(ic.guard, self.save([prompt("x", old), reply("y", old)]))[1], "")
 
+    def test_compaction_resets_the_last_call(self) -> None:
+        old = time.time() - 30
+        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
+        boundary = {"type": "system", "subtype": "compact_boundary", "timestamp": iso(old + 1)}
+        hook = self.save([prompt("x", old), reply("y", old), boundary])
+        self.assertIsNone(ic.last_call(ic.records(self.transcript)))
+        self.assertEqual(self.run_hook(ic.guard, hook), (0, "", ""))
+        self.assertEqual(self.run_hook(ic.arm, hook)[0], 0)
+        self.assertFalse(ic.marker("s1", "arm").exists())
+        after = [prompt("x", old), reply("y", old), boundary, reply("z", old + 2, tokens=120_000)]
+        self.assertEqual(ic.last_call(after)[1], 120_000)
+
     def test_five_minute_cache_gets_a_hint_instead_of_a_block(self) -> None:
         os.environ["IDLE_COMPACT_TEST_SECONDS"] = "0.9"
         old = int(time.time()) - 30

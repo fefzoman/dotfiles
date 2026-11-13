@@ -271,6 +271,9 @@ def usage(record: dict[str, Any]) -> dict[str, Any] | None:
 
 def last_call(recs: list[dict[str, Any]]) -> tuple[float, int] | None:
     for record in reversed(recs):
+        # Usage before a compaction measures context the session no longer carries.
+        if record.get("subtype") == "compact_boundary":
+            return None
         if found := usage(record):
             tokens = sum(found.get(k) or 0 for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
             return stamp(record), tokens
