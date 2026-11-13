@@ -476,7 +476,7 @@ fi
                                         "sandbox_workspace_write": {"network_access": False, "writable_roots": ["/tmp"]},
                                         "profiles": {"custom": {"approval_policy": "on-request"}}})
                 self.assertEqual(claude["permissions"], {"defaultMode": "dontAsk", "blockWritesOutsideWorkingDirectories": False,
-                                                       "allow": ["Bash", "Read", "Edit", "Write"],
+                                                       "allow": ["Bash", "Read", "Edit", "Write", "WebSearch"],
                                                        "deny": ["Read(.env)", *agent_config.CLAUDE_DENIED_TOOLS]})
                 self.assertEqual(claude["sandbox"], {"enabled": False, "excludedCommands": ["docker *"],
                                                    "filesystem": {"allowWrite": ["/keep"], "denyWrite": ["/protected"]},
