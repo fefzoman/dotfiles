@@ -94,7 +94,7 @@ tmux, shell, and Neovim keybindings.
 | tree | Display directory contents as a tree | `tree`, `tree -L 2`, `tree -a` |
 | pstree | Display running processes as a tree; Linux installs it via psmisc | `pstree` |
 | ldd (Linux, via libc-bin) | List shared library dependencies | `ldd /usr/bin/ls` |
-| broot | Interactive tree navigation with Git status | `broot`, `broot PATH`; use `br` to change the parent shell's directory on exit |
+| ranger | Terminal file manager with Vim-style navigation | `ranger`, `ranger PATH`; press `q` to quit |
 | fzf | Fuzzy selection from files, history, or piped text | `fzf`, `fd -t f \| fzf`, `git branch --format='%(refname:short)' \| fzf` |
 | Navi | Interactive command cheatsheets backed by TLDR pages | `navi`, `navi --tldr kubectl`, `navi --tldr terraform` |
 | TLDR | Short, example-oriented command documentation; the npm client is used on both platforms because Navi requires its `--markdown` output | `tldr tar`, `tldr kubectl`, `tldr --update` |

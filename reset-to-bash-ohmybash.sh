@@ -146,12 +146,6 @@ if ! grep -qx '# BEGIN DOTFILES' "$HOME/.bashrc"; then
   { echo; cat "$CONFIG_DIR/bashrc"; } >> "$HOME/.bashrc"
 fi
 
-# Replacing ~/.bashrc dropped the line that sources broot's br function.
-if have broot; then
-  bold "Restoring the broot br shell function..."
-  broot --install || warn "broot --install failed; the br function is unavailable."
-fi
-
 if [[ $OS == Darwin ]]; then
   if have brew; then
     bold "Installing JetBrainsMono Nerd Font via Homebrew..."

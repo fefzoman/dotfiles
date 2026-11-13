@@ -60,20 +60,6 @@ install_uv_python() {
   write_python_shims "$python_bin"
 }
 
-configure_broot() {
-  local dir="$HOME/.config/broot"
-
-  # On macOS broot only uses ~/.config/broot if it exists; --install only patches an existing ~/.bashrc.
-  mkdir -p "$dir"
-  touch "$HOME/.bashrc"
-  broot --install
-  [[ -f $dir/launcher/bash/br ]] || die "broot launcher is missing at $dir/launcher/bash/br"
-  # The first launch writes the default config (only after --install), then fails without a TTY.
-  [[ -f $dir/conf.hjson ]] || broot --cmd ":quit" "$dir" >/dev/null 2>&1 || true
-  [[ -f $dir/conf.hjson ]] || die "broot did not write $dir/conf.hjson"
-  python "$CONFIG_DIR/broot/set-default-flags.py" "$dir/conf.hjson"
-}
-
 install_navi_cheatsheets() {
   local repo
   repo="$(navi info default-cheats-path 2>/dev/null || navi info cheats-path)/denisidoro__navi-tldr-pages"
@@ -88,10 +74,9 @@ install_navi_cheatsheets() {
 finish_setup() {
   local decorations="$1" clangd="$2" tmux_shell="$3" wrapper="$4" themes="$HOME/.config/alacritty/themes" conf
 
-  echo "==> Installing tldr, updating npm globals, broot shell function and Navi cheatsheets..."
+  echo "==> Installing tldr, updating npm globals and Navi cheatsheets..."
   npm install --global --prefix "$HOME/.local" tldr
   npm update --global --prefix "$HOME/.local"
-  configure_broot
   install_navi_cheatsheets
 
   ln -sf "$clangd" "$BIN/clangd"

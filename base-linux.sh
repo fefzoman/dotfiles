@@ -133,13 +133,6 @@ install_lazygit_linux() {
   install -m 0755 "$WORK/lazygit" "$BIN/lazygit"
 }
 
-install_broot_linux() {
-  local target=aarch64-unknown-linux-musl
-  [[ $(linux_arch) != x86_64 ]] || target=x86_64-unknown-linux-musl
-  curl -fsSL -o "$WORK/broot" "https://dystroy.org/broot/download/$target/broot"
-  install -m 0755 "$WORK/broot" "$BIN/broot"
-}
-
 install_navi_linux() {
   local target=aarch64-unknown-linux-gnu version
   [[ $(linux_arch) != x86_64 ]] || target=x86_64-unknown-linux-musl
@@ -163,7 +156,7 @@ install_linux() {
   echo "==> Installing Debian/Ubuntu packages..."
   apt_get update -y
   apt_get install -y alacritty bash bash-completion build-essential ca-certificates clangd curl dconf-cli \
-    fd-find fontconfig fzf git libc-bin psmisc ripgrep tmux tree unzip wget xclip xz-utils
+    fd-find fontconfig fzf git libc-bin psmisc ranger ripgrep tmux tree unzip wget xclip xz-utils
   apt_get install -y btop || true
 
   install_python_linux
@@ -174,7 +167,6 @@ install_linux() {
   install_yq_linux
   install_terraform_linux
   install_lazygit_linux
-  install_broot_linux
   install_navi_linux
   npm install --global --prefix "$HOME/.local" tree-sitter-cli @ast-grep/cli
   "$BIN/pip" install --upgrade basedpyright
