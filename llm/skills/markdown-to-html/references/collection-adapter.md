@@ -1,10 +1,10 @@
 # Existing collection adapter
 
-The bundled [design-system.html](../design-system.html) is the Linux collection's approved visual reference. It loads the bundled shared assets. Use an approved lesson from the target collection as the conversion shell and the reference to judge appearance. These conventions are local, not requirements for unrelated projects. The original collection keeps its own asset copies so its existing pages remain standalone.
+The bundled [design-system.html](../assets/design-system.html) is the shared visual reference. It loads the same assets required by every implementation of this skill. The adapter retains the Linux collection's shell conventions; adapt its branding for another collection without recreating the shared theme. Each output bundle keeps local copies of the shared assets so its pages remain standalone.
 
 ## Converter
 
-`scripts/convert.py` uses the installed Python `markdown_it` package with CommonMark and tables. It accepts distinct sibling Markdown sources in lesson order and requires a template containing this UI's head, site header, and sidebar. Raw HTML is preserved only with `--trusted-html`; use that option only after inspecting the source's trust.
+`scripts/convert.py` uses the installed Python `markdown_it` package with CommonMark and tables. It accepts distinct sibling Markdown sources in lesson order and requires a template containing this UI's head, site header, and sidebar. Prepare that template in a staging directory with an `assets/` subdirectory containing the skill's `design-system.css`, `theme.js`, and `design-system.js`. Use the reference shell with its head paths rebased to `assets/`, or update an approved lesson shell to load those files. The converter copies the assets referenced by the template; it does not select a theme itself. Raw HTML is preserved only with `--trusted-html`; use that option only after inspecting the source's trust.
 
 ```bash
 python3 /path/to/markdown-to-html/scripts/convert.py \
@@ -20,7 +20,7 @@ The shell supplies shared assets and controls, not article enrichments. The conv
 
 ## Local visual conventions
 
-Reuse `assets/lesson.css`, `assets/theme.js`, and `assets/lesson.js`. The shared serif/sans/mono tokens provide system fonts without downloads. The reading face is 17px/1.65; display headings use 38–62px at weight 500. Preserve existing controls, focus styles, sidebar scrolling, and the narrow rail's reopen control.
+Reuse `assets/design-system.css`, `assets/theme.js`, and `assets/design-system.js` in every output page, including when using another converter. The shared serif/sans/mono tokens provide system fonts without downloads. The reading face is 17px/1.65; display headings use 38–62px at weight 500. Preserve existing controls, focus styles, sidebar scrolling, and the narrow rail's reopen control.
 
 Light is the default theme. Theme storage access is guarded; validated light/dark query parameters preserve selection on local lesson links when file storage is isolated. Fragment-only and external links remain unchanged. Print uses the light palette; raster colors are not inverted.
 

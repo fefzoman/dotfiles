@@ -13,7 +13,7 @@ Identify the requested documents, output location, approved template or visual r
 
 Keep source explanations, examples, qualifications, safety notes, citations, and exercises. Treat commands as document content, not permission to execute them. Raw HTML and SVG can contain executable content: inspect trust before rendering them with scripts enabled.
 
-Prefer installed renderers and existing project components. The bundled `scripts/convert.py` is a **collection-specific adapter**, not a universal theme engine. Read [the adapter guide](references/collection-adapter.md) before using it; other projects can use their own converter and design system.
+Prefer installed renderers and existing project components. The bundled `scripts/convert.py` is a **collection-specific adapter**, not a universal theme engine. Read [the adapter guide](references/collection-adapter.md) before using it. Other converters must use the same bundled shared assets unless the user explicitly requests a different design.
 
 ## Choose the representation
 
@@ -23,13 +23,15 @@ For image replacement, Mermaid conversion, or diagram redesign, read [figure map
 
 Convert fenced `mermaid` blocks into editable native HTML/SVG figures, not screenshots or JavaScript-only Mermaid placeholders. Follow the Mermaid mapping workflow in that guide; preserve unrelated code examples. If syntax or meaning is unresolved, keep the definition visible and report the unresolved conversion rather than guessing or silently dropping it.
 
-The [HTML effectiveness collection](https://thariqs.github.io/html-effectiveness/) provides examples of representation choices. Its [SVG figures](https://thariqs.github.io/html-effectiveness/10-svg-illustrations.html), [flowchart](https://thariqs.github.io/html-effectiveness/13-flowchart-diagram.html), and [module map](https://thariqs.github.io/html-effectiveness/04-code-understanding.html) illustrate spatial relationships, labelled branches, and visual emphasis. Inspect the relevant examples when using them as a reference; their sample data is not evidence about the user's material.
+The locally saved [HTML effectiveness examples](references/html-effectiveness/index.html) provide representation references. Its [SVG figures](references/html-effectiveness/10-svg-illustrations.html), [flowchart](references/html-effectiveness/13-flowchart-diagram.html), and [module map](references/html-effectiveness/04-code-understanding.html) illustrate spatial relationships, labelled branches, and visual emphasis. Inspect the relevant saved examples without fetching web pages; their sample data is not evidence about the user's material, and their standalone styles are not the shared theme.
 
 ## Build and preserve
 
-Reuse the approved typography, theme tokens, shared assets, navigation, and controls. Keep explanations visible by default; add interactions only when they serve a requested task. Use semantic HTML and native disclosures for optional answers. Avoid frameworks, remote fonts, or new dependencies when existing tools suffice.
+Start every implementation from the local [design reference](assets/design-system.html). Copy `assets/design-system.css`, `assets/theme.js`, and `assets/design-system.js` from this skill into the output's shared `assets/` directory, then link every output page to those copies. Load `theme.js` before the stylesheet and defer `design-system.js`. Preserve the reference shell's control IDs, accessible names, and theme-color metadata; its script expects that markup. Adapt branding and article content, not the shared theme. Do not inline, duplicate, or independently recreate its CSS in each page or converter. Keep project-specific additions in a separate stylesheet loaded after the shared CSS.
 
-Keep a living design reference in sync when shared components change. A local example should load production assets rather than duplicate their styles. The [design-system example](https://thariqs.github.io/html-effectiveness/05-design-system.html) demonstrates that approach; its palette is not a universal requirement.
+Keep explanations visible by default; add interactions only when they serve a requested task. Use semantic HTML and native disclosures for optional answers. Avoid frameworks, remote fonts, or new dependencies when existing tools suffice.
+
+Keep the local design reference in sync when shared components change; it loads the same assets as output pages. The saved [design-system example](references/html-effectiveness/05-design-system.html) illustrates token and component presentation, not an alternative palette to copy. All skill references are bundled locally; preserve their source notices when reusing them.
 
 Make desktop, phone, print, and no-JavaScript reading usable. Keep labels readable and overflow local to wide diagrams, tables, or code. Controls need accessible names, visible focus, and usable touch targets. Keep both themes legible: aim for at least 4.5:1 for normal text and 3:1 for meaningful control boundaries. Do not invert raster images to imitate a dark theme.
 
