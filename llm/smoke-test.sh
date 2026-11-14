@@ -88,6 +88,8 @@ done
 
 check "Codex pitstop skill matches the repository" "Codex pitstop skill is missing or stale" \
   cmp -s "$SCRIPT_DIR/codex/pitstop/SKILL.md" "$HOME/.agents/skills/pitstop/SKILL.md"
+check "Codex checkpoint skill matches the repository" "Codex checkpoint skill is missing or stale" \
+  cmp -s "$SCRIPT_DIR/codex/checkpoint/SKILL.md" "$HOME/.agents/skills/checkpoint/SKILL.md"
 
 for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
   for skill in natural-article code-retrieval markdown-to-html; do

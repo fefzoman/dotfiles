@@ -14,7 +14,8 @@
 | **Checkpoint fires at** | 0.9 × TTL: 54 min / 4.5 min (0.93 when the native compactor flag is on) | 27 min |
 | **Who writes it** | ✓ Same model, headless: `claude -p --resume --fork-session` | ✓ Same model, headless: `codex exec fork --ephemeral` |
 | **Context it sees** | Full session; prefix read from cache (measured 52.7K read, 1.9K written) | Full thread; the original prefix is read from cache (measured 12.7K of 12.9K) |
-| **Sections** | Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps, Pointers | Same |
+| **Sections** | Goal, Done, Decisions, Dead ends, Current state, Constraints, Next steps, Pointers; optional Suggested skills and Next session focus | Same |
+| **Focused handoff** | `/checkpoint focus <text>` saves a separate `focus_` checkpoint; all constraints still apply | `$checkpoint focus <text>`; same storage and constraints |
 | **Renews the session cache** | ✓ The fork reads the shared prefix; the guard counts the gap from the fork | △ The fork reads the shared prefix; renewal not measured, so the guard counts from the last call |
 | **Visible to the user** | — Silent; the guard reports it | Same |
 | **Native compactor** | Coexists: fires after it, cancels if it ran | No equivalent |
@@ -65,3 +66,4 @@
 | Fork cache renewal unmeasured | Codex | Needs a long-gap measurement |
 | Close-time transcript may be unavailable | Codex | `SessionEnd` documents nullable `transcript_path`; without a readable file the worker cannot save excerpts ([details](TOOLCHAIN.md#verified-behavior-and-remaining-limits-2026-10-25)) |
 | Pattern redaction | Both | Unknown secret formats still pass; directory is 0700 |
+| Summary omissions | Both | Constraint retention is prompted, not guaranteed; focus is saved separately, and resume preserves extra and repeated sections |

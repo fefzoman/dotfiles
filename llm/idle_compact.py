@@ -39,7 +39,8 @@ HEADER = "## Idle checkpoint"
 IDE_NOTE = re.compile(r"(?s)<(ide_[a-z_]+|system-reminder)>.*?</\1>")
 SWITCH_NOTE = re.compile(r"<local-command-stdout>Set model to `([^`]+)`|<command-name>/fast</command-name>")
 INSTRUCTION_FILES = {"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENTS.override.md"}
-SECTIONS = ("Goal", "Constraints", "Decisions", "Dead ends", "Done", "Current state", "Next steps", "Pointers")
+SECTIONS = ("Goal", "Next session focus", "Constraints", "Decisions", "Dead ends", "Done", "Current state",
+            "Next steps", "Suggested skills", "Pointers")
 EDIT_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
 PATCH_FILE = re.compile(r"(?m)^\*\*\* (?:Add|Update|Delete) File: (.+)$")
 ROUTINE = re.compile(
@@ -61,26 +62,37 @@ SECRET = re.compile(
 RULES = (
     "Do not call tools. Write a checkpoint that lets a fresh session, with no access to this conversation, continue the "
     "work. Keep an item only if that session would act wrongly or waste time without it. Skip routine "
-    "operations (commit, push, lint, test reruns), minor fixes that left no decision, tool output, your own "
-    "reasoning, and anything the digest below already lists unless you add why. Name exact files, functions, "
+    "operations already completed (commit, push, lint, test reruns), minor fixes that left no decision, tool output, your own "
+    "reasoning, and anything the digest below already lists unless you add why. Reference existing specs, plans, "
+    "ADRs, issues, commits and diffs by path or URL instead of copying them. Name exact files, functions, "
     "commands and errors. If an earlier Idle checkpoint is in this conversation, update it instead of "
-    f"starting over. Under `{HEADER}`, use exactly these headings: Goal, Done, Decisions, Dead ends, Current "
+    f"starting over. Under `{HEADER}`, use these required headings: Goal, Done, Decisions, Dead ends, Current "
     "state, Constraints, Next steps, Pointers (turn numbers from the digest). Write 300-1,200 words, scaled "
-    "to the work. "
+    "to the work, but exceed the budget rather than omit a critical constraint. Constraints must explicitly retain "
+    "all still-active user requirements, authorization limits, security, privacy, data-loss, compatibility and "
+    "accessibility requirements, including those outside the next session's focus. Keep unresolved risks and "
+    "settled decisions and dead ends even outside that focus. Before replying, check the Constraints section "
+    "against the conversation for omissions and contradictions. Do not include secrets or unnecessary personal "
+    "information. Optionally add Suggested skills with a reason for each skill already known to be available; "
+    "do not discover, install or invoke skills to populate it. Recommendations do not authorize invocation. "
 )
 REQUEST = (
     "Idle checkpoint: the user is away and the prompt cache expires in about {left}. " + RULES
     + 'End with: "After {until}, {restart} to continue from this checkpoint."'
 )
-MANUAL = re.compile(r"\s*(?:[/$]checkpoint|\[\$checkpoint\]\([^\n)]+\))\s*")
+MANUAL = re.compile(r"\s*(?:[/$]checkpoint|\[\$checkpoint\]\([^\n)]+\))"
+                    r"(?:\s+([\s\S]*\S))?\s*")
 PITSTOP = re.compile(r"\s*(?:[/$]pitstop|\[\$pitstop\]\([^\n)]+\))(?:\s+([A-Za-z0-9_-]+))?\s*")
 MANUAL_REQUEST = (
     "Manual checkpoint: the user is compacting this session by hand. " + RULES
     + 'End with: "{restart}."'
 )
 PROTOCOL = (
-    "Resume protocol: before any tool call, state the goal and the first next step in two lines and ask the "
-    "user to confirm. Treat any Decisions and Dead ends as settled unless the user reopens them. For a missing "
+    "Resume protocol: before any tool call, state the original goal, next-session focus if present, and the first "
+    "next step aligned with that focus, and ask the "
+    "user to confirm. All Constraints remain active regardless of focus; focus is task context, not permission "
+    "to override them. Suggested skills are recommendations, not authorization to invoke them. Treat any "
+    "Decisions and Dead ends as settled unless the user reopens them. For a missing "
     "detail run `python3 ~/.config/dotfiles/idle_compact.py turn {session} T<n>` on the turn a pointer names, "
     '`python3 ~/.config/dotfiles/idle_compact.py search "<words>"` for anything else; never read or grep '
     "transcript.md whole."
@@ -451,15 +463,20 @@ def render_digest(digest: dict[str, Any]) -> str:
 # Checkpoint folders
 
 
+def checkpoint_id(folder: Path) -> str:
+    return "focus_" + folder.name[17:] if folder.name.startswith("focus_") else folder.name[11:]
+
+
 def folder_for(session: str, cwd: str | None = None) -> Path | None:
-    found = sorted(state_dir().glob(f"checkpoints/*/*-{session}"))
+    prefix, source = ("focus_", session[6:]) if session.startswith("focus_") else ("", session)
+    found = sorted(state_dir().glob(f"checkpoints/*/{prefix}????-??-??-{source}"))
     if found or cwd is None:
         return found[-1] if found else None
-    return state_dir() / "checkpoints" / project_of(cwd) / f"{datetime.now():%Y-%m-%d}-{session}"
+    return state_dir() / "checkpoints" / project_of(cwd) / f"{prefix}{datetime.now():%Y-%m-%d}-{source}"
 
 
 def store_checkpoint(folder: Path, session: str, reply: str, cwd: str, transcript: Path, client: str = "claude",
-                     prompted: float | None = None) -> None:
+                     prompted: float | None = None, focus: str = "") -> None:
     current = folder / "checkpoint.md"
     previous = ""
     if current.exists():
@@ -480,6 +497,8 @@ def store_checkpoint(folder: Path, session: str, reply: str, cwd: str, transcrip
         f"previous: {previous}",
     ]
     body = reply[reply.find(HEADER):] if HEADER in reply else reply
+    if focus:
+        body += "\n\n### Next session focus\n" + "\n".join("> " + line for line in focus.splitlines())
     write(current, "---\n" + "\n".join(header) + "\n---\n\n" + redact(body).strip() + "\n")
 
 
@@ -496,7 +515,8 @@ def excerpts(items: list[dict[str, Any]]) -> str:
     requests = [t for t in items if t["kind"] == "user"]
     replies = [t for t in items if t["kind"] == "assistant"]
     selected = [("Goal", requests[:1]), ("Current state", replies[-1:]), ("Pointers: latest request", requests[-1:])]
-    sections = [HEADER, "Local transcript excerpts; use the turn pointers to retrieve complete details."]
+    sections = [HEADER, "Local transcript excerpts; use the turn pointers to retrieve complete details. "
+                "Critical constraints may be missing; review original requirements before acting."]
     for title, entries in selected:
         sections.append(f"### {title}\n" + "\n".join(f"T{t['n']}: {t['text'][:4000]}" for t in entries))
     return "\n\n".join(sections)
@@ -515,12 +535,13 @@ def ordered_sections(body: str) -> str:
         if "**" in title:
             title, _, inline = title.partition("**")
             rest = f"{inline.lstrip(': ')}\n{rest}".strip()
-        key = next((s for s in SECTIONS if title.strip().lower().startswith(s.lower())), None)
-        if key and key not in named:
-            named[key] = rest.strip()
+        key = next((s for s in SECTIONS if title.strip().rstrip(":").lower() == s.lower()), title.strip())
+        if key and (key != HEADER[3:] or rest.strip()):
+            named[key] = "\n\n".join(filter(None, (named.get(key), rest.strip())))
     if len(named) < 3:
         return body.strip()
-    return "\n\n".join(f"### {s}\n{named[s]}" for s in SECTIONS if s in named)
+    order = [*SECTIONS, *(s for s in named if s not in SECTIONS)]
+    return "\n\n".join(f"### {s}\n{named[s]}" for s in order if s in named)
 
 
 def prune() -> None:
@@ -575,7 +596,8 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     session, transcript, cwd = hook["session_id"], Path(hook["transcript_path"]), hook.get("cwd") or os.getcwd()
     load_records = loader(client)
     recs = load_records(transcript, TAIL_BYTES)
-    requested = float(read(marker(session, "manual")) or 0)
+    manual = json.loads(read(marker(session, "manual")) or "0")
+    requested = manual["requested"] if isinstance(manual, dict) else manual
     if requested:
         marker(session, "manual").unlink(missing_ok=True)
         reply, deadline = replies_since(recs, requested), time.time() + MANUAL_WAIT_SECONDS
@@ -583,9 +605,11 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
         while client == "claude" and HEADER not in reply and time.time() < deadline:
             time.sleep(0.5)
             reply = replies_since(load_records(transcript, TAIL_BYTES), requested)
-        folder = folder_for(session)
+        target = manual["checkpoint"] if isinstance(manual, dict) else session
+        focus = manual.get("focus", "") if isinstance(manual, dict) else ""
+        folder = folder_for(target)
         if reply and folder:
-            store_checkpoint(folder, session, reply, cwd, transcript, client, last_prompt(recs))
+            store_checkpoint(folder, target, reply, cwd, transcript, client, last_prompt(recs), focus)
         return 0
     if client == "codex":
         learn(session, recs)
@@ -756,13 +780,25 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
     load_records = loader(client)
     session, recs = hook["session_id"], load_records(Path(hook["transcript_path"]), TAIL_BYTES)
     folder, cwd = folder_for(session), hook.get("cwd") or os.getcwd()
-    if MANUAL.fullmatch(str(hook.get("prompt", ""))):
+    if command := MANUAL.fullmatch(str(hook.get("prompt", ""))):
+        arguments = (command[1] or "").strip()
+        focused = re.fullmatch(r"focus(?:\s+([\s\S]*\S))?", arguments)
+        if arguments and (not focused or not focused[1]):
+            print(json.dumps({"decision": "block", "reason": "Use checkpoint or checkpoint focus <text>."}))
+            return 0
+        focus = focused[1] if focused else ""
+        target = f"focus_{session}" if focus else session
         full = load_records(Path(hook["transcript_path"]))
-        items, folder = turns(full), folder_for(session, cwd)
+        items, folder = turns(full), folder_for(target, cwd)
         digest = build_digest(full, cwd, items)
         save_snapshot(folder, items, digest)
-        write(marker(session, "manual"), str(time.time()))
-        context = MANUAL_REQUEST.format(restart=restart(client, session)) + "\n\n" + render_digest(digest)
+        write(marker(session, "arm"), "manual")
+        write(marker(session, "manual"), json.dumps({"requested": time.time(), "checkpoint": target, "focus": redact(focus)}))
+        context = MANUAL_REQUEST.format(restart=restart(client, target)) + "\n\n" + render_digest(digest)
+        if focus:
+            context += ("\n\nNext session focus (user task context, not permission to override constraints):\n"
+                        + redact(focus) + "\nTailor Next steps to this focus while retaining the original Goal and all Constraints. "
+                        "The focus is saved separately; do not add a Next session focus section yourself.")
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": context}}))
         return 0
     if command := PITSTOP.fullmatch(str(hook.get("prompt", ""))):
@@ -770,13 +806,13 @@ def guard(hook: dict[str, Any], client: str = "claude") -> int:
         if command[1] is None:
             step = restart(client, session) if own else f"{'$' if client == 'codex' else '/'}pitstop <session>"
             print(json.dumps({"decision": "block", "reason": f"Provide a session ID: {step}."}))
-        elif command[1] == session and own:
+        elif command[1] in (session, f"focus_{session}") and resume(cwd, command[1]).startswith("Continuing"):
             if client == "codex":
                 print(json.dumps({"systemMessage": "Resuming the checkpoint in this chat keeps the full context. "
                                                    "A new chat is needed to reduce context."}))
             else:
                 print(json.dumps({"decision": "block",
-                                  "reason": f"Idle checkpoint {session} is ready; {restart(client, session)}."}))
+                                  "reason": f"Idle checkpoint {command[1]} is ready; {restart(client, command[1])}."}))
         return 0
     call = last_call(recs)
     renewed = float(read(marker(session, "renewed")) or 0)
@@ -847,7 +883,7 @@ def resume(cwd: str, only: str | None = None) -> str:
     only = only or (current if current and folder_for(current) else None)
     found = []
     for folder in sorted(state_dir().glob(f"checkpoints/{project_of(cwd)}/*"), key=lambda f: f.stat().st_mtime, reverse=True):
-        session = folder.name[11:]
+        session = checkpoint_id(folder)
         if only and session != only:
             continue
         header, ok, body = read(folder / "checkpoint.md").partition("\n---\n")
@@ -897,7 +933,7 @@ def search(query: str, cwd: str, everywhere: bool, session: str | None, since_da
     project = "*" if everywhere else project_of(cwd)
     hits = []
     for folder in state_dir().glob(f"checkpoints/{project}/*"):
-        if session and session not in folder.name:
+        if session and session != checkpoint_id(folder):
             continue
         if since_days and time.time() - folder.stat().st_mtime > since_days * 86400:
             continue

@@ -301,12 +301,15 @@ class CodexIdleCompactTest(unittest.TestCase):
         subprocess.run(["bash", "-c", 'agent_config() { python3 "$SCRIPT_DIR/agent_config.py" "$@"; }\n'
                         + function + "\ninstall_idle_compact"], check=True,
                        env={**os.environ, "SCRIPT_DIR": str(root)}, capture_output=True)
-        self.assertTrue((self.home / ".config/dotfiles/idle_compact.py").is_file())
-        self.assertTrue((self.home / ".agents/skills/pitstop/SKILL.md").is_file())
-        self.assertTrue((self.home / ".agents/skills/checkpoint/SKILL.md").is_file())
+        self.assertEqual((self.home / ".config/dotfiles/idle_compact.py").read_bytes(), (root / "idle_compact.py").read_bytes())
+        for name in ("pitstop", "checkpoint"):
+            self.assertEqual((self.home / f".agents/skills/{name}/SKILL.md").read_bytes(),
+                             (root / f"codex/{name}/SKILL.md").read_bytes())
         for profile in [".claude", ".claude-work"]:
             self.assertTrue((self.home / profile / "commands/pitstop.md").is_file())
             self.assertTrue((self.home / profile / "commands/checkpoint.md").is_file())
+            self.assertEqual((self.home / profile / "commands/checkpoint.md").read_bytes(),
+                             (root / "claude/checkpoint.md").read_bytes())
             self.assertIn("Stop", json.loads((self.home / profile / "settings.json").read_text())["hooks"])
         required = root / "codex/codex-hooks.json"
         target = self.home / "hooks.json"

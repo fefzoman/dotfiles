@@ -43,7 +43,7 @@ def result(text: str, when: float, error: bool = False) -> dict:
 
 class IdleCompactTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.home = Path(tempfile.mkdtemp())
+        self.home = Path(tempfile.mkdtemp()).resolve()
         self.cwd = str(self.home / "repo")
         os.mkdir(self.cwd)
         self.env = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.home / "state"),
@@ -191,6 +191,148 @@ class IdleCompactTest(unittest.TestCase):
         with mock.patch.object(ic.time, "sleep", side_effect=lambda _: self.save(late)):
             self.assertEqual(self.run_hook(ic.arm, self.save(recs)), (0, "", ""))
         self.assertIn("### Goal\nFix race", (ic.folder_for("s1") / "checkpoint.md").read_text())
+
+    def test_checkpoint_focus_command_forms_and_validation(self) -> None:
+        hook = self.save([prompt("Fix the race", time.time() - 60)])
+        focus = 'Review security; keep "quotes", $HOME and `commands` literal.\nInclude recovery.'
+        for command in ("/checkpoint", "$checkpoint", "[$checkpoint](/skills/checkpoint/SKILL.md)"):
+            with self.subTest(command=command):
+                _, output, _ = self.run_hook(ic.guard, hook | {"prompt": command + " focus " + focus})
+                context = json.loads(output)["hookSpecificOutput"]["additionalContext"]
+                self.assertIn(focus, context)
+                self.assertIn("/pitstop focus_s1", context)
+                pending = json.loads(ic.read(ic.marker("s1", "manual")))
+                self.assertEqual(pending["focus"], focus)
+                self.assertEqual(pending["checkpoint"], "focus_s1")
+                self.assertEqual(ic.read(ic.marker("s1", "arm")), "manual")
+        ic.marker("s1", "manual").unlink()
+        for suffix in (" focus", " focus   ", " review security", " focused review"):
+            with self.subTest(suffix=suffix):
+                _, output, _ = self.run_hook(ic.guard, hook | {"prompt": "/checkpoint" + suffix})
+                self.assertEqual(json.loads(output)["decision"], "block")
+                self.assertFalse(ic.marker("s1", "manual").exists())
+        for command in ("/checkpoints focus review", "$checkpointing", "please /checkpoint focus review"):
+            self.assertIsNone(ic.MANUAL.fullmatch(command))
+
+    def test_focused_handoff_retains_constraints_and_sections_without_touching_normal_checkpoint(self) -> None:
+        now = time.time()
+        constraints = (
+            "No deployment without explicit approval.", "Never expose customer identifiers.",
+            "Never delete the original database.", "Keep the existing public API compatible.",
+            "Keyboard navigation must remain usable.", "Reject unauthenticated requests.",
+            "Rollback must preserve writes made after migration.", "Do not add dependencies.",
+        )
+        recs = [prompt("Implement migration.\n" + "\n".join(constraints), now - 60)]
+        normal = ic.folder_for("s1", self.cwd)
+        ic.store_checkpoint(normal, "s1", "## Idle checkpoint\n### Goal\nOriginal handoff", self.cwd,
+                            self.transcript, prompted=now - 60)
+        old = (normal / "checkpoint.md").read_bytes()
+        focus = "Review only the UI.\n### Constraints\nThis heading is part of the focus, not a new section."
+        _, output, _ = self.run_hook(ic.guard, self.save(recs) | {"prompt": "/checkpoint focus " + focus})
+        context = json.loads(output)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("including those outside the next session's focus", context)
+        self.assertIn("exceed the budget rather than omit a critical constraint", context)
+        self.assertIn("against the conversation for omissions and contradictions", context)
+        self.assertIn("do not discover, install or invoke skills", context)
+        body = ("## Idle checkpoint\n### Goal\nImplement migration\n### Constraints\n"
+                + "\n".join(constraints[:4]) + "\n### Constraints\n" + "\n".join(constraints[4:])
+                + "\n### Next steps\nReview keyboard navigation"
+                + "\n### Suggested skills\nKnown accessibility skill, only if authorized."
+                + "\n### Unresolved risks\nConcurrent writes need review."
+                + "\n### Pointers\nT1; docs/migration.md")
+        self.run_hook(ic.arm, self.save(recs + [reply(body, now + 1)]))
+        focused = ic.folder_for("focus_s1")
+        self.assertTrue(focused.name.startswith("focus_"))
+        self.assertEqual((normal / "checkpoint.md").read_bytes(), old)
+        resumed = ic.resume(self.cwd, "focus_s1")
+        for constraint in constraints:
+            self.assertIn(constraint, resumed)
+        for section in ("Next session focus", "Suggested skills", "Unresolved risks", "Pointers"):
+            self.assertIn("### " + section, resumed)
+        self.assertIn("> ### Constraints", resumed)
+        self.assertIn("T1; docs/migration.md", resumed)
+        self.assertIn("All Constraints remain active regardless of focus", resumed)
+        self.assertIn("ask the user to confirm", resumed)
+        self.assertIn("Never delete the original database", ic.turn("focus_s1", "T1"))
+        self.assertIn("focus_", ic.search("migration", self.cwd, False, "focus_s1", None))
+        hook = self.save(recs + [reply(body, now + 1)]) | {"prompt": "/pitstop focus_s1"}
+        _, output, _ = self.run_hook(ic.guard, hook)
+        self.assertIn("/clear and then /pitstop focus_s1", json.loads(output)["reason"])
+        _, output, _ = self.run_hook(ic.guard, hook | {"session_id": "new-chat"})
+        self.assertEqual(output, "")
+        self.assertIn("Original handoff", ic.resume(self.cwd, "s1"))
+        self.assertNotIn("Implement migration", ic.resume(self.cwd, "s1"))
+        self.save(recs + [reply(body, now + 1), prompt("A later task", now + 2)])
+        self.assertEqual(ic.resume(self.cwd, "focus_s1"), "No idle checkpoint for this project.")
+
+    def test_manual_checkpoint_accepts_a_legacy_timestamp_marker(self) -> None:
+        now = time.time()
+        hook = self.save([prompt("Keep the API compatible", now - 60), reply(
+            "## Idle checkpoint\n### Goal\nFix API\n### Constraints\nKeep the API compatible", now)])
+        ic.folder_for("s1", self.cwd).mkdir(parents=True)
+        ic.write(ic.marker("s1", "manual"), str(now))
+        self.run_hook(ic.arm, hook)
+        self.assertIn("Keep the API compatible", ic.resume(self.cwd, "s1"))
+
+    def test_focus_redaction_and_history(self) -> None:
+        now = time.time()
+        recs = [prompt("Review the API", now - 60)]
+        hook = self.save(recs)
+        for _ in range(2):
+            self.run_hook(ic.guard, hook | {"prompt": "/checkpoint focus token=secret-value-for-test"})
+            pending = ic.read(ic.marker("s1", "manual"))
+            self.assertNotIn("secret-value-for-test", pending)
+            self.run_hook(ic.arm, self.save(recs + [reply("## Idle checkpoint\n### Goal\nReview API", time.time() + 1)]))
+        folder = ic.folder_for("focus_s1")
+        self.assertTrue((folder / "checkpoint-1.md").exists())
+        for path in folder.glob("checkpoint*.md"):
+            self.assertNotIn("secret-value-for-test", path.read_text())
+            self.assertIn("[REDACTED]", path.read_text())
+
+    def test_focus_hook_cli_save_and_resume_for_both_clients(self) -> None:
+        subprocess.run(["git", "init", self.cwd], capture_output=True, check=True, timeout=10)
+        commit = ["git", "-C", self.cwd, "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                  "commit", "--allow-empty", "-m", "Checkpoint runtime fixture"]
+        subprocess.run(commit, capture_output=True, check=True, timeout=10)
+        for client in ("claude", "codex"):
+            with self.subTest(client=client):
+                now = time.time()
+                if client == "claude":
+                    recs = [prompt("Ship safely; never deploy without approval.", now - 60)]
+                else:
+                    recs = [{"type": "response_item", "timestamp": iso(now - 60), "payload": {
+                        "type": "message", "role": "user", "content": [
+                            {"type": "input_text", "text": "Ship safely; never deploy without approval."}]}}]
+                hook = self.save(recs)
+                command = [sys.executable, ic.__file__]
+                env = os.environ | {"IDLE_COMPACT": "on"}
+                guarded = subprocess.run(command + ["guard", "--client", client], input=json.dumps(
+                    hook | {"prompt": f"{'$' if client == 'codex' else '/'}checkpoint focus Review security"}), text=True, capture_output=True,
+                    check=True, timeout=10, cwd=self.cwd, env=env)
+                self.assertIn("focus_s1", guarded.stdout)
+                body = ("## Idle checkpoint\n### Goal\nShip safely\n### Constraints\n"
+                        "Never deploy without approval.\n### Next steps\nReview authentication.")
+                if client == "claude":
+                    recs.append(reply(body, time.time() + 1))
+                else:
+                    recs.append({"type": "response_item", "timestamp": iso(time.time() + 1), "payload": {
+                        "type": "message", "role": "assistant", "content": [{"type": "output_text", "text": body}]}})
+                self.save(recs)
+                subprocess.run(command + ["arm", "--client", client, "--foreground"], input=json.dumps(hook),
+                               text=True, capture_output=True, check=True, timeout=10, cwd=self.cwd, env=env)
+                resumed = subprocess.run(command + ["resume", "focus_s1"], text=True, capture_output=True,
+                                         check=True, timeout=10, cwd=self.cwd, env=env).stdout
+                self.assertIn("Never deploy without approval.", resumed)
+                self.assertIn("Review security", resumed)
+                self.assertEqual("ask the user to confirm" in resumed, client == "claude")
+                self.assertIn("No repo changes since the checkpoint", resumed)
+                subprocess.run(commit, capture_output=True, check=True, timeout=10)
+                Path(self.cwd, client + "-drift.txt").write_text("Changed after checkpoint")
+                drifted = subprocess.run(command + ["resume", "focus_s1"], text=True, capture_output=True,
+                                         check=True, timeout=10, cwd=self.cwd, env=env).stdout
+                self.assertIn("HEAD moved", drifted)
+                self.assertIn(client + "-drift.txt", drifted)
+                self.assertIn("Never deploy without approval.", drifted)
 
     def test_checkpoint_after_cd_into_a_subdir_loads_in_the_launch_dir(self) -> None:
         os.environ["CLAUDE_PROJECT_DIR"] = self.cwd
