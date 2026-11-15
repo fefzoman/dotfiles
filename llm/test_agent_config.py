@@ -345,6 +345,43 @@ class AgentInstallationTests(unittest.TestCase):
             capture_output=True, text=True,
         )
 
+    def test_feedback_hooks_preserve_all_profiles_and_are_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            paths = [home / profile / filename for profile, filename in (
+                (".claude", "settings.json"), (".claude-work", "settings.json"),
+                (".codex", "hooks.json"), (".codex-work", "hooks.json"))]
+            original = {"permissions": {"keep": True}, "hooks": {
+                "PreToolUse": [{"matcher": "Bash", "hooks": [
+                    {"type": "command", "command": "custom-check"}]}]}}
+            for path in paths:
+                path.parent.mkdir()
+                path.write_text(json.dumps(original))
+            extra = ('agent-feedback-install-hooks() { PYTHONPATH="$SCRIPT_DIR/self-ai-doctor/src" '
+                     'python -P -m agent_feedback.install_hooks "$@"; }')
+            snapshots = None
+            for _ in range(2):
+                result = self.run_installer_function("install_feedback_hooks", home, extra)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                current = [path.read_bytes() for path in paths]
+                if snapshots is not None:
+                    self.assertEqual(current, snapshots)
+                snapshots = current
+                for path in paths:
+                    config = json.loads(path.read_bytes())
+                    self.assertEqual(config["permissions"], original["permissions"])
+                    self.assertEqual(config["hooks"]["PreToolUse"][0], original["hooks"]["PreToolUse"][0])
+                    handlers = config["hooks"]["SessionStart"]
+                    self.assertEqual(len(handlers), 1)
+                    self.assertIn("--scope-root", handlers[0]["hooks"][0]["command"])
+
+    def test_feedback_hook_install_stops_on_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.run_installer_function("install_feedback_hooks", Path(directory),
+                'agent-feedback-install-hooks() { echo attempted; return 7; }')
+            self.assertEqual(result.returncode, 7)
+            self.assertEqual(result.stdout, "attempted\n")
+
     def test_installs_separate_agent_policies(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

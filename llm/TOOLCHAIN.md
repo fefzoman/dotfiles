@@ -260,9 +260,10 @@ and diagnoses missing executables, unrecovered command failures, repeated
 approval requests and collection gaps. Analysis is deterministic and local;
 it makes no network, model or transcript requests.
 
-The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13.
-Installation does **not** enable collection. With agents closed, explicitly opt
-each Git worktree into the desired profiles:
+The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13,
+then merges collection hooks for this dotfiles Git worktree into all four
+personal/work profiles. Other worktrees remain unobserved. With agents closed,
+register additional Git worktrees in the desired profiles:
 
 ```sh
 agent-feedback-install-hooks --repo /absolute/path/to/project
@@ -335,7 +336,7 @@ Each piece has exactly one owner:
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
-| self-ai-doctor | `llm/ai-install.sh` `install_ai_tools`; explicit `agent-feedback-install-hooks` | `uv tool install --reinstall llm/self-ai-doctor`; repository-scoped, opt-in metadata hooks for personal/work Claude and Codex profiles |
+| self-ai-doctor | `llm/ai-install.sh` `install_ai_tools`, `install_feedback_hooks` | `uv tool install --reinstall llm/self-ai-doctor`; merges dotfiles-worktree metadata hooks into all four profiles; additional worktrees use `agent-feedback-install-hooks` explicitly |
 | Superpowers | `llm/ai-install.sh` `install_superpowers`, then `agent_config.py context-efficiency` | Installs the plugin but disables automatic activation in all four profiles; enable before a new session when requested |
 
 Apply the retrieval-only migration with running agents closed, then start new sessions. Cached tools in an existing session do not disappear when persisted registrations are removed.

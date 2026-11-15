@@ -127,6 +127,14 @@ install_ai_tools() {
     --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/self-ai-doctor"
 }
 
+install_feedback_hooks() {
+  local suffix
+  for suffix in "" -work; do
+    CLAUDE_CONFIG_DIR="$HOME/.claude$suffix" CODEX_HOME="$HOME/.codex$suffix" \
+      agent-feedback-install-hooks --repo "$SCRIPT_DIR/.." || return
+  done
+}
+
 install_vscode_commands() {
   local vscode_cli="/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"
 
@@ -440,6 +448,8 @@ echo "==> Removing legacy retrieval MCP servers from Codex and Claude profiles..
 remove_retrieval_mcps
 echo "==> Limiting startup context and making Superpowers opt-in..."
 configure_context_efficiency || exit 1
+echo "==> Installing repository-scoped feedback hooks in personal and work profiles..."
+install_feedback_hooks
 rm -f -- "$HOME/.config/dotfiles/context7_version_guard.py"
 echo "==> Installing Codex and Claude token profiler..."
 bash "$SCRIPT_DIR/token-profiler/install.sh"
