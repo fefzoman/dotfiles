@@ -95,7 +95,7 @@ check "Codex checkpoint skill matches the repository" "Codex checkpoint skill is
   cmp -s "$SCRIPT_DIR/codex/checkpoint/SKILL.md" "$HOME/.agents/skills/checkpoint/SKILL.md"
 
 for profile in "$HOME/.codex" "$HOME/.codex-work" "$HOME/.claude" "$HOME/.claude-work"; do
-  for skill in natural-article code-retrieval md-to-html; do
+  for skill in natural-article code-retrieval md-to-html ui-engineering; do
     check "$skill skill matches the repository in $profile" "$skill skill is missing or stale in $profile" \
       diff -qr "$SCRIPT_DIR/skills/$skill" "$profile/skills/$skill"
   done

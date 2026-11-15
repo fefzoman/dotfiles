@@ -274,8 +274,8 @@ remove_retrieval_mcps() {
 
 install_global_agents() {
   local profile skill
-  local skills=(natural-article code-retrieval md-to-html)
-  [[ "${1:-}" != --retrieval-only ]] || skills=(code-retrieval)
+  local skills=(natural-article code-retrieval md-to-html ui-engineering)
+  [[ "${1:-}" != --retrieval-only ]] || skills=(code-retrieval ui-engineering)
 
   # Partial modes skip configure_rtk, so they restore its RTK import themselves.
   for profile in "$HOME/.codex" "$HOME/.codex-work"; do

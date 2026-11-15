@@ -1,0 +1,9 @@
+# Merge these sections into ~/.codex/config.toml or $CODEX_HOME/config.toml.
+# Do NOT replace your existing configuration.
+[mcp_servers.shadcn]
+command = "npx"
+args = ["shadcn@latest", "mcp"]
+
+[mcp_servers.playwright]
+command = "npx"
+args = ["@playwright/mcp@latest"]

@@ -39,6 +39,14 @@ flowchart TB
 
 Solid arrows show the working loop; dotted arrows show guidance and session support. Tools are chosen as needed. `ai-install.sh` wires the stack into personal and work profiles; `smoke-test.sh` checks the setup.
 
+### Library-first UI work
+
+Rare UI tasks should not invent a new component system. Both clients' global policies automatically load the shared [UI engineering skill](skills/ui-engineering/SKILL.md) for application frontend work, including styling and UI reviews. The agent first inspects the existing stack, components and `DESIGN.md`, then reuses those patterns, implements relevant states, and inspects the rendered result at desktop and phone sizes with available browser tools. Backend-only work does not load it, and document conversion keeps its specialized `md-to-html` workflow.
+
+The skill bundles a project design-contract template, optional shadcn/Playwright MCP configuration examples, and a Playwright/axe QA starter. None installs a framework, adds dependencies, or changes an application's files automatically. Follow the [setup guide](skills/ui-engineering/references/setup.md) to refresh all four profiles with `bash llm/ai-install.sh --docs-only` after closing running agents. Optional tools are configured before a new session; existing project tooling takes precedence.
+
+This workflow supplies defaults, not a hard guarantee of visual quality. Actual browser inspection and project-specific CI provide evidence; unavailable checks must be reported rather than claimed. The dotfiles regression tests verify policy and bundled-file installation, not the appearance of a frontend application.
+
 ### Compact Codex base instructions
 
 Codex's base prompt consumes context before the task starts. `llm/codex-model-instructions.md` reduces the inspected Codex CLI 0.167.0 session's base prompt from 3,320 to 244 words (92.7% fewer words, not a measured token or cost saving). It keeps task completion, authorization, safe changes, verification and honest reporting. Detailed writing rules and repeated workflow explanations were removed.
@@ -332,7 +340,7 @@ Each piece has exactly one owner:
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `llm/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
 | Claude base prompt | `llm/ai-install.sh` `install_global_agents`, `claude()` | `llm/claude-system-prompt.md` → `system-prompt.md` in both Claude homes; passed with `--system-prompt-file` |
-| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article`, `code-retrieval` and `md-to-html`, including references, scripts and assets, into all four profiles; global policies automatically apply `code-retrieval` |
+| Shared local skills | `llm/ai-install.sh` `install_global_agents` | Installs `natural-article`, `code-retrieval`, `md-to-html` and `ui-engineering`, including references, scripts and assets, into all four profiles; global policies apply retrieval and application UI skills in their respective scopes |
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |

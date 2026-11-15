@@ -54,6 +54,8 @@ class AgentInstallationTests(unittest.TestCase):
                                     str(profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")),
                                     str(profile / "RTK.md"), reference))
                     self.assertEqual((profile / "RTK.md").read_text(), "custom RTK guidance\n")
+                    self.assertEqual((profile / "skills/ui-engineering/SKILL.md").read_bytes(),
+                                     (SCRIPT_DIR / "skills/ui-engineering/SKILL.md").read_bytes())
             for name in (".codex", ".codex-work"):
                 self.assertEqual((home / name / "config.toml").read_text(), original)
                 entries = list(agent_config.hook_entries(agent_config.load(str(home / name / "hooks.json"))))
@@ -401,7 +403,7 @@ class AgentInstallationTests(unittest.TestCase):
                         str(home / profile / "config.toml"), str(SCRIPT_DIR / "codex-model-instructions.md")))
                     self.assertEqual(agent_config.load_toml(str(home / profile / "config.toml"))["model_instructions_file"],
                                      str((home / profile / "model-instructions.md").resolve()))
-                for skill in ("natural-article", "code-retrieval"):
+                for skill in ("natural-article", "code-retrieval", "ui-engineering"):
                     self.assertEqual(
                         (home / profile / f"skills/{skill}/SKILL.md").read_text(),
                         (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text(),
@@ -431,9 +433,16 @@ class AgentInstallationTests(unittest.TestCase):
                     self.assertTrue(agent_config.policy_matches(str(SCRIPT_DIR / agent / "__AGENTS.md"),
                                     str(profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")),
                                     str(profile / "RTK.md"), reference))
-                    for skill in ("natural-article", "code-retrieval"):
+                    for skill in ("natural-article", "code-retrieval", "ui-engineering"):
                         self.assertEqual((profile / f"skills/{skill}/SKILL.md").read_text(),
                                          (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text())
+                    self.assertIn("skills/ui-engineering/SKILL.md",
+                                  (profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")).read_text())
+                    for source in (SCRIPT_DIR / "skills/ui-engineering").rglob("*"):
+                        if source.is_file():
+                            self.assertEqual((profile / "skills/ui-engineering" /
+                                              source.relative_to(SCRIPT_DIR / "skills/ui-engineering")).read_bytes(),
+                                             source.read_bytes())
                     self.assertEqual((profile / "config.toml").read_text(), 'model="custom"\n')
                     self.assertFalse((profile / "model-instructions.md").exists())
                     self.assertFalse((profile / "system-prompt.md").exists())
