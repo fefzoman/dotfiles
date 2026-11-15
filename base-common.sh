@@ -60,16 +60,6 @@ install_uv_python() {
   write_python_shims "$python_bin"
 }
 
-install_navi_cheatsheets() {
-  local repo
-  repo="$(navi info default-cheats-path 2>/dev/null || navi info cheats-path)/denisidoro__navi-tldr-pages"
-  if [[ -d $repo/.git ]]; then
-    git -C "$repo" pull --ff-only
-  else
-    git clone --depth 1 https://github.com/denisidoro/navi-tldr-pages.git "$repo"
-  fi
-}
-
 # Usage: finish_setup <window decorations> <clangd path> <tmux shell> <alacritty launcher command>
 finish_setup() {
   local decorations="$1" clangd="$2" tmux_shell="$3" wrapper="$4" themes="$HOME/.config/alacritty/themes" conf
@@ -77,7 +67,6 @@ finish_setup() {
   echo "==> Installing tldr, updating npm globals and Navi cheatsheets..."
   npm install --global --prefix "$HOME/.local" tldr
   npm update --global --prefix "$HOME/.local"
-  install_navi_cheatsheets
 
   ln -sf "$clangd" "$BIN/clangd"
   printf '#!/usr/bin/env bash\n%s\n' "$wrapper" > "$BIN/alacritty"

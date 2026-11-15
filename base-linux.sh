@@ -133,15 +133,6 @@ install_lazygit_linux() {
   install -m 0755 "$WORK/lazygit" "$BIN/lazygit"
 }
 
-install_navi_linux() {
-  local target=aarch64-unknown-linux-gnu version
-  [[ $(linux_arch) != x86_64 ]] || target=x86_64-unknown-linux-musl
-  version="$(gh_latest denisidoro/navi)"
-  [[ -n $version ]] || die "Cannot determine the latest Navi version."
-  curl -fsSL "https://github.com/denisidoro/navi/releases/download/v$version/navi-v$version-$target.tar.gz" |
-    tar -xz -C "$WORK" navi
-  install -m 0755 "$WORK/navi" "$BIN/navi"
-}
 
 install_nerd_font_linux() {
   local font_dir="$HOME/.local/share/fonts/JetBrainsMonoNerdFont"
@@ -167,7 +158,6 @@ install_linux() {
   install_yq_linux
   install_terraform_linux
   install_lazygit_linux
-  install_navi_linux
   npm install --global --prefix "$HOME/.local" tree-sitter-cli @ast-grep/cli
   "$BIN/pip" install --upgrade basedpyright
   install_nerd_font_linux
