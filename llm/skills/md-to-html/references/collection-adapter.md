@@ -7,7 +7,7 @@ The bundled [design-system.html](../assets/design-system.html) is the shared vis
 `scripts/convert.py` uses the installed Python `markdown_it` package with CommonMark and tables. It accepts distinct sibling Markdown sources in lesson order and requires a template containing this UI's head, site header, and sidebar. Prepare that template in a staging directory with an `assets/` subdirectory containing the skill's `design-system.css`, `theme.js`, and `design-system.js`. Use the reference shell with its head paths rebased to `assets/`, or update an approved lesson shell to load those files. The converter copies the assets referenced by the template; it does not select a theme itself. Raw HTML is preserved only with `--trusted-html`; use that option only after inspecting the source's trust.
 
 ```bash
-python3 /path/to/markdown-to-html/scripts/convert.py \
+python3 /path/to/md-to-html/scripts/convert.py \
   --template 01-linux-overview.html \
   --output-dir /tmp/lesson-preview \
   --trusted-html \
@@ -29,7 +29,7 @@ Raster figures are capped at 675px with automatic height. The current vector com
 ## Browser checks
 
 ```bash
-node /path/to/markdown-to-html/scripts/check.mjs /tmp/lesson-preview
+node /path/to/md-to-html/scripts/check.mjs /tmp/lesson-preview
 ```
 
 The checker expects this UI's controls and palette. It checks desktop and 390px layouts, navigation, table filters, themes, storage denial, SVG accessibility references and text bounds, image loading, contrast, overflow, local files/anchors, and no-JavaScript reading. It saves representative screenshots and a browser log in a reported temporary directory. Inspect diagram screenshots as well; a hero screenshot is not a diagram review.

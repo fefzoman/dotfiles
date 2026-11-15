@@ -274,7 +274,7 @@ remove_retrieval_mcps() {
 
 install_global_agents() {
   local profile skill
-  local skills=(natural-article code-retrieval markdown-to-html)
+  local skills=(natural-article code-retrieval md-to-html)
   [[ "${1:-}" != --retrieval-only ]] || skills=(code-retrieval)
 
   # Partial modes skip configure_rtk, so they restore its RTK import themselves.

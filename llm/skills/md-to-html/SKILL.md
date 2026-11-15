@@ -1,5 +1,5 @@
 ---
-name: markdown-to-html
+name: md-to-html
 description: Convert Markdown into styled HTML, or map images and Mermaid diagrams to accessible native HTML/SVG figures, preserving content and validating the result against an approved visual reference.
 ---
 
@@ -41,10 +41,10 @@ Write generated output to a new destination. Review before replacing hand-edited
 
 ## Verify and report
 
-Resolve bundled script paths relative to this skill's installed directory, not the current project. In the commands below, replace `/path/to/markdown-to-html` with that directory. Run the portable static checker on the actual output pages:
+Resolve bundled script paths relative to this skill's installed directory, not the current project. In the commands below, replace `/path/to/md-to-html` with that directory. Run the portable static checker on the actual output pages:
 
 ```bash
-python3 /path/to/markdown-to-html/scripts/check_diagrams.py output/*.html
+python3 /path/to/md-to-html/scripts/check_diagrams.py output/*.html
 ```
 
 For edits confined to existing figure bodies, snapshot the pages first, then add `--before-dir /path/to/snapshots`. This compares everything outside figures exactly; it does **not** establish that a replacement faithfully represents the original image. The checker validates diagram SVG syntax, document-wide IDs, title/description references, and local SVG references without executing content or fetching resources.
