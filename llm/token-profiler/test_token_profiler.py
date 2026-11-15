@@ -274,16 +274,16 @@ class RequestComparisonTest(unittest.TestCase):
 class CodexProgrammaticToolTest(unittest.TestCase):
     def test_dynamic_tool_lookup_is_resolved_without_executing_script(self) -> None:
         script = (
-            'const t = ALL_TOOLS.find(x => /serena__find_symbol$/.test(x.name));'
+            'const t = ALL_TOOLS.find(x => /catalog__find_symbol$/.test(x.name));'
             'await tools[t.name]({});'
         )
         self.assertEqual(token_profiler.extract_programmatic_tool_names(script),
-                         ["mcp__serena__find_symbol"])
+                         ["mcp__catalog__find_symbol"])
         self.assertEqual(token_profiler.extract_programmatic_tool_names(
-            'const t = ALL_TOOLS.find(x => x.name === "mcp__context7__query_docs");'
-            'await tools[t.name]({});'), ["mcp__context7__query_docs"])
+            'const t = ALL_TOOLS.find(x => x.name === "mcp__manual__query_docs");'
+            'await tools[t.name]({});'), ["mcp__manual__query_docs"])
         self.assertEqual(token_profiler.extract_programmatic_tool_names(
-            'const t = ALL_TOOLS.find(x => /serena.*symbol/.test(x.name));'
+            'const t = ALL_TOOLS.find(x => /catalog.*symbol/.test(x.name));'
             'await tools[t.name]({});'), ["unresolved_tool"])
         self.assertEqual(token_profiler.extract_programmatic_tool_names(
             'await tools[load("tool")]({});'), ["unresolved_tool"])
@@ -308,14 +308,14 @@ class CodexProgrammaticToolTest(unittest.TestCase):
             ["tool_inventory"],
             2101,
             "2026-09-20T10:02:00Z",
-            'const matches = ALL_TOOLS.filter(x => /serena|context7/i.test(x.name));',
+            'const matches = ALL_TOOLS.filter(x => /catalog|manual/i.test(x.name));',
         )
         token_profiler.record_tool_result(
             report,
             ["tool_inventory"],
             2102,
             "2026-09-20T10:03:00Z",
-            'const hits = ALL_TOOLS.filter(x => /serena|context7/i.test(x.name));',
+            'const hits = ALL_TOOLS.filter(x => /catalog|manual/i.test(x.name));',
         )
 
         outliers = token_profiler.tool_result_outliers(report)
@@ -353,8 +353,8 @@ class CodexProgrammaticToolTest(unittest.TestCase):
                     "call_id": "exec-one",
                     "name": "exec",
                     "input": (
-                        "const a = await tools.mcp__serena__find_symbol({});\n"
-                        "const b = await tools.mcp__context7__query_docs({});"
+                        "const a = await tools.mcp__catalog__find_symbol({});\n"
+                        "const b = await tools.mcp__manual__query_docs({});"
                     ),
                 },
             },
@@ -364,7 +364,7 @@ class CodexProgrammaticToolTest(unittest.TestCase):
                 "payload": {
                     "type": "custom_tool_call_output",
                     "call_id": "exec-one",
-                    "output": "Serena result\nContext7 result",
+                    "output": "Catalog result\nManual result",
                 },
             },
         ]
@@ -377,14 +377,6 @@ class CodexProgrammaticToolTest(unittest.TestCase):
             )
             report = token_profiler.analyze_session(rollout)
 
-        serena = token_profiler.observed_tool(report, "serena")
-        context7 = token_profiler.observed_tool(report, "context7")
-        self.assertEqual(serena["calls_observed"], 1)
-        self.assertTrue(serena["calls_are_lower_bound"])
-        self.assertIsNone(serena["result_tokens_estimate"])
-        self.assertEqual(context7["calls_observed"], 1)
-        self.assertTrue(context7["calls_are_lower_bound"])
-        self.assertIsNone(context7["result_tokens_estimate"])
         self.assertEqual(report.tool_payloads["exec batch"],
                          sum(report.tool_payloads.values()))
         self.assertGreater(report.observed_payload["MCP/tool results"], 0)
@@ -392,9 +384,9 @@ class CodexProgrammaticToolTest(unittest.TestCase):
         stats = {
             row["name"]: row for row in token_profiler.tool_statistics(report)
         }
-        self.assertIn("mcp__serena__find_symbol", stats)
-        self.assertIn("mcp__context7__query_docs", stats)
-        self.assertIsNone(stats["mcp__context7__query_docs"]["result_tokens"])
+        self.assertIn("mcp__catalog__find_symbol", stats)
+        self.assertIn("mcp__manual__query_docs", stats)
+        self.assertIsNone(stats["mcp__manual__query_docs"]["result_tokens"])
         self.assertNotIn("exec", stats)
 
     def test_unresolved_call_reports_incomplete_coverage(self) -> None:
@@ -409,9 +401,6 @@ class CodexProgrammaticToolTest(unittest.TestCase):
             path = Path(directory) / "rollout-test.jsonl"
             path.write_text("".join(json.dumps(r) + "\n" for r in records))
             report = token_profiler.analyze_session(path)
-        activity = token_profiler.observed_tool(report, "serena")
-        self.assertTrue(activity["calls_are_lower_bound"])
-        self.assertIsNone(activity["result_tokens_estimate"])
         self.assertEqual(report.tool_calls["unresolved_tool"], 1)
 
     def test_mixed_batch_does_not_assign_all_output_to_first_command(self) -> None:
@@ -419,7 +408,7 @@ class CodexProgrammaticToolTest(unittest.TestCase):
             {"type": "response_item", "payload": {
                 "type": "custom_tool_call", "call_id": "one", "name": "exec",
                 "input": 'await tools.exec_command({cmd:"cat config.txt"});'
-                         'await tools.mcp__context7__query_docs({});'}},
+                         'await tools.mcp__manual__query_docs({});'}},
             {"type": "response_item", "payload": {
                 "type": "custom_tool_call_output", "call_id": "one", "output": "combined result"}},
         ]
@@ -526,8 +515,8 @@ class ClaudeSessionTest(unittest.TestCase):
                         },
                         {
                             "type": "tool_use",
-                            "id": "serena-one",
-                            "name": "mcp__serena__find_symbol",
+                            "id": "catalog-one",
+                            "name": "mcp__catalog__find_symbol",
                             "input": {"name_path_pattern": "Parser"},
                         },
                     ],
@@ -547,7 +536,7 @@ class ClaudeSessionTest(unittest.TestCase):
                         },
                         {
                             "type": "tool_result",
-                            "tool_use_id": "serena-one",
+                            "tool_use_id": "catalog-one",
                             "content": "Parser at src/parser.py:10",
                         },
                     ],
@@ -625,8 +614,8 @@ class ClaudeSessionTest(unittest.TestCase):
         self.assertEqual(report.inner_model_calls, 1)
         self.assertEqual(report.inner_compactions, 1)
         self.assertEqual(report.tool_calls["Bash"], 1)
-        self.assertEqual(report.tool_calls["mcp__serena__find_symbol"], 1)
-        self.assertGreater(report.tool_payloads["mcp__serena__find_symbol"], 0)
+        self.assertEqual(report.tool_calls["mcp__catalog__find_symbol"], 1)
+        self.assertGreater(report.tool_payloads["mcp__catalog__find_symbol"], 0)
         windows = token_profiler.model_call_windows(report)
         self.assertEqual([window["calls"] for window in windows], [2, 1])
         self.assertEqual(windows[1]["first_call_input_tokens"], 175)

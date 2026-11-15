@@ -125,8 +125,6 @@ for profile in "$HOME/.codex" "$HOME/.codex-work"; do
     agent_config codex-model-instructions-valid "$profile/config.toml" "$SCRIPT_DIR/codex-model-instructions.md"
   check "Codex keeps the skills catalog and Superpowers opt-in with Ponytail on in $profile" "Codex context defaults are stale in $profile" \
     agent_config context-efficient codex "$profile"
-  check "Codex reaches OpenAI directly in $profile" "Codex still routes through Headroom in $profile" \
-    agent_config codex-direct "$profile/config.toml"
   check "Codex command PATH includes RTK in $profile" "Codex command PATH cannot resolve RTK in $profile" \
     agent_config codex-rtk-path "$profile/config.toml" "$rtk_dir"
 done
@@ -150,8 +148,6 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     agent_config attribution-disabled "$profile/settings.json"
   check "Claude startup context is trimmed in $profile" "Claude startup context trim is missing in $profile" \
     agent_config context-trimmed "$profile/settings.json"
-  check "Claude reaches Anthropic directly in $profile" "Claude still routes through Headroom in $profile" \
-    agent_config claude-direct "$profile/settings.json"
   check "RTK command hook is enabled in $profile" "RTK command hook is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" "rtk hook claude"
   for sub in arm guard end instructions; do
@@ -165,25 +161,8 @@ for profile in "$HOME/.claude" "$HOME/.claude-work"; do
     cmp -s "$SCRIPT_DIR/claude/checkpoint.md" "$profile/commands/checkpoint.md"
   check "smart-read hint is enabled in $profile" "smart-read hint is missing in $profile" \
     agent_config claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/read_hint.py"'
-  check "Retired Context7 guard is absent in $profile" "Retired Context7 guard remains in $profile" \
-    bash -c '"$@"; status=$?; test "$status" -eq 1' _ python "$SCRIPT_DIR/agent_config.py" \
-      claude-hook-enabled "$profile/settings.json" 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
   check "Claude limits skills, keeps Superpowers opt-in and Ponytail on in $profile" "Claude context defaults are stale in $profile" \
     agent_config context-efficient claude "$profile"
-done
-
-for retired in serena serena-agent serena-hooks context7-mcp ctx7; do
-  check "$retired executable is absent" "$retired executable is still installed" \
-    bash -c '! command -v "$1" >/dev/null 2>&1' _ "$retired"
-done
-check "Retired Context7 guard file is absent" "Retired Context7 guard file remains" \
-  test ! -e "$HOME/.config/dotfiles/context7_version_guard.py"
-check "Retired backend state is absent" "Retired backend state remains" test ! -e "$HOME/.serena"
-for agent in codex claude; do
-  for profile in "$HOME/.$agent" "$HOME/.$agent-work"; do
-    check "Legacy retrieval MCPs are absent in $profile" "Legacy retrieval MCPs remain in $profile" \
-      agent_config retrieval-mcps-absent "$agent" "$profile"
-  done
 done
 
 echo "------------------------"

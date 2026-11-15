@@ -1892,22 +1892,6 @@ def read_ponytail_status(agent: str, profile_home: Path) -> dict[str, Any]:
     }
 
 
-def observed_tool(report: SessionReport, name: str) -> dict[str, Any]:
-    needle = name.lower()
-    calls = sum(count for tool, count in report.tool_calls.items() if needle in tool.lower())
-    payload_tokens = sum(tokens for tool, tokens in report.tool_payloads.items() if needle in tool.lower())
-    incomplete = bool(report.tool_calls["unresolved_tool"])
-    lower_bound = incomplete or any(
-        needle in tool.lower() for tool in report.programmatic_tool_calls
-    )
-    return {
-        "calls_observed": calls,
-        "calls_are_lower_bound": lower_bound,
-        "result_tokens_estimate": payload_tokens if payload_tokens else (None if calls or incomplete else 0),
-        "saved_tokens": None,
-    }
-
-
 def collect_optimization(report: SessionReport) -> dict[str, Any]:
     return {
         "cache_reuse_exact": {
@@ -1917,8 +1901,6 @@ def collect_optimization(report: SessionReport) -> dict[str, Any]:
             "inner_session_cache_hit_ratio": report.inner_usage.cache_hit,
         },
         "rtk_savings_estimate": read_rtk_savings(report.cwd),
-        "serena_activity": observed_tool(report, "serena"),
-        "context7_activity": observed_tool(report, "context7"),
         "unresolved_programmatic_call_sites": report.tool_calls["unresolved_tool"],
         "ponytail": read_ponytail_status(
             report.agent,
@@ -1949,14 +1931,6 @@ def render_optimization(report: SessionReport) -> None:
             "RTK saved (estimated)",
             f"{human_int(rtk['saved_tokens_estimate'])} "
             f"({rtk['average_savings_percent']:.1f}%, {rtk['commands']} project commands)",
-        )
-    for label, key in (("Serena observed", "serena_activity"), ("Context7 observed", "context7_activity")):
-        activity = optimization[key]
-        payload = activity["result_tokens_estimate"]
-        print_kv(
-            label,
-            f"{'≥' if activity['calls_are_lower_bound'] else ''}{activity['calls_observed']} calls, "
-            + ("result attribution unknown" if payload is None else f"{human_int(payload)} result tokens (estimated)"),
         )
     print_kv("Ponytail", f"{ponytail_status(optimization['ponytail'])}; savings not measurable from rollout data")
     if optimization["unresolved_programmatic_call_sites"]:
@@ -2299,15 +2273,9 @@ def render_short_report(report: SessionReport) -> None:
             f"{human_int(rtk_savings['saved_tokens_estimate'])} "
             f"({rtk_savings['average_savings_percent']:.1f}%, {rtk_savings['commands']} commands)",
         )
-    print_kv(
-        "Tools observed",
-        ", ".join(
-            f"{label} {'≥' if optimization[key]['calls_are_lower_bound'] else ''}"
-            f"{optimization[key]['calls_observed']}"
-            for label, key in (("Serena", "serena_activity"), ("Context7", "context7_activity"))
-        ) + ("; unresolved calls" if optimization["unresolved_programmatic_call_sites"] else ""),
-    )
     print_kv("Ponytail", f"{ponytail_status(optimization['ponytail'])}; savings not measurable")
+    if optimization["unresolved_programmatic_call_sites"]:
+        print_kv("Tool coverage", f"{optimization['unresolved_programmatic_call_sites']} unresolved call sites")
     if report.parse_errors:
         print_kv("JSON parse errors", style(str(report.parse_errors), "yellow"))
 

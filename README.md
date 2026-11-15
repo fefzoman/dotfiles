@@ -248,22 +248,17 @@ structural filename query. Unresolved API contracts use the pinned version,
 installed source/help, then matching official documentation. No documentation MCP
 or separate documentation CLI is required.
 
-Context7 and its version-guard hook are removed. The [external-documentation
-benchmark](benchmarks/retrieval/CONTEXT7.md) records the measured removal rationale.
-Historical benchmarks and offline token-profiler attribution remain available.
-
-To clean an existing installation without upgrading unrelated tools, close
+To refresh retrieval policies and skills without upgrading unrelated tools, close
 Codex/Claude clients and run from this repository:
 
 ```bash
 bash llm/ai-install.sh --retrieval-only
 ```
 
-This uninstalls retired CLI/MCP packages, removes their managed private install,
-configuration, PATH fallback, hooks and MCP registrations, and refreshes policies
-and retrieval skills across both clients' personal/work profiles. It preserves
-model, reasoning, permissions, RTK imports and unrelated hooks. Restart clients
-and shells afterward; existing processes retain their loaded settings.
+This refreshes policies and retrieval skills across both clients' personal/work
+profiles. It preserves model, reasoning, permissions, RTK imports and unrelated
+hooks. Restart clients and shells afterward; existing processes retain their
+loaded settings.
 
 To refresh only the global policies (`AGENTS.md`/`CLAUDE.md`) and the
 `natural-article`/`code-retrieval` skills in all four profiles, keeping RTK

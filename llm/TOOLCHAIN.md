@@ -114,12 +114,6 @@ upstream documentation. Load `references/library-docs.md` only when needed.
 Verify the source version, retain qualifications, and never send secrets or
 confidential source to external queries.
 
-Context7 and its version-guard hook are retired. The [external API benchmark](../benchmarks/retrieval/CONTEXT7.md)
-found no net benefit over direct official-source lookup on the measured contracts.
-The retrieval-only migration uninstalls the retired packages, private CLI,
-configuration and managed hooks without changing model or permission settings.
-Historical measurements and offline attribution remain intact.
-
 ## 6. RTK
 
 CLI proxy/filter that shrinks shell output **before it becomes model context**. Example: Codex wants `cargo test` → `PreToolUse` hook runs the RTK processor → executes `rtk cargo test` → compact, task-relevant output.
@@ -336,7 +330,6 @@ Each piece has exactly one owner:
 
 | Piece | Owner | Mechanism |
 |---|---|---|
-| Retired retrieval tools | `llm/ai-install.sh` `remove_retired_retrieval_tools`, `remove_retrieval_mcps` | Uninstalls legacy CLI/MCP packages and private state; removes obsolete registrations, hooks and PATH fallback |
 | Agent policies | `llm/ai-install.sh` `install_global_agents` | `codex/__AGENTS.md` → both Codex homes; `claude/__AGENTS.md` → both Claude homes; RTK imports added by `configure_rtk` |
 | Codex base prompt | `llm/ai-install.sh` `install_global_agents` | `llm/codex-model-instructions.md` → `model-instructions.md` in both Codex homes; `agent_config.py codex-model-instructions` persists the absolute override path |
 | Claude base prompt | `llm/ai-install.sh` `install_global_agents`, `claude()` | `llm/claude-system-prompt.md` → `system-prompt.md` in both Claude homes; passed with `--system-prompt-file` |
@@ -434,7 +427,7 @@ Controlled ablations (`b9bba60`) then used GPT-6.1 Sol at medium effort on Codex
 | DLM startup instructions | 310 |
 | App-install recommendations and their tool | 448 |
 
-These are cumulative removals in that order, measuring input usually cached after startup. Independent removals can overlap with catalog savings and must not be added to them. The earlier plain baseline had web search disabled while the toolchain retained it. With web enabled on both sides, lean and plain startup probes each used 13,500 input tokens; Serena, Context7, code-index, RTK and read hints remained available in the lean profile.
+These are cumulative removals in that order, measuring input usually cached after startup. Independent removals can overlap with catalog savings and must not be added to them. The earlier plain baseline had web search disabled while the toolchain retained it.
 
 Full replays used disposable `flink-training` checkouts at `d46a23d`, the same Docker Compose patch, separate uv caches and three sequential prompts: “Create uv for this project”, the same prompt again, then “.venv was not created”. The matched successful comparison was:
 

@@ -10,12 +10,9 @@ from pathlib import Path
 
 STATUSLINE = 'python3 "$HOME/.config/dotfiles/claude_compact_statusline.py"'
 CODEX_STATUSLINE = ["model-with-reasoning", "context-used", "used-tokens", "context-window-size", "five-hour-limit", "weekly-limit"]
-RETIRED_CONTEXT7_GUARD = 'python3 "$HOME/.config/dotfiles/context7_version_guard.py"'
 IDLE_COMPACT = 'python3 "$HOME/.config/dotfiles/idle_compact.py"'
-OBSOLETE_CODEX_HOOK = r"(?:^|/)serena-hooks(?:\s|$)|idle_compact\.py\"?\s+clear$"
+OBSOLETE_CODEX_HOOK = r"idle_compact\.py\"?\s+clear$"
 READ_HINT = 'python3 "$HOME/.config/dotfiles/read_hint.py"'
-HEADROOM_URL = "http://127.0.0.1:8787"
-# ENABLE_TOOL_SEARCH was set by Headroom's install, whose revert drops it; keep tool loading unchanged.
 CONTEXT_TRIM_ENV = {"CLAUDE_CODE_DISABLE_ARTIFACT": "1", "ENABLE_TOOL_SEARCH": "true"}
 CONTEXT_TRIM_SKILLS = {
     **dict.fromkeys(("docs", "docx", "pptx", "xlsx", "pdf", "google-workspace", "morning", "import-memory", "skill-creator"), "off"),
@@ -88,9 +85,6 @@ def codex_shell_path(config: str, path: str) -> None:
 
 def remove_legacy_hooks(target: str) -> None:
     data = load(target)
-    if isinstance(data.get("description"), str):
-        data["description"] = data["description"].replace("Serena session cleanup, ", "")
-        data["description"] = data["description"].replace("Context7 CLI version guard, ", "")
     events = data.get("hooks", {})
     for event, groups in list(events.items()):
         for group in groups:
@@ -98,7 +92,6 @@ def remove_legacy_hooks(target: str) -> None:
                 hook
                 for hook in group.get("hooks", [])
                 if not re.search(OBSOLETE_CODEX_HOOK, hook.get("command") or "")
-                and hook.get("command") != RETIRED_CONTEXT7_GUARD
             ]
         events[event] = [group for group in groups if group.get("hooks")]
         if not events[event]:
@@ -293,16 +286,6 @@ def scope_plugins(agent: str, profile: str) -> None:
     path.write_text(text)
 
 
-def remove_context7_path(config: str) -> None:
-    path = Path(config)
-    if not path.exists():
-        return
-    current = load_toml(config).get("shell_environment_policy", {}).get("set", {}).get("PATH")
-    retired = str(Path.home() / ".codex-work/context7-cli/node_modules/.bin")
-    if current is not None and retired in current.split(os.pathsep):
-        codex_shell_path(config, os.pathsep.join(p for p in current.split(os.pathsep) if p != retired))
-
-
 def idle_compact(settings: str) -> None:
     data = load(settings)
     wanted = {
@@ -407,19 +390,6 @@ def context_efficient(agent: str, profile: str) -> bool:
     ) and plugins.get(PONYTAIL) is True
 
 
-def headroom_unroute(claude_dir: str, codex_dir: str) -> None:
-    # Runs under Headroom's interpreter: only its revert hands Codex threads back to the native provider.
-    from headroom.install.models import ManagedMutation
-    from headroom.providers.codex.install import revert_provider_scope
-
-    settings = Path(claude_dir) / "settings.json"
-    data = load(settings)
-    if data.get("env", {}).get("ANTHROPIC_BASE_URL") == HEADROOM_URL:
-        del data["env"]["ANTHROPIC_BASE_URL"]
-        save(settings, data)
-    revert_provider_scope(ManagedMutation("codex", "toml-block", str(Path(codex_dir) / "config.toml")), None)
-
-
 # Smoke-test checks.
 
 
@@ -441,37 +411,6 @@ def codex_plugin_enabled(plugin_id: str = "ponytail@ponytail", *alternatives: st
         p.get("pluginId") in (plugin_id, *alternatives) and p.get("installed") and p.get("enabled")
         for p in json.load(sys.stdin).get("installed", [])
     )
-
-
-def claude_mcp_paths(profile: Path) -> list[Path]:
-    return ([profile.parent / ".claude.json", profile / ".claude.json"]
-            if profile.name == ".claude" else [profile / ".claude.json"])
-
-
-def remove_claude_retrieval_mcps(profile: str) -> None:
-    for path in claude_mcp_paths(Path(profile)):
-        if not path.is_file():
-            continue
-        data = load(str(path))
-        before = json.dumps(data)
-        for entry in [data, *data.get("projects", {}).values()]:
-            for name in ("serena", "context7"):
-                entry.get("mcpServers", {}).pop(name, None)
-        if json.dumps(data) != before:
-            save(str(path), data)
-
-
-def retrieval_mcps_absent(agent: str, profile: str, server: str = "") -> bool:
-    profile = Path(profile)
-    names = {server} if server else {"serena", "context7"}
-    if agent == "codex":
-        path = profile / "config.toml"
-        return not names.intersection((load_toml(str(path)) if path.exists() else {}).get("mcp_servers", {}))
-    if agent != "claude":
-        raise ValueError(f"Unknown agent: {agent}")
-    return all(not names.intersection(entry.get("mcpServers", {}))
-               for path in claude_mcp_paths(profile) for data in [load(str(path))]
-               for entry in [data, *data.get("projects", {}).values()])
 
 
 def claude_plugin_enabled(plugin_id: str = "ponytail@ponytail", *alternatives: str) -> bool:
@@ -496,15 +435,6 @@ def context_trimmed(settings: str) -> bool:
     return CONTEXT_TRIM_ENV.items() <= data.get("env", {}).items() and CONTEXT_TRIM_SKILLS.items() <= data.get("skillOverrides", {}).items()
 
 
-def claude_direct(settings: str) -> bool:
-    return load(settings).get("env", {}).get("ANTHROPIC_BASE_URL") != HEADROOM_URL
-
-
-def codex_direct(config: str) -> bool:
-    config = load_toml(config)
-    return config.get("model_provider") != "headroom" and "headroom" not in config.get("model_providers", {})
-
-
 def codex_rtk_path(config: str, rtk_dir: str) -> bool:
     path = load_toml(config).get("shell_environment_policy", {}).get("set", {}).get("PATH", "")
     return rtk_dir in path.split(os.pathsep)
@@ -514,7 +444,6 @@ def codex_hooks_valid(required: str, installed: str) -> bool:
     entries = list(hook_entries(load(installed)))
     installed = set(entries)
     obsolete = any((command and re.search(OBSOLETE_CODEX_HOOK, command))
-                   or command == RETIRED_CONTEXT7_GUARD
                    for _, matcher, _, command in installed)
     return len(entries) == len(installed) and set(hook_entries(load(required))) <= installed and not obsolete
 
@@ -538,10 +467,10 @@ def plugins_scoped(agent: str, profile: str) -> bool:
 COMMANDS = {
     command.__name__.replace("_", "-"): command
     for command in (
-        codex_shell_path, codex_hooks, remove_legacy_hooks, remove_context7_path, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, idle_compact, attribution, scope_plugins,
-        connectors, context_trim, context_efficiency, context_efficient, headroom_unroute, policy_matches, codex_plugin_enabled, retrieval_mcps_absent, remove_claude_retrieval_mcps,
+        codex_shell_path, codex_hooks, remove_legacy_hooks, codex_statusline, codex_effort, codex_permissions, codex_model_instructions, codex_model_instructions_valid, claude_permissions, effort, read_hint, statusline, idle_compact, attribution, scope_plugins,
+        connectors, context_trim, context_efficiency, context_efficient, policy_matches, codex_plugin_enabled,
         claude_plugin_enabled, claude_hook_enabled, statusline_enabled, attribution_disabled,
-        context_trimmed, claude_direct, codex_direct, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
+        context_trimmed, codex_rtk_path, codex_hooks_valid, hooks_unique, plugins_scoped,
     )
 }
 

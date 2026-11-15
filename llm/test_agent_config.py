@@ -16,18 +16,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 class AgentInstallationTests(unittest.TestCase):
-    def test_retrieval_only_migration_preserves_model_permissions_and_unrelated_hooks(self):
+    def test_retrieval_only_refresh_preserves_model_permissions_and_unrelated_hooks(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             binaries = home / ".local/bin"
             binaries.mkdir(parents=True)
             installed = home / ".config/dotfiles"
             installed.mkdir(parents=True)
-            (installed / "context7_version_guard.py").write_text("retired")
-            for name, code in (("npm", 0), ("uv", 0), ("codex", 0), ("claude", 1), ("pgrep", 1)):
-                path = binaries / name
-                path.write_text(f'#!/bin/sh\nif [ "{name} $*" = "npm prefix --global" ]; then echo "$HOME/.local"; fi\nexit {code}\n')
-                path.chmod(0o755)
+            pgrep = binaries / "pgrep"
+            pgrep.write_text("#!/bin/sh\nexit 1\n")
+            pgrep.chmod(0o755)
             original = 'model="custom"\nmodel_reasoning_effort="high"\napproval_policy="on-request"\n'
             for agent in ("codex", "claude"):
                 for name in (f".{agent}", f".{agent}-work"):
@@ -38,13 +36,11 @@ class AgentInstallationTests(unittest.TestCase):
                         (profile / "config.toml").write_text(original)
                     agent_config.save(str(profile / ("hooks.json" if agent == "codex" else "settings.json")),
                                       {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
-                                          {"type": "command", "command": "custom-check"},
-                                          {"type": "command", "command": agent_config.RETIRED_CONTEXT7_GUARD}]}]}})
+                                          {"type": "command", "command": "custom-check"}]}]}})
             result = subprocess.run(["bash", str(SCRIPT_DIR / "ai-install.sh"), "--retrieval-only"],
                                     env={**os.environ, "HOME": str(home), "XDG_CONFIG_HOME": str(home / ".config")},
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertFalse((installed / "context7_version_guard.py").exists())
             self.assertEqual((installed / "ai-install.sh").read_text(), (SCRIPT_DIR / "ai-install.sh").read_text())
             for agent in ("codex", "claude"):
                 for name in (f".{agent}", f".{agent}-work"):
@@ -60,103 +56,9 @@ class AgentInstallationTests(unittest.TestCase):
                 self.assertEqual((home / name / "config.toml").read_text(), original)
                 entries = list(agent_config.hook_entries(agent_config.load(str(home / name / "hooks.json"))))
                 self.assertIn(("PreToolUse", "Bash", "command", "custom-check"), entries)
-                self.assertNotIn(("PreToolUse", "Bash", "command", agent_config.RETIRED_CONTEXT7_GUARD), entries)
             for name in (".claude", ".claude-work"):
                 entries = list(agent_config.hook_entries(agent_config.load(str(home / name / "settings.json"))))
                 self.assertEqual(entries, [("PreToolUse", "Bash", "command", "custom-check")])
-
-    def test_retrieval_cleanup_removes_both_mcps_from_all_profiles_without_adding_any(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            (home / "bin").mkdir()
-            for name in ("codex", "claude"):
-                path = home / "bin" / name
-                path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n')
-                path.chmod(0o755)
-            for name in (".codex", ".codex-work"):
-                (home / name).mkdir()
-                (home / name / "config.toml").write_text('[mcp_servers.serena]\n[mcp_servers.context7]\n')
-            agent_config.save(str(home / ".claude.json"), {"mcpServers": {"serena": {}, "context7": {}}})
-            (home / ".claude-work").mkdir()
-            agent_config.save(str(home / ".claude-work/.claude.json"), {"mcpServers": {"serena": {}, "context7": {}}})
-            result = self.run_installer_function("remove_retrieval_mcps", home, 'export PATH="$HOME/bin:$PATH"')
-            self.assertEqual(result.returncode, 0, result.stderr)
-            calls = (home / "calls").read_text().splitlines()
-            self.assertEqual(sum("mcp remove" in call for call in calls), 4)
-            for name in (".claude", ".claude-work"):
-                self.assertTrue(agent_config.retrieval_mcps_absent("claude", str(home / name)))
-            self.assertFalse(any("mcp add" in call for call in calls))
-            self.assertFalse(any("mcp get" in call for call in calls))
-
-    def test_cleanup_uninstalls_context7_and_removes_only_retired_tool_state(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            (home / "bin").mkdir()
-            for name in ("npm", "uv"):
-                path = home / "bin" / name
-                path.write_text('#!/bin/sh\necho "' + name + ' $*" >> "$HOME/calls"\n'
-                                'if [ "$*" = "tool list" ]; then echo "serena-agent v1"; fi\n'
-                                'if [ "$*" = "prefix --global" ]; then echo "$HOME/global"; fi\n')
-                path.chmod(0o755)
-            (home / ".serena").mkdir()
-            for relative in (".codex-work/context7-cli", "custom-config/context7", ".context7"):
-                path = home / relative
-                path.mkdir(parents=True)
-                (path / "state").write_text("retired")
-            (home / "unrelated").write_text("keep")
-            result = self.run_installer_function("remove_retired_retrieval_tools", home,
-                       'export PATH="$HOME/bin:$PATH"; export XDG_CONFIG_HOME="$HOME/custom-config"')
-            self.assertEqual(result.returncode, 0, result.stderr)
-            calls = (home / "calls").read_text()
-            self.assertIn(f"npm uninstall --global --prefix {home}/.local ctx7 @upstash/context7-mcp", calls)
-            self.assertIn(f"npm uninstall --global --prefix {home}/global ctx7 @upstash/context7-mcp", calls)
-            self.assertNotIn("npm install", calls)
-            self.assertIn("tool uninstall serena-agent", calls)
-            self.assertFalse(any(call.startswith("uv cache ") for call in calls.splitlines()))
-            self.assertFalse((home / ".serena").exists())
-            for relative in (".codex-work/context7-cli", "custom-config/context7", ".context7"):
-                self.assertFalse((home / relative).exists())
-            self.assertEqual((home / "unrelated").read_text(), "keep")
-
-    def test_retrieval_mcp_check_preserves_custom_servers_and_checks_claude_project_scope(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            for agent in ("codex", "claude"):
-                profile = home / f".{agent}"
-                profile.mkdir()
-                self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile)))
-                if agent == "codex":
-                    path = profile / "config.toml"
-                    path.write_text('[mcp_servers.custom]\ncommand="keep"\n')
-                else:
-                    path = home / ".claude.json"
-                    path.write_text('{"mcpServers":{"custom":{}}}')
-                self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile)))
-                path.write_text('[mcp_servers.context7]\ncommand="old"\n' if agent == "codex" else
-                                '{"projects":{"/repo":{"mcpServers":{"serena":{}}}}}')
-                self.assertFalse(agent_config.retrieval_mcps_absent(agent, str(profile)))
-                self.assertTrue(agent_config.retrieval_mcps_absent(agent, str(profile), "unrelated"))
-
-    def test_claude_cleanup_covers_legacy_and_project_registrations_without_data_loss(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            profiles = [home / ".claude", home / ".claude-work"]
-            for profile in profiles:
-                profile.mkdir()
-            paths = [home / ".claude.json", profiles[0] / ".claude.json", profiles[1] / ".claude.json"]
-            original = {"custom": "keep", "mcpServers": {"context7": {}, "serena": {}, "custom": {"command": "keep"}},
-                        "projects": {"/repo": {"custom": "keep", "mcpServers": {"context7": {}, "custom": {}}}}}
-            expected = {"custom": "keep", "mcpServers": {"custom": {"command": "keep"}},
-                        "projects": {"/repo": {"custom": "keep", "mcpServers": {"custom": {}}}}}
-            for path in paths:
-                agent_config.save(str(path), original)
-            for profile in profiles:
-                self.assertFalse(agent_config.retrieval_mcps_absent("claude", str(profile)))
-                for _ in range(2):
-                    agent_config.remove_claude_retrieval_mcps(str(profile))
-                self.assertTrue(agent_config.retrieval_mcps_absent("claude", str(profile)))
-            for path in paths:
-                self.assertEqual(agent_config.load(str(path)), expected)
 
     def test_context_efficiency_preserves_custom_settings_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -188,46 +90,6 @@ class AgentInstallationTests(unittest.TestCase):
             self.assertFalse(data["enabledPlugins"]["superpowers@claude-plugins-official"])
             self.assertTrue(data["enabledPlugins"]["custom@local"])
             self.assertTrue(data["enabledPlugins"]["ponytail@ponytail"])
-
-    def test_context_efficiency_removes_all_retired_hooks_but_keeps_custom(self):
-        with tempfile.TemporaryDirectory() as directory:
-            profile = Path(directory)
-            for agent, filename in (("codex", "hooks.json"), ("claude", "settings.json")):
-                path = profile / filename
-                agent_config.save(str(path), {"description": "custom Serena session cleanup, retain", "hooks": {"SessionStart": [{"hooks": [
-                    {"type": "command", "command": "serena-hooks activate --client=" + agent},
-                    {"type": "command", "command": "custom-check"}]}], "SessionEnd": [{"hooks": [
-                    {"type": "command", "command": "serena-hooks cleanup --client=" + agent}]}]}})
-                agent_config.context_efficiency(agent, str(profile))
-                commands = [e[3] for e in agent_config.hook_entries(agent_config.load(str(path)))]
-                self.assertEqual(commands, ["custom-check"])
-                self.assertEqual(agent_config.load(str(path))["description"], "custom retain")
-
-    def test_context7_cleanup_removes_bash_and_mcp_guards_but_keeps_custom_hooks(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = str(Path(directory) / "settings.json")
-            agent_config.save(path, {"hooks": {"PreToolUse": [{"matcher": "mcp__context7__query-docs", "hooks": [
-                {"type": "command", "command": agent_config.RETIRED_CONTEXT7_GUARD},
-                {"type": "command", "command": "custom-check"}]},
-                {"matcher": "Bash", "hooks": [
-                    {"type": "command", "command": agent_config.RETIRED_CONTEXT7_GUARD},
-                    {"type": "command", "command": "custom-shell-check"}]}]}})
-            for _ in range(2):
-                agent_config.remove_legacy_hooks(path)
-            entries = list(agent_config.hook_entries(agent_config.load(path)))
-            self.assertEqual([e[3] for e in entries], ["custom-check", "custom-shell-check"])
-
-    def test_context7_path_cleanup_preserves_other_config_and_is_idempotent(self):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"HOME": directory}):
-            path = Path(directory) / "config.toml"
-            retired = str(Path(directory) / ".codex-work/context7-cli/node_modules/.bin")
-            path.write_text('model="custom"\nmodel_reasoning_effort="high"\n[shell_environment_policy]\n'
-                            f'set = {{PATH = "/usr/bin:{retired}:/keep:{retired}", OTHER = "keep"}}\n')
-            expected = tomllib.loads(path.read_text())
-            expected["shell_environment_policy"]["set"]["PATH"] = "/usr/bin:/keep"
-            for _ in range(2):
-                agent_config.remove_context7_path(str(path))
-                self.assertEqual(tomllib.loads(path.read_text()), expected)
 
     def test_context_efficiency_rejects_unsupported_toml_without_writing(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -508,27 +370,6 @@ fi
             self.assertIn(custom, hooks)
             self.assertEqual([h["timeout"] for h in hooks if "idle_compact.py" in h["command"]], [3])
 
-    def test_headroom_unroute_strips_only_headroom_routing(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            for module in ("headroom/install/models.py", "headroom/providers/codex/install.py"):
-                (root / module).parent.mkdir(parents=True, exist_ok=True)
-                (root / module).touch()
-            (root / "headroom/install/models.py").write_text("def ManagedMutation(*args): return args\n")
-            (root / "headroom/providers/codex/install.py").write_text(
-                "from pathlib import Path\n"
-                "def revert_provider_scope(mutation, manifest):\n"
-                "    Path(mutation[2] + '.reverted').write_text(mutation[1])\n")
-            claude, codex = root / "claude", root / "codex"
-            claude.mkdir()
-            codex.mkdir()
-            (claude / "settings.json").write_text(json.dumps({"env": {
-                "ANTHROPIC_BASE_URL": agent_config.HEADROOM_URL, "ENABLE_TOOL_SEARCH": "true"}}))
-            subprocess.run(["python3", str(SCRIPT_DIR / "agent_config.py"), "headroom-unroute", str(claude), str(codex)],
-                           env={**os.environ, "PYTHONPATH": directory, "PYTHONDONTWRITEBYTECODE": "1"}, check=True)
-            self.assertEqual(json.loads((claude / "settings.json").read_text()), {"env": {"ENABLE_TOOL_SEARCH": "true"}})
-            self.assertEqual((codex / "config.toml.reverted").read_text(), "toml-block")
-            self.assertTrue(agent_config.claude_direct(str(claude / "settings.json")))
 
     def test_plugin_identity_and_state(self):
         for plugin_id, installed, enabled in (
