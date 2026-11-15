@@ -65,7 +65,7 @@ with_claude_profile() {
 echo "LLM toolchain smoke test"
 echo "========================"
 
-for command_name in python codex claude fabric rtk token-profiler token-count smart-read node uv code code-work; do
+for command_name in python codex claude fabric rtk token-profiler token-count smart-read agent-feedback agent-feedback-install-hooks node uv code code-work; do
   check "$command_name is available" "$command_name is missing" \
     command -v "$command_name"
 done
@@ -74,6 +74,9 @@ check "Codex starts" "Codex failed to start" codex --version
 check "Claude Code starts" "Claude Code failed to start" claude --version
 check "Token profiler starts with tiktoken" "Token profiler failed to start" \
   token-profiler --version
+check "Agent feedback starts" "Agent feedback failed to start" agent-feedback --help
+check "Agent feedback hook installer starts" "Agent feedback hook installer failed to start" \
+  agent-feedback-install-hooks --help
 
 for profile in codex codex-work claude claude-work; do
   check "Token profiler accepts the $profile profile" "Token profiler rejected the $profile profile" \

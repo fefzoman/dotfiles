@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-feedback"
+version = "0.1.0"
+description = "Local, metadata-only coding-agent hook collection"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+agent-feedback = "agent_feedback.cli:main"
+agent-feedback-install-hooks = "agent_feedback.install_hooks:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
