@@ -10,7 +10,7 @@ After closing Claude and Codex sessions, run this from the dotfiles repository:
 bash llm/ai-install.sh --docs-only
 ```
 
-This refreshes managed global policies and shared skills in `~/.codex`, `~/.codex-work`, `~/.claude` and `~/.claude-work`, preserving model configuration and RTK imports. Review local policy edits before running: these are managed files and are replaced, not merged. Start a new session afterward. The UI rule loads this skill only for application frontend tasks; no browser, component library or third-party skill is installed automatically.
+This refreshes managed global policies and shared skills in `~/.codex`, `~/.codex-work`, `~/.claude` and `~/.claude-work`, preserving model configuration and RTK imports. Review local policy edits before running: these are managed files and are replaced, not merged. Start a new session afterward. The UI rule loads this skill only for application frontend tasks. Its bundled library-selection reference is copied with it; no browser or component library is installed automatically.
 
 The retrieval-only migration also copies `ui-engineering`, because it refreshes the same global policies and must not leave their UI skill reference missing.
 
@@ -22,7 +22,9 @@ A normal request is enough:
 
 ## Optional component discovery and browser tools
 
-Reuse the project's installed library and browser/test tooling first. The optional [pick-ui-library skill](https://github.com/emilkowalski/skills) helps select mature libraries when the project has no suitable component. Review its current source and installation instructions before adding it to the intended profiles; it is not bundled or required. The shared skill already carries the component-selection order.
+For new applications, React + Tailwind + shadcn/ui is the default unless the user or project specifies otherwise. Existing applications retain their stack. Add Sonner, Vaul, cmdk or NumberFlow when useful, not as a mandatory package bundle. Reuse the project's installed library and browser/test tooling first.
+
+The [bundled pick-ui-library skill](pick-ui-library/SKILL.md) supplies task-specific library candidates without a separate installation or network fetch. It is an unmodified, pinned copy from [Emil Kowalski's repository](https://github.com/emilkowalski/skills/blob/main/skills/pick-ui-library/SKILL.md), with its license and source commit alongside it. Consult it with a concrete component need; its generic primitive recommendations do not override the React + shadcn/ui default or an existing design system.
 
 For compatible projects, the [shadcn MCP documentation](https://ui.shadcn.com/docs/mcp) explains registry discovery. The [Playwright MCP documentation](https://github.com/microsoft/playwright-mcp) covers interactive browser automation. Neither replaces the project's component setup or test suite. Configure them before starting a new session, not midway through a UI task.
 

@@ -7,6 +7,8 @@ description: Apply library-first UI/UX implementation and review. Use automatica
 
 The objective is coherent, accessible production UI without hand-rolling controls or inventing a new visual style each task. Prefer changes that fit the current product over visually exciting but inconsistent additions.
 
+For new applications without an established stack or an explicit user preference, default to **React + Tailwind + shadcn/ui**. Add Sonner, Vaul, cmdk and NumberFlow only where their interactions are useful; do not install every specialist by default. Existing applications keep their established stack and design system.
+
 Use this for application UI, not document conversion covered by `md-to-html`. Resolve bundled paths relative to this skill's directory. The [setup guide](references/setup.md) covers optional tools; do not install or reconfigure them during an unrelated UI task.
 
 ## 1. Inspect before modifying
@@ -14,7 +16,7 @@ Use this for application UI, not document conversion covered by `md-to-html`. Re
 - Detect framework, styling system, package manager, component libraries, design tokens, and reusable components. Read `package.json`, `components.json` if present, `DESIGN.md` if present, and 2-3 representative screens/components.
 - Never replace an established component framework, switch between Radix/Base UI, or add competing UI systems unless the user explicitly requests a migration.
 - Determine **one primary user goal** per view, its key actions, information density, and required UI states.
-- If `pick-ui-library` skill is installed, consult it for specific component needs, after inspecting current dependencies; its recommendations are candidates, not a mandate to churn the stack.
+- Consult the bundled [pick-ui-library skill](references/pick-ui-library/SKILL.md) with the concrete component task after inspecting current dependencies. Its recommendations are candidates, subordinate to the existing stack and the React + shadcn/ui default; its Base UI primitive recommendation does not replace shadcn/ui or justify switching a project's primitive foundation.
 
 ## 2. Design before writing code
 
@@ -29,7 +31,7 @@ Use this for application UI, not document conversion covered by `md-to-html`. Re
 
 1. Reuse an existing project component and its variants.
 2. Use the project's installed accessible primitive / UI library.
-3. For React/Tailwind greenfield, prefer shadcn/ui components with one consistent underlying primitive approach; use the shadcn MCP to discover compatible registry components where connected. Install only within the task's authorization; inspect third-party code, license and dependencies first.
+3. For new applications, default to React + Tailwind + shadcn/ui unless the user or project specifies otherwise. Use shadcn/ui components with one consistent underlying primitive approach and the shadcn MCP for compatible registry discovery where connected. Install only within the task's authorization; inspect third-party code, license and dependencies first.
 4. Use specialists for mature interactions when needed: Sonner (toasts), Vaul (mobile drawers), cmdk (command menu), NumberFlow (animated numbers). Verify current packages/APIs before importing.
 5. Reuse selectively from trusted designed-component libraries for a distinctive section; check license, accessibility, bundle impact, maintainability and dependency requirements.
 6. Hand-roll a control **only** if no suitable existing component can fulfill the requirement; explain why briefly.

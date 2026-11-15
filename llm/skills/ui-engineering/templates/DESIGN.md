@@ -24,8 +24,8 @@
 ## Component policy
 
 1. Existing component library is the source of truth.
-2. For greenfield React + Tailwind, shadcn/ui is a starting point, customized with app tokens; use a single consistent underlying primitive stack.
-3. Specialist libraries may be adopted with justification (Sonner, Vaul, cmdk, NumberFlow); do not install all by default.
+2. For new applications without an established stack or explicit user preference, default to React + Tailwind + shadcn/ui, customized with app tokens; use a single consistent underlying primitive stack.
+3. Use Sonner for toasts, Vaul for mobile drawers, cmdk for command menus and NumberFlow for animated numbers where useful; do not install all by default.
 4. Designed-library components are optional accents; review license and code quality before importing.
 5. No homemade accessible primitives if a mature equivalent exists.
 
