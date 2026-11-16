@@ -581,19 +581,6 @@ raise SystemExit(1)
             self.assertEqual(bool(out), noted)
         self.assertIn("loaded at its start", out or self.run_hook(ic.instructions, {"tool_input": {"file_path": "CLAUDE.md"}})[1])
 
-    def test_native_compactor_flag_delays_but_does_not_skip_the_checkpoint(self) -> None:
-        (self.home / ".claude.json").write_text(json.dumps(
-            {"cachedGrowthBookFeatures": {"tengu_sunny_locket": {"mode": "compact"}}}))
-        os.environ["IDLE_COMPACT_TEST_SECONDS"] = "90"
-        now = time.time()
-        waits = []
-        with mock.patch.object(ic.time, "sleep", side_effect=waits.append), \
-                mock.patch.object(ic.time, "time", side_effect=lambda: now + sum(waits)), \
-                mock.patch.object(ic, "fork_summary", return_value="## Idle checkpoint\n### Goal\nx") as fork:
-            self.assertEqual(self.run_hook(ic.arm, self.save([prompt("x", now), reply("y", now)]))[0], 0)
-        fork.assert_called_once()
-        self.assertAlmostEqual(sum(waits), 100 * ic.NATIVE_FIRE_FRACTION, delta=0.01)
-
 
 if __name__ == "__main__":
     unittest.main()

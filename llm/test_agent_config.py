@@ -168,6 +168,7 @@ class AgentInstallationTests(unittest.TestCase):
             agent_config.idle_compact(path)
             entries = list(agent_config.hook_entries(agent_config.load(path)))
             self.assertEqual(sum(e[3] == "custom-check" for e in entries), 1)
+            self.assertIs(agent_config.load(path)["idleCompaction"], False)
 
     def test_plugin_scope_rejects_unsupported_toml_without_writing(self):
         with tempfile.TemporaryDirectory() as directory:

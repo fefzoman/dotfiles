@@ -304,6 +304,8 @@ def idle_compact(settings: str) -> None:
         hooks[event] = [entry for entry in hooks[event] if entry["hooks"]]
     for event, entry in wanted.items():
         hooks.setdefault(event, []).append(entry)
+    # Claude's native idle compaction runs just before the arm hook and cancels its checkpoint.
+    data["idleCompaction"] = False
     save(settings, data)
 
 

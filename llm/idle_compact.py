@@ -22,8 +22,6 @@ from typing import Any
 # 2x a fresh chat's first call (median 42K Claude, 22K Codex); below this a restart saves little.
 MIN_TOKENS = {"claude": 85_000, "codex": 45_000}
 FIRE_FRACTION = 0.9
-# Claude's native idle compactor fires at 0.9; firing just after it lets its compaction cancel the checkpoint.
-NATIVE_FIRE_FRACTION = 0.93
 # GPT-5.6+ defaults to a 30m minimum cache TTL: https://developers.openai.com/api/docs/guides/prompt-caching
 CODEX_CACHE_TTL = 30 * 60
 WARM_SAMPLES = 5
@@ -563,16 +561,6 @@ def prune() -> None:
 # Hooks
 
 
-def native_idle_compact() -> bool:
-    base = os.environ.get("CLAUDE_CONFIG_DIR")
-    config = Path(base) / ".claude.json" if base else Path.home() / ".claude.json"
-    try:
-        flag = json.loads(config.read_text(encoding="utf-8"))["cachedGrowthBookFeatures"]["tengu_sunny_locket"]
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
-    return isinstance(flag, dict) and flag.get("mode") == "compact"
-
-
 def fork_summary(client: str, session: str, cwd: str, recs: list[dict[str, Any]], request: str) -> str:
     binary, model = shutil.which(client), session_model(recs)
     if not binary:
@@ -620,8 +608,7 @@ def arm(hook: dict[str, Any], client: str = "claude") -> int:
     token = uuid.uuid4().hex
     write(marker(session, "arm"), token)
     seen, gap = last_message(recs), lifetime(client, recs)
-    fraction = NATIVE_FIRE_FRACTION if client == "claude" and native_idle_compact() else FIRE_FRACTION
-    fire_at = call[0] + gap * fraction
+    fire_at = call[0] + gap * FIRE_FRACTION
     waited = fire_at > time.time()
     while (wait := fire_at - time.time()) > 0:
         time.sleep(min(60.0, wait))
