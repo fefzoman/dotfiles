@@ -151,6 +151,14 @@
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },
+        "path_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "target_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
         "error_family": {
           "enum": [
             "missing_executable"

@@ -262,12 +262,18 @@ and diagnoses missing executables, unrecovered command failures, repeated
 approval requests and collection gaps. Analysis is deterministic and local;
 it makes no network or model requests.
 
-`agent-feedback scan` covers every session on the machine without hooks: it
-reads Claude (`~/.claude*/projects`) and Codex (`~/.codex*/sessions`,
-`archived_sessions`) transcripts in all profiles, applies the same rules in
-memory and lists each repository's origin or path. It stores nothing, so
-`propose` cannot use its findings. Claude transcripts carry no exit codes, so
-only `command not found` errors are classified there.
+`agent-feedback scan` finds what makes agents slower and more expensive across
+every session on the machine, without hooks. It reads Claude
+(`~/.claude*/projects`) and Codex (`~/.codex*/sessions`, `archived_sessions`)
+transcripts in all profiles, applies the rules in memory and ranks findings by
+cost: the tokens of the model replies that issued the flagged calls (cache reads
+included) and the time until the next call, with idle gaps over five minutes
+excluded. Beyond the failure rules it flags re-reads of an unchanged file range,
+tool results over 20 KB and user turns with more than 50 tool calls.
+Findings can overlap, so their costs do not add up. It stores nothing, so `propose`
+cannot use its findings. Claude transcripts carry no exit codes, so only
+`command not found` errors are classified there; Codex reads files through the
+shell, so re-reads are detected for Claude only.
 
 The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13,
 then merges collection hooks for this dotfiles Git worktree into all four
@@ -304,7 +310,7 @@ database `0600`), with seven-day retention and a 16 MiB database quota; journals
 can need additional space. `--state-dir PATH` selects private state (before the
 subcommand for `agent-feedback`); use it consistently during installation and
 inspection. Prompts, code, commands, output and transcript paths are not stored;
-IDs and shell-command fingerprints are hashed, not guaranteed anonymous.
+IDs, shell-command and file-path fingerprints are hashed, not guaranteed anonymous.
 State is not encrypted. Live collection fails open with a fixed warning;
 missing telemetry and empty reports do not establish hook health or correctness.
 

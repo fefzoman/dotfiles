@@ -107,11 +107,23 @@ class ScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as home:
             home = Path(home)
             base = {"sessionId": "c1", "cwd": "/nonexistent/work"}
-            claude = [{**base, "message": {"content": [
-                          {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": SECRET}}]}},
-                      {**base, "message": {"content": [
-                          {"type": "tool_result", "tool_use_id": "t1", "is_error": True,
-                           "content": f"Exit code 127\nzsh: command not found: {SECRET}"}]}}]
+
+            def call(second, message, tokens, block):
+                return {**base, "type": "assistant", "timestamp": f"2026-11-01T00:00:{second:02d}Z",
+                        "message": {"id": message, "usage": {"input_tokens": tokens}, "content": [block]}}
+
+            def result(second, block):
+                return {**base, "type": "user", "promptId": "p1", "timestamp": f"2026-11-01T00:00:{second:02d}Z",
+                        "message": {"content": [block]}}
+
+            read = {"type": "tool_use", "name": "Read", "input": {"file_path": f"/{SECRET}"}}
+            claude = [call(0, "m1", 105, {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": SECRET}}),
+                      result(2, {"type": "tool_result", "tool_use_id": "t1", "is_error": True,
+                                 "content": f"Exit code 127\nzsh: command not found: {SECRET}"}),
+                      call(10, "m2", 100, {**read, "id": "t2"}),
+                      result(11, {"type": "tool_result", "tool_use_id": "t2", "content": SECRET * 1000}),
+                      call(20, "m3", 50, {**read, "id": "t3"}),
+                      result(21, {"type": "tool_result", "tool_use_id": "t3", "content": "short"})]
             for profile, name in ((".claude", "a.jsonl"), (".claude-work", "resumed.jsonl")):
                 path = home / profile / "projects/-work" / name
                 path.parent.mkdir(parents=True)
@@ -121,6 +133,8 @@ class ScanTests(unittest.TestCase):
                       "call_id": "c1", "arguments": json.dumps({"cmd": SECRET})}},
                      {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c1",
                       "output": f"Chunk ID: 1\nWall time: 0.1 seconds\nProcess exited with code 127\nOutput:\n{SECRET}"}},
+                     {"type": "event_msg", "payload": {"type": "token_count",
+                      "info": {"last_token_usage": {"total_tokens": 1000}}}},
                      {"type": "response_item", "payload": {"type": "function_call", "name": "shell",
                       "call_id": "c2", "arguments": json.dumps({"command": ["ls", SECRET]})}},
                      {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c2",
@@ -128,7 +142,9 @@ class ScanTests(unittest.TestCase):
                      {"type": "response_item", "payload": {"type": "function_call", "name": "shell",
                       "call_id": "c3", "arguments": json.dumps({"command": [SECRET]})}},
                      {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c3",
-                      "output": "Exit code: 127\nWall time: 0.1 seconds\nOutput:\n"}}]
+                      "output": "Exit code: 127\nWall time: 0.1 seconds\nOutput:\n"}},
+                     {"type": "event_msg", "timestamp": "2026-11-01T00:01:00Z", "payload": {"type": "token_count",
+                      "info": {"last_token_usage": {"total_tokens": 500}}}}]
             path = home / ".codex-work/archived_sessions/rollout.jsonl"
             path.parent.mkdir(parents=True)
             path.write_text("".join(json.dumps(row) + "\n" for row in codex))
@@ -136,11 +152,26 @@ class ScanTests(unittest.TestCase):
             with patch.dict(os.environ, {"HOME": str(home)}), contextlib.redirect_stdout(stdout):
                 self.assertEqual(main(["scan", "--format", "json"]), 0)
         result = json.loads(stdout.getvalue())
-        self.assertEqual((result["transcripts"], result["tool_calls"]), (3, 4))
+        # The resumed copy adds neither calls nor tokens; Claude steps are 10 s, 10 s and 1 s.
+        self.assertEqual({key: result[key] for key in ("transcripts", "tool_calls", "tokens", "seconds")},
+                         {"transcripts": 3, "tool_calls": 6, "tokens": 1755, "seconds": 21})
         self.assertEqual(list(result["repositories"].values()), ["path:/nonexistent/work"])
-        finding, = [row for row in result["findings"] if row["rule"] == "missing_executable"]
-        self.assertEqual((finding["incidents"], finding["providers"]), (3, ["claude", "codex"]))
+        findings = {row["rule"]: row for row in result["findings"]}
+        self.assertEqual([row["rule"] for row in result["findings"]],
+                         ["missing_executable", "oversized_output", "repeated_read"])
+        self.assertEqual((findings["missing_executable"]["incidents"], findings["missing_executable"]["providers"]),
+                         (3, ["claude", "codex"]))
+        self.assertEqual(findings["missing_executable"]["cost"], {"tokens": 1105, "seconds": 10})
+        self.assertEqual(findings["repeated_read"]["cost"], {"tokens": 50, "seconds": 1})
         self.assertNotIn(SECRET, stdout.getvalue())
+
+    def test_long_turn_and_paged_reads(self):
+        turn = [capture(call=str(index), code=0, turn_id="t") for index in range(51)]
+        self.assertEqual([row["rule"] for row in analyze(turn)], ["long_turn"])
+        self.assertEqual(analyze(turn[:50]), [])
+        pages = [capture(call=str(offset), code=None, tool_name="Read", tool_response={},
+                         tool_input={"file_path": "/f", "offset": offset}) for offset in (1, 100)]
+        self.assertEqual(analyze(pages), [])
 
 
 class RepositoryTestCase(unittest.TestCase):

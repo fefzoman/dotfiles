@@ -1,5 +1,7 @@
-"""Backfill tool metadata from local Claude/Codex transcripts in memory; nothing is stored."""
+"""Backfill tool metadata and cost from local Claude/Codex transcripts in memory; nothing is stored."""
 
+from collections import defaultdict
+from datetime import datetime
 import json
 from pathlib import Path
 import re
@@ -10,10 +12,13 @@ from .hooks import normalize
 from .repository import identity, root
 
 INSTALLATION = "local-scan"
-MARKERS = ('"tool_use"', '"tool_result"', '"session_meta"', '"function_call', '"custom_tool_call')
-# Harness-written result header, not model prose.
+MARKERS = ('"tool_use"', '"tool_result"', '"usage"', '"promptId"', '"session_meta"', '"turn_context"',
+           '"task_started"', '"token_count"', '"function_call', '"custom_tool_call')
+# Harness-written result headers, not model prose.
 EXIT_HEADER = re.compile(r"^(?:Process exited with code|Exit code:) (-?\d+)$", re.M)
 TEXT_LIMIT = 64 * 1024
+CLAUDE_USAGE = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+IDLE_SECONDS = 300
 
 
 def transcripts(home):
@@ -36,30 +41,58 @@ def records(path):
                 yield record
 
 
-def claude(path):
-    calls, cwd = {}, None
+def stamp(value):
+    try:
+        return datetime.fromisoformat(value).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
+def text_size(content):
+    if isinstance(content, str):
+        return len(content)
+    blocks = content if isinstance(content, list) else ()
+    return sum(len(block["text"]) for block in blocks if isinstance(block, dict) and isinstance(block.get("text"), str))
+
+
+def bill(stats, billed, key, tokens):
+    """Count each model call once; resumed sessions copy earlier records."""
+    if key in billed or type(tokens) is not int:
+        return None
+    billed.add(key)
+    stats["tokens"] += tokens
+    return tokens
+
+
+def claude(path, stats, billed):
+    calls, cwd, turn = {}, None, None
     for record in records(path):
         cwd = record.get("cwd") or cwd
+        turn = record.get("promptId") or turn
         message = record.get("message")
-        content = message.get("content") if isinstance(message, dict) else None
+        message = message if isinstance(message, dict) else {}
+        usage = message.get("usage")
+        tokens = None
+        if record.get("type") == "assistant" and isinstance(usage, dict) and message.get("id"):
+            tokens = bill(stats, billed, ("claude", message["id"]),
+                          sum(value for key in CLAUDE_USAGE if type(value := usage.get(key)) is int))
+        content = message.get("content")
         for block in content if isinstance(content, list) else ():
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use":
-                start = {"hook_event_name": "PreToolUse", "session_id": record.get("sessionId"),
-                         "tool_use_id": block.get("id"), "tool_name": block.get("name"), "tool_input": block.get("input")}
-                calls[block.get("id")] = cwd, start
-                yield cwd, start
-            elif block.get("type") == "tool_result":
-                call = block.get("tool_use_id")
-                # The result keeps its call's cwd so both land in the same repository.
-                start_cwd, start = calls.get(call, (cwd, {"session_id": record.get("sessionId"), "tool_use_id": call}))
-                result = {**start, "hook_event_name": "PostToolUse"}
-                if block.get("is_error") is True:
-                    result["hook_event_name"] = "PostToolUseFailure"
-                    if isinstance(block.get("content"), str):
-                        result["error"] = block["content"][:TEXT_LIMIT]
-                yield start_cwd, result
+                calls[block.get("id")] = {
+                    "session": record.get("sessionId"), "cwd": cwd, "turn": turn, "id": block.get("id"),
+                    "name": block.get("name"), "input": block.get("input"),
+                    "start": stamp(record.get("timestamp")), "tokens": tokens}
+                tokens = None  # parallel calls of one reply share its usage once
+            elif block.get("type") == "tool_result" and block.get("tool_use_id") in calls:
+                call = calls[block["tool_use_id"]]
+                call.update(end=stamp(record.get("timestamp")), failed=block.get("is_error") is True,
+                            output_bytes=text_size(block.get("content")))
+                if call["failed"] and isinstance(block.get("content"), str):
+                    call["error"] = block["content"][:TEXT_LIMIT]
+    return list(calls.values())
 
 
 def exit_code(output):
@@ -73,16 +106,25 @@ def exit_code(output):
         return int(match.group(1)) if match else None
 
 
-def codex(path):
-    session = cwd = None
-    calls = {}
+def codex(path, stats, billed):
+    calls, pending, session, cwd, turn = {}, [], None, None, None
     for record in records(path):
         payload = record.get("payload")
         if not isinstance(payload, dict):
             continue
-        kind, call = payload.get("type"), payload.get("call_id")
+        kind, call_id = payload.get("type"), payload.get("call_id")
         if record.get("type") == "session_meta":
             session, cwd = payload.get("id"), payload.get("cwd")
+        elif record.get("type") == "turn_context" or kind == "task_started":
+            turn, cwd = payload.get("turn_id") or turn, payload.get("cwd") or cwd
+        elif kind == "token_count":
+            info = payload.get("info")
+            usage = info.get("last_token_usage") if isinstance(info, dict) else None
+            total = usage.get("total_tokens") if isinstance(usage, dict) else None
+            tokens = bill(stats, billed, ("codex", session, record.get("timestamp"), total), total)
+            if pending:
+                pending[0]["tokens"] = tokens  # usage of the reply that issued these calls
+            pending = []
         elif kind in ("function_call", "custom_tool_call"):
             try:
                 arguments = json.loads(payload.get("arguments") or "{}")
@@ -92,18 +134,50 @@ def codex(path):
             if isinstance(command, list) and all(isinstance(part, str) for part in command):
                 command = shlex.join(command)
             name = payload.get("name")
-            calls[call] = start = {
-                "hook_event_name": "PreToolUse", "session_id": session, "tool_use_id": call,
-                "tool_name": "Bash" if name in ("exec_command", "shell") else name, "tool_input": {"command": command}}
-            yield cwd, start
-        elif kind in ("function_call_output", "custom_tool_call_output"):
+            calls[call_id] = call = {
+                "session": session, "cwd": cwd, "turn": turn, "id": call_id,
+                "name": "Bash" if name in ("exec_command", "shell") else name, "input": {"command": command},
+                "start": stamp(record.get("timestamp")), "tokens": None}
+            pending.append(call)
+        elif kind in ("function_call_output", "custom_tool_call_output") and call_id in calls:
             output = payload.get("output")
             code = exit_code(output)
-            response = {"exit_code": code}
+            calls[call_id].update(end=stamp(record.get("timestamp")), exit_code=code,
+                                  output_bytes=text_size(output))
             if code and isinstance(output, str):
-                response["stderr"] = output[:TEXT_LIMIT]
-            yield cwd, {**calls.get(call, {"session_id": session, "tool_use_id": call}),
-                        "hook_event_name": "PostToolUse", "tool_response": response}
+                calls[call_id]["error"] = output[:TEXT_LIMIT]
+    return list(calls.values())
+
+
+def time_steps(calls):
+    """A call's step lasts until the session's next call, unless the agent went idle after the result."""
+    sessions = defaultdict(list)
+    for call in calls:
+        if call["start"] is not None:
+            sessions[call["session"]].append(call)
+    for rows in sessions.values():
+        rows.sort(key=lambda call: call["start"])
+        for call, following in zip(rows, rows[1:] + [None]):
+            end = call.get("end")
+            if following and (end is None or following["start"] - end <= IDLE_SECONDS):
+                call["seconds"] = max(0.0, following["start"] - call["start"])
+            elif end is not None:
+                call["seconds"] = max(0.0, end - call["start"])
+
+
+def payloads(call):
+    start = {"hook_event_name": "PreToolUse", "session_id": call["session"], "tool_use_id": call["id"],
+             "turn_id": call["turn"], "tool_name": call["name"], "tool_input": call["input"]}
+    if "end" not in call:
+        return start, None
+    if call.get("failed"):
+        result = {**start, "hook_event_name": "PostToolUseFailure", "error": call.get("error")}
+    else:
+        response = {"exit_code": call.get("exit_code")}
+        if "error" in call:
+            response["stderr"] = call["error"]
+        result = {**start, "hook_event_name": "PostToolUse", "tool_response": response}
+    return start, result
 
 
 def repository(cwd, cache):
@@ -117,17 +191,23 @@ def repository(cwd, cache):
 
 def events(home, labels, stats):
     """Yield normalized events; fill labels (repository_id -> identity) and stats as a side effect."""
-    cache, seen = {}, set()
+    cache, seen, billed = {}, set(), set()
     for provider, path in transcripts(home):
         stats["transcripts"] += 1
-        for cwd, payload in (claude if provider == "claude" else codex)(path):
-            # Resumed sessions copy earlier records; count each tool call once.
-            key = (provider, payload["hook_event_name"], payload.get("tool_use_id"))
-            if key in seen:
-                continue
-            seen.add(key)
-            name = repository(cwd, cache)
-            event = normalize(json.dumps(payload).encode(), provider, name, INSTALLATION)
-            labels[event["repository_id"]] = name
-            stats["tool_calls"] += payload["hook_event_name"] == "PreToolUse"
-            yield event
+        calls = [call for call in (claude if provider == "claude" else codex)(path, stats, billed)
+                 if (provider, call["id"]) not in seen]
+        time_steps(calls)
+        for call in calls:
+            seen.add((provider, call["id"]))
+            name = repository(call["cwd"], cache)
+            stats["tool_calls"] += 1
+            stats["seconds"] += call.get("seconds", 0)
+            for payload in payloads(call):
+                if payload is None:
+                    continue
+                event = normalize(json.dumps(payload).encode(), provider, name, INSTALLATION)
+                labels[event["repository_id"]] = name
+                if payload["hook_event_name"] != "PreToolUse" and event["event_type"] != "collector.gap":
+                    event["tool"].update({key: call[key] for key in ("tokens", "seconds", "output_bytes")
+                                          if call.get(key) is not None})
+                yield event

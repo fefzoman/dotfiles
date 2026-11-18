@@ -4,6 +4,9 @@ from collections import defaultdict
 
 from .hooks import fingerprint
 
+OVERSIZED_BYTES = 20_000
+LONG_TURN_CALLS = 50
+EVIDENCE_LINES = 10
 RULES = {
     "missing_executable": {
         "category": "environment", "classification": "suspected_cause",
@@ -30,6 +33,28 @@ RULES = {
         "recommendation": "Review task scope with the user. Do not bypass approvals, relax sandbox rules, "
                           "or treat a denied request as agent incompetence.",
     },
+    "repeated_read": {
+        "category": "context", "classification": "suspected_waste",
+        "description": "The same file range was read again in a session without an edit to that file in between.",
+        "recommendation": "Keep the first read's content in view instead of re-reading it. "
+                          "A re-read after context compaction or an outside change is legitimate.",
+        "instruction": "Reuse file contents already read in this session; re-read a file only after it changed "
+                       "or after the context was compacted.",
+    },
+    "oversized_output": {
+        "category": "context", "classification": "suspected_waste",
+        "description": f"A tool result exceeded {OVERSIZED_BYTES // 1000} KB, and every later model call re-sends it.",
+        "recommendation": "Narrow searches, page through large files and filter or summarize command output "
+                          "before it reaches the context.",
+        "instruction": "Keep tool output small: bound searches and reads to the needed range and filter noisy "
+                       "command output; save large logs to a file and read only the relevant part.",
+    },
+    "long_turn": {
+        "category": "workflow", "classification": "observation",
+        "description": f"A single user turn needed more than {LONG_TURN_CALLS} tool calls.",
+        "recommendation": "Check whether the task was underspecified, the agent explored too broadly, "
+                          "or a loop went unnoticed. Large legitimate tasks also produce long turns.",
+    },
     "collection_gap": {
         "category": "tooling", "classification": "unverifiable_outcome",
         "description": "The collector recorded rejected or missing telemetry.",
@@ -55,17 +80,32 @@ def analyze(events):
             terminal[call] = {**event, "tool": {**calls.get(call, {}), **event.get("tool", {})}}
         elif kind in ("permission.requested", "collector.gap"):
             auxiliary[(kind, key)].append(event)
-    groups, attempts = defaultdict(list), defaultdict(list)
+    groups, attempts, reads, turns = defaultdict(list), defaultdict(list), defaultdict(set), defaultdict(list)
     for event in terminal.values():
         tool = event.get("tool", {})
+        repo = event["repository_id"]
+        session = (event["installation_id"], event["provider"], event["session_id"])
         command = tool.get("command_fingerprint")
         failed = event["event_type"] == "tool.failed" or tool.get("outcome") == "failure"
         missing = tool.get("error_family") == "missing_executable" or (tool.get("name") == "Bash" and tool.get("exit_code") == 127)
         if missing and (failed or tool.get("outcome") == "unknown"):
-            groups[(event["repository_id"], "missing_executable", command)].append(event)
+            groups[(repo, "missing_executable", command)].append(event)
         if command:
-            session = (event["installation_id"], event["provider"], event["session_id"])
-            attempts[(event["repository_id"], session, command)].append(event)
+            attempts[(repo, session, command)].append(event)
+        path, target = (repo, session, tool.get("path_fingerprint")), tool.get("target_fingerprint")
+        if tool.get("name") in ("Edit", "Write"):
+            reads.pop(path, None)
+        elif target and not failed:
+            if target in reads[path]:
+                groups[(repo, "repeated_read", None)].append(event)
+            reads[path].add(target)
+        if tool.get("output_bytes", 0) > OVERSIZED_BYTES:
+            groups[(repo, "oversized_output", None)].append(event)
+        if event.get("turn_id"):
+            turns[(repo, session, event["turn_id"])].append(event)
+    for (repo, _, _), calls in turns.items():
+        if len(calls) > LONG_TURN_CALLS:
+            groups[(repo, "long_turn", None)].extend(calls)
     for (repo, _, command), history in attempts.items():
         failures = []
         for event in history:
@@ -88,6 +128,7 @@ def analyze(events):
             "issue_id": issue, "repository_id": repo, "rule": rule,
             **{key: spec[key] for key in ("category", "classification", "description", "recommendation")},
             "command_fingerprint": command, "incidents": len(evidence), "sessions": len(sessions),
+            "cost": cost(evidence),
             "providers": sorted({row["provider"] for row in evidence}),
             "evidence": [reference(row) for row in evidence],
             "task_outcome": "unknown", "coverage": "metadata_only",
@@ -96,19 +137,35 @@ def analyze(events):
                             "Ordering, policy/environment versions and task intent may be missing.",
                             "No correctness, regression or causal improvement has been established."],
         })
-    return findings
+    return sorted(findings, key=lambda row: -(row["cost"]["tokens"] or 0))
 
 
-def markdown(findings):
+def cost(evidence):
+    """Tokens of the replies that issued these calls and time until the next call; None when unmeasured."""
+    totals = {}
+    for key in ("tokens", "seconds"):
+        values = [row["tool"][key] for row in evidence if key in row.get("tool", {})]
+        totals[key] = round(sum(values), 1) if values else None
+    return totals
+
+
+def markdown(findings, total_tokens=None):
     lines = ["# Diagnosis and recommendations", "", "Local deterministic signals; task correctness remains unknown.", ""]
     for finding in findings:
         lines.extend([f"## {finding['issue_id']}: {finding['rule']}", "",
                       finding["description"], "", finding["recommendation"], "",
                       f"Repository: {finding['repository_id'][:12]}. "
                       f"Incidents: {finding['incidents']}; independent provider-scoped sessions: {finding['sessions']}. "
-                      f"Classification: {finding['classification']}. Draft eligible: {finding['eligible_for_draft']}.", "",
-                      "Evidence:"])
-        lines.extend(f"- {row['provider']}/{row['session_id']}/{row['event_id']}" for row in finding["evidence"])
+                      f"Classification: {finding['classification']}. Draft eligible: {finding['eligible_for_draft']}.", ""])
+        tokens, seconds = finding["cost"]["tokens"], finding["cost"]["seconds"]
+        if tokens is not None or seconds is not None:
+            share = f" ({tokens / total_tokens:.1%} of scanned)" if tokens and total_tokens else ""
+            lines.extend([f"Cost: {tokens or 0:,} tokens{share}; {(seconds or 0) / 60:.1f} min.", ""])
+        lines.append("Evidence:")
+        evidence = finding["evidence"]
+        lines.extend(f"- {row['provider']}/{row['session_id']}/{row['event_id']}" for row in evidence[:EVIDENCE_LINES])
+        if len(evidence) > EVIDENCE_LINES:
+            lines.append(f"- and {len(evidence) - EVIDENCE_LINES} more (use --format json)")
         lines.extend(["", *finding["limitations"], ""])
     if not findings:
         lines.append("No supported signals found. Missing telemetry is not proof of success.")

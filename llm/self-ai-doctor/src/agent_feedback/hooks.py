@@ -37,6 +37,13 @@ def tool_metadata(payload, hook):
     command = arguments.get("command") if isinstance(arguments, dict) else None
     if tool["name"] == "Bash" and isinstance(command, str) and command:
         tool["command_fingerprint"] = fingerprint(command)
+    path = arguments.get("file_path") if isinstance(arguments, dict) else None
+    if tool["name"] in ("Read", "Edit", "Write") and isinstance(path, str) and path:
+        tool["path_fingerprint"] = fingerprint(path)
+        if tool["name"] == "Read":
+            # The same file range, so paging through a file is not a re-read.
+            tool["target_fingerprint"] = fingerprint(json.dumps(
+                [path] + [arguments.get(key) for key in ("offset", "limit", "pages")]))
     # Tool response shapes vary; never infer exit status from model-facing prose.
     response = payload.get("tool_response")
     code = response.get("exit_code") if isinstance(response, dict) else None

@@ -68,13 +68,15 @@ def main(argv=None):
             if args.scope_root and (len(raw) > MAX_MESSAGE_BYTES or not in_scope(raw, args.scope_root)):
                 return 0
         elif args.command == "scan":
-            labels, stats = {}, {"transcripts": 0, "tool_calls": 0}
+            labels, stats = {}, {"transcripts": 0, "tool_calls": 0, "tokens": 0, "seconds": 0}
             findings = diagnosis.analyze(scan.events(Path.home(), labels, stats))
+            stats["seconds"] = round(stats["seconds"], 1)
             if args.format == "json":
                 print(json.dumps({**stats, "repositories": labels, "findings": findings}, indent=2))
             else:
-                print(diagnosis.markdown(findings) + f"\nScanned {stats['transcripts']} transcripts, "
-                      f"{stats['tool_calls']} tool calls.\n\nRepositories:\n"
+                print(diagnosis.markdown(findings, stats["tokens"]) + f"\nScanned {stats['transcripts']} transcripts, "
+                      f"{stats['tool_calls']} tool calls, {stats['tokens']:,} tokens, "
+                      f"{stats['seconds'] / 3600:.1f} h of tool steps. Findings can overlap.\n\nRepositories:\n"
                       + "".join(f"- {key[:12]}: {value}\n" for key, value in sorted(labels.items(), key=lambda item: item[1])),
                       end="")
             return 0
