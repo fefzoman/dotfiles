@@ -102,6 +102,47 @@ class DiagnosisTests(unittest.TestCase):
         self.assertEqual(analyze([success]), [])
 
 
+class ScanTests(unittest.TestCase):
+    def test_scan_reads_all_profiles_without_leaking_content(self):
+        with tempfile.TemporaryDirectory() as home:
+            home = Path(home)
+            base = {"sessionId": "c1", "cwd": "/nonexistent/work"}
+            claude = [{**base, "message": {"content": [
+                          {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": SECRET}}]}},
+                      {**base, "message": {"content": [
+                          {"type": "tool_result", "tool_use_id": "t1", "is_error": True,
+                           "content": f"Exit code 127\nzsh: command not found: {SECRET}"}]}}]
+            for profile, name in ((".claude", "a.jsonl"), (".claude-work", "resumed.jsonl")):
+                path = home / profile / "projects/-work" / name
+                path.parent.mkdir(parents=True)
+                path.write_text("".join(json.dumps(row) + "\n" for row in claude) + "{broken\n")
+            codex = [{"type": "session_meta", "payload": {"id": "x1", "cwd": "/nonexistent/work"}},
+                     {"type": "response_item", "payload": {"type": "function_call", "name": "exec_command",
+                      "call_id": "c1", "arguments": json.dumps({"cmd": SECRET})}},
+                     {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c1",
+                      "output": f"Chunk ID: 1\nWall time: 0.1 seconds\nProcess exited with code 127\nOutput:\n{SECRET}"}},
+                     {"type": "response_item", "payload": {"type": "function_call", "name": "shell",
+                      "call_id": "c2", "arguments": json.dumps({"command": ["ls", SECRET]})}},
+                     {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c2",
+                      "output": json.dumps({"output": "command not found", "metadata": {"exit_code": 0}})}},
+                     {"type": "response_item", "payload": {"type": "function_call", "name": "shell",
+                      "call_id": "c3", "arguments": json.dumps({"command": [SECRET]})}},
+                     {"type": "response_item", "payload": {"type": "function_call_output", "call_id": "c3",
+                      "output": "Exit code: 127\nWall time: 0.1 seconds\nOutput:\n"}}]
+            path = home / ".codex-work/archived_sessions/rollout.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text("".join(json.dumps(row) + "\n" for row in codex))
+            stdout = io.StringIO()
+            with patch.dict(os.environ, {"HOME": str(home)}), contextlib.redirect_stdout(stdout):
+                self.assertEqual(main(["scan", "--format", "json"]), 0)
+        result = json.loads(stdout.getvalue())
+        self.assertEqual((result["transcripts"], result["tool_calls"]), (3, 4))
+        self.assertEqual(list(result["repositories"].values()), ["path:/nonexistent/work"])
+        finding, = [row for row in result["findings"] if row["rule"] == "missing_executable"]
+        self.assertEqual((finding["incidents"], finding["providers"]), (3, ["claude", "codex"]))
+        self.assertNotIn(SECRET, stdout.getvalue())
+
+
 class RepositoryTestCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="feedback test '")

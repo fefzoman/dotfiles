@@ -7,7 +7,7 @@ import sqlite3
 import subprocess
 import sys
 
-from . import diagnosis
+from . import diagnosis, scan
 from .hooks import MAX_MESSAGE_BYTES, PROVIDERS, normalize, repository_id
 from .remediation import ProposalError, propose
 from .report import markdown, summarize
@@ -29,8 +29,8 @@ def parser():
             command.add_argument("--scope-root", type=Path, help="ignore hooks outside this opted-in Git worktree")
         else:
             command.add_argument("--source-id", required=True, help="stable unique ID for this immutable hook JSONL export")
-    report = commands.add_parser("report")
-    report.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    for name in ("report", "scan"):
+        commands.add_parser(name).add_argument("--format", choices=("markdown", "json"), default="markdown")
     for name in ("analyze", "propose"):
         command = commands.add_parser(name)
         command.add_argument("--repo", type=Path, default=Path.cwd())
@@ -67,6 +67,17 @@ def main(argv=None):
             raw = sys.stdin.buffer.read(MAX_MESSAGE_BYTES + 1)
             if args.scope_root and (len(raw) > MAX_MESSAGE_BYTES or not in_scope(raw, args.scope_root)):
                 return 0
+        elif args.command == "scan":
+            labels, stats = {}, {"transcripts": 0, "tool_calls": 0}
+            findings = diagnosis.analyze(scan.events(Path.home(), labels, stats))
+            if args.format == "json":
+                print(json.dumps({**stats, "repositories": labels, "findings": findings}, indent=2))
+            else:
+                print(diagnosis.markdown(findings) + f"\nScanned {stats['transcripts']} transcripts, "
+                      f"{stats['tool_calls']} tool calls.\n\nRepositories:\n"
+                      + "".join(f"- {key[:12]}: {value}\n" for key, value in sorted(labels.items(), key=lambda item: item[1])),
+                      end="")
+            return 0
         store = Store(args.state_dir)
         if args.command == "report":
             rows = summarize(store.events())

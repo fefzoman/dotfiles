@@ -104,6 +104,7 @@ def markdown(findings):
     for finding in findings:
         lines.extend([f"## {finding['issue_id']}: {finding['rule']}", "",
                       finding["description"], "", finding["recommendation"], "",
+                      f"Repository: {finding['repository_id'][:12]}. "
                       f"Incidents: {finding['incidents']}; independent provider-scoped sessions: {finding['sessions']}. "
                       f"Classification: {finding['classification']}. Draft eligible: {finding['eligible_for_draft']}.", "",
                       "Evidence:"])

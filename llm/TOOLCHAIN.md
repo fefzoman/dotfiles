@@ -260,7 +260,14 @@ explain what happened. `llm/self-ai-doctor/` supplies the dependency-free
 `agent-feedback` CLI: it collects allowlisted hook metadata, reports sessions,
 and diagnoses missing executables, unrecovered command failures, repeated
 approval requests and collection gaps. Analysis is deterministic and local;
-it makes no network, model or transcript requests.
+it makes no network or model requests.
+
+`agent-feedback scan` covers every session on the machine without hooks: it
+reads Claude (`~/.claude*/projects`) and Codex (`~/.codex*/sessions`,
+`archived_sessions`) transcripts in all profiles, applies the same rules in
+memory and lists each repository's origin or path. It stores nothing, so
+`propose` cannot use its findings. Claude transcripts carry no exit codes, so
+only `command not found` errors are classified there.
 
 The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13,
 then merges collection hooks for this dotfiles Git worktree into all four
@@ -273,6 +280,7 @@ CLAUDE_CONFIG_DIR="$HOME/.claude-work" CODEX_HOME="$HOME/.codex-work" \
   agent-feedback-install-hooks --repo /absolute/path/to/project
 agent-feedback analyze --repo /absolute/path/to/project
 agent-feedback report --format json
+agent-feedback scan
 ```
 
 The hook installer defaults to both clients; `--agent claude` or `--agent codex`
