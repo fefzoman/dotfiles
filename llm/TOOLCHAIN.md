@@ -286,6 +286,14 @@ the report names no commands or files. `scan --details` adds executables,
 subcommands and file paths, but never arguments, and still stores nothing. The
 thresholds are tuned on local transcripts and are heuristics, not causes.
 
+To check a fix, save a `scan` report when you apply it. Later, run
+`scan --since DATE` with the date of the fix. Only tool calls and model replies
+from that moment on count, and transcripts last modified earlier are skipped. A
+date without an offset means local midnight. The two windows differ in length,
+so compare each finding's share of tokens and its incidents per 1k tool calls,
+not its totals. A short window or a different mix of tasks can still move these
+numbers, so treat a change as a signal, not as proof.
+
 The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13,
 then merges collection hooks for this dotfiles Git worktree into all four
 personal/work profiles. Other worktrees remain unobserved. With agents closed,
@@ -298,6 +306,7 @@ CLAUDE_CONFIG_DIR="$HOME/.claude-work" CODEX_HOME="$HOME/.codex-work" \
 agent-feedback analyze --repo /absolute/path/to/project
 agent-feedback report --format json
 agent-feedback scan
+agent-feedback scan --since 2026-11-21
 ```
 
 The hook installer defaults to both clients; `--agent claude` or `--agent codex`

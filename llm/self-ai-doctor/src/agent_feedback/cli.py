@@ -1,6 +1,7 @@
 """Explicit opt-in collection; hook failures must not block coding."""
 
 import argparse
+from datetime import datetime
 import json
 from pathlib import Path
 import sqlite3
@@ -33,6 +34,8 @@ def parser():
         commands.add_parser(name).add_argument("--format", choices=("markdown", "json"), default="markdown")
     commands.choices["scan"].add_argument("--details", action="store_true",
                                           help="name executables, subcommands and file paths in suggestions; never stored")
+    commands.choices["scan"].add_argument("--since", type=datetime.fromisoformat, metavar="DATE",
+                                          help="only calls from this ISO date or time on (local time unless an offset is given)")
     for name in ("analyze", "propose"):
         command = commands.add_parser(name)
         command.add_argument("--repo", type=Path, default=Path.cwd())
@@ -71,12 +74,16 @@ def main(argv=None):
                 return 0
         elif args.command == "scan":
             labels, stats = {}, {"transcripts": 0, "tool_calls": 0, "tokens": 0, "seconds": 0}
-            findings = diagnosis.analyze(scan.events(Path.home(), labels, stats, args.details))
+            since = args.since.timestamp() if args.since else None
+            findings = diagnosis.analyze(scan.events(Path.home(), labels, stats, args.details, since))
             stats["seconds"] = round(stats["seconds"], 1)
+            stats["since"] = args.since.isoformat() if args.since else None
             if args.format == "json":
                 print(json.dumps({**stats, "repositories": labels, "findings": findings}, indent=2))
             else:
-                print(diagnosis.markdown(findings, stats["tokens"]) + f"\nScanned {stats['transcripts']} transcripts, "
+                window = f" since {stats['since']}" if args.since else ""
+                print(diagnosis.markdown(findings, stats["tokens"], stats["tool_calls"])
+                      + f"\nScanned {stats['transcripts']} transcripts{window}, "
                       f"{stats['tool_calls']} tool calls, {stats['tokens']:,} tokens, "
                       f"{stats['seconds'] / 3600:.1f} h of tool steps. Findings can overlap.\n\nRepositories:\n"
                       + "".join(f"- {key[:12]}: {value}\n" for key, value in sorted(labels.items(), key=lambda item: item[1])),

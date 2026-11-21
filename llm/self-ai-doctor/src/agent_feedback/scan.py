@@ -67,16 +67,16 @@ def text_size(content):
     return sum(len(block["text"]) for block in blocks if isinstance(block, dict) and isinstance(block.get("text"), str))
 
 
-def bill(stats, billed, key, tokens):
+def bill(stats, billed, key, tokens, at, since):
     """Count each model call once; resumed sessions copy earlier records."""
-    if key in billed or type(tokens) is not int:
+    if key in billed or type(tokens) is not int or (since is not None and (at is None or at < since)):
         return None
     billed.add(key)
     stats["tokens"] += tokens
     return tokens
 
 
-def claude(path, stats, billed):
+def claude(path, stats, billed, since):
     calls, cwd, turn = {}, None, None
     for record in records(path):
         cwd = record.get("cwd") or cwd
@@ -87,7 +87,8 @@ def claude(path, stats, billed):
         tokens = None
         if record.get("type") == "assistant" and isinstance(usage, dict) and message.get("id"):
             tokens = bill(stats, billed, ("claude", message["id"]),
-                          sum(value for key in CLAUDE_USAGE if type(value := usage.get(key)) is int))
+                          sum(value for key in CLAUDE_USAGE if type(value := usage.get(key)) is int),
+                          stamp(record.get("timestamp")), since)
         content = message.get("content")
         for block in content if isinstance(content, list) else ():
             if not isinstance(block, dict):
@@ -118,7 +119,7 @@ def exit_code(output):
         return int(match.group(1)) if match else None
 
 
-def codex(path, stats, billed):
+def codex(path, stats, billed, since):
     calls, pending, session, cwd, turn = {}, [], None, None, None
     for record in records(path):
         payload = record.get("payload")
@@ -133,7 +134,8 @@ def codex(path, stats, billed):
             info = payload.get("info")
             usage = info.get("last_token_usage") if isinstance(info, dict) else None
             total = usage.get("total_tokens") if isinstance(usage, dict) else None
-            tokens = bill(stats, billed, ("codex", session, record.get("timestamp"), total), total)
+            tokens = bill(stats, billed, ("codex", session, record.get("timestamp"), total), total,
+                          stamp(record.get("timestamp")), since)
             if pending:
                 pending[0]["tokens"] = tokens  # usage of the reply that issued these calls
             pending = []
@@ -241,15 +243,21 @@ def repository(cwd, cache):
     return cache[cwd]
 
 
-def events(home, labels, stats, details=False):
-    """Yield normalized events; fill labels (repository_id -> identity) and stats as a side effect."""
+def events(home, labels, stats, details=False, since=None):
+    """Yield normalized events; fill labels (repository_id -> identity) and stats as a side effect.
+
+    With since (epoch seconds), only calls and model replies from then on count."""
     cache, seen, billed = {}, set(), set()
     for provider, path in transcripts(home):
+        if since is not None and path.stat().st_mtime < since:
+            continue
         stats["transcripts"] += 1
-        calls = [call for call in (claude if provider == "claude" else codex)(path, stats, billed)
+        calls = [call for call in (claude if provider == "claude" else codex)(path, stats, billed, since)
                  if (provider, call["id"]) not in seen]
         time_steps(calls)
         for call in calls:
+            if since is not None and (call["start"] is None or call["start"] < since):
+                continue
             seen.add((provider, call["id"]))
             name = repository(call["cwd"], cache)
             stats["tool_calls"] += 1

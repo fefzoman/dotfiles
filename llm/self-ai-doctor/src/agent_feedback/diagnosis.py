@@ -152,7 +152,7 @@ def cost(evidence):
     return totals
 
 
-def markdown(findings, total_tokens=None):
+def markdown(findings, total_tokens=None, total_calls=None):
     lines = ["# Diagnosis and recommendations", "", "Local deterministic signals; task correctness remains unknown.", ""]
     ranked = sorted(((row, finding) for finding in findings for row in finding["suggestions"]),
                     key=lambda pair: (-pair[0]["tokens"], -pair[0]["incidents"]))
@@ -174,7 +174,9 @@ def markdown(findings, total_tokens=None):
         tokens, seconds = finding["cost"]["tokens"], finding["cost"]["seconds"]
         if tokens is not None or seconds is not None:
             share = f" ({tokens / total_tokens:.1%} of scanned)" if tokens and total_tokens else ""
-            lines.extend([f"Cost: {tokens or 0:,} tokens{share}; {(seconds or 0) / 60:.1f} min.", ""])
+            # Rates and shares, not totals, compare windows of different length.
+            rate = f"; {finding['incidents'] * 1000 / total_calls:.1f} incidents per 1k tool calls" if total_calls else ""
+            lines.extend([f"Cost: {tokens or 0:,} tokens{share}; {(seconds or 0) / 60:.1f} min{rate}.", ""])
         lines.append("Evidence:")
         evidence = finding["evidence"]
         lines.extend(f"- {row['provider']}/{row['session_id']}/{row['event_id']}" for row in evidence[:EVIDENCE_LINES])

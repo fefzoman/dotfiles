@@ -230,6 +230,36 @@ class ScanTests(unittest.TestCase):
         self.assertIn("`models/x.sql` was re-read (1x)", detailed)
         self.assertNotIn(SECRET, default + detailed)
 
+    def test_since_counts_only_later_calls_and_tokens(self):
+        with tempfile.TemporaryDirectory() as home:
+            def call(day, call_id, tokens):
+                base = {"sessionId": "w1", "cwd": "/nonexistent/work", "timestamp": f"2026-{day}T00:00:00Z"}
+                return [{**base, "type": "assistant", "message": {"id": call_id, "usage": {"input_tokens": tokens},
+                         "content": [{"type": "tool_use", "id": call_id, "name": "Bash", "input": {"command": "x"}}]}},
+                        {**base, "type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": call_id,
+                         "is_error": True, "content": "Exit code 127\ncommand not found: x"}]}}]
+            folder = Path(home) / ".claude/projects/-work"
+            folder.mkdir(parents=True)
+            (folder / "current.jsonl").write_text("".join(json.dumps(row) + "\n"
+                                                          for row in call("10-01", "old", 100) + call("11-10", "new", 50)))
+            stale = folder / "stale.jsonl"
+            stale.write_text("".join(json.dumps(row) + "\n" for row in call("09-01", "stale", 7)))
+            os.utime(stale, (1_700_000_000, 1_700_000_000))
+            outputs = []
+            for format in ("json", "markdown"):
+                stdout = io.StringIO()
+                with patch.dict(os.environ, {"HOME": home}), contextlib.redirect_stdout(stdout):
+                    self.assertEqual(main(["scan", "--format", format, "--since", "2026-11-01T00:00:00+00:00"]), 0)
+                outputs.append(stdout.getvalue())
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                main(["scan", "--since", "last week"])
+        result = json.loads(outputs[0])
+        self.assertEqual({key: result[key] for key in ("transcripts", "tool_calls", "tokens", "since")},
+                         {"transcripts": 1, "tool_calls": 1, "tokens": 50, "since": "2026-11-01T00:00:00+00:00"})
+        self.assertEqual(result["findings"][0]["incidents"], 1)
+        self.assertIn("1000.0 incidents per 1k tool calls", outputs[1])
+        self.assertIn("Scanned 1 transcripts since 2026-11-01T00:00:00+00:00", outputs[1])
+
     def test_shell_commands_get_fixed_families_without_names(self):
         def labels(command, details=False):
             return local({"input": {"command": command}, "cwd": "/w"}, details)
