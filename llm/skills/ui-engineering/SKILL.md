@@ -1,6 +1,7 @@
 ---
 name: ui-engineering
-description: Apply library-first UI/UX design, new components, changed interactions or responsive layouts, and UI reviews. Skip for small copy/style edits that only reuse existing UI patterns.
+description: Apply library-first UI engineering when explicitly requested.
+disable-model-invocation: true
 ---
 
 # UI Engineering: reuse before inventing

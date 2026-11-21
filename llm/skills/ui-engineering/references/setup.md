@@ -10,15 +10,15 @@ After closing Claude and Codex sessions, run this from the dotfiles repository:
 bash llm/ai-install.sh --docs-only
 ```
 
-This refreshes managed global policies and shared skills in `~/.codex`, `~/.codex-work`, `~/.claude` and `~/.claude-work`, preserving model configuration and RTK imports. Review local policy edits before running: these are managed files and are replaced, not merged. Start a new session afterward. The UI rule loads this skill only for application frontend tasks. Its bundled library-selection reference is copied with it; no browser or component library is installed automatically.
-
-The retrieval-only migration also copies `ui-engineering`, because it refreshes the same global policies and must not leave their UI skill reference missing.
+This refreshes managed global policies and shared skills in `~/.codex`, `~/.codex-work`, `~/.claude` and `~/.claude-work`, preserving model configuration and RTK imports. Review local policy edits before running: these files are replaced, not merged. Start a new session afterward. If a separate legacy `skills/markdown-to-html` directory remains, move it out of the skill search path to prevent automatic activation.
 
 In a frontend repository, use the existing `DESIGN.md`. If the project needs a new contract, copy and customize [the template](../templates/DESIGN.md) only when that file does not exist. Record the actual component paths, tokens and representative screens rather than leaving “inspect repo” placeholders. An existing product's design takes precedence over template defaults.
 
-A normal request is enough:
+Invoke the skill explicitly:
 
-> Add a searchable task-run history page with filters, row actions, empty state and mobile layout. Follow the repository design system, reuse components, and visually verify desktop and mobile.
+> $ui-engineering Add a searchable task-run history page with filters, row actions, empty state and mobile layout.
+
+In Claude, use `/ui-engineering` instead.
 
 ## Optional component discovery and browser tools
 

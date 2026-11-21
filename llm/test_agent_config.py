@@ -299,8 +299,14 @@ class AgentInstallationTests(unittest.TestCase):
                     for skill in ("natural-article", "code-retrieval", "ui-engineering"):
                         self.assertEqual((profile / f"skills/{skill}/SKILL.md").read_text(),
                                          (SCRIPT_DIR / f"skills/{skill}/SKILL.md").read_text())
-                    self.assertIn("skills/ui-engineering/SKILL.md",
-                                  (profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")).read_text())
+                    policy = (profile / ("AGENTS.md" if agent == "codex" else "CLAUDE.md")).read_text()
+                    for skill in ("ui-engineering", "md-to-html"):
+                        self.assertNotIn(skill, policy)
+                        installed = profile / "skills" / skill
+                        self.assertIn("disable-model-invocation: true",
+                                      (installed / "SKILL.md").read_text())
+                        self.assertEqual((installed / "agents/openai.yaml").read_text(),
+                                         "policy:\n  allow_implicit_invocation: false\n")
                     for source in (SCRIPT_DIR / "skills/ui-engineering").rglob("*"):
                         if source.is_file():
                             self.assertEqual((profile / "skills/ui-engineering" /
