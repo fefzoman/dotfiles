@@ -1,6 +1,6 @@
 ---
 name: ui-engineering
-description: Apply library-first UI/UX implementation and review. Use automatically for frontend screens, dashboards, components, forms, navigation, styling, layout, responsive design, visual polish, and UI reviews; not for backend-only tasks.
+description: Apply library-first UI/UX design, new components, changed interactions or responsive layouts, and UI reviews. Skip for small copy/style edits that only reuse existing UI patterns.
 ---
 
 # UI Engineering: reuse before inventing
@@ -16,7 +16,7 @@ Use this for application UI, not document conversion covered by `md-to-html`. Re
 - Detect framework, styling system, package manager, component libraries, design tokens, and reusable components. Read `package.json`, `components.json` if present, `DESIGN.md` if present, and 2-3 representative screens/components.
 - Never replace an established component framework, switch between Radix/Base UI, or add competing UI systems unless the user explicitly requests a migration.
 - Determine **one primary user goal** per view, its key actions, information density, and required UI states.
-- Consult the bundled [pick-ui-library skill](references/pick-ui-library/SKILL.md) with the concrete component task after inspecting current dependencies. Its recommendations are candidates, subordinate to the existing stack and the React + shadcn/ui default; its Base UI primitive recommendation does not replace shadcn/ui or justify switching a project's primitive foundation.
+- Consult the bundled [pick-ui-library skill](references/pick-ui-library/SKILL.md) only if the existing stack lacks a suitable component and a library choice is needed. Its recommendations do not override the React + shadcn/ui default or justify switching a project's primitive foundation.
 
 ## 2. Design before writing code
 

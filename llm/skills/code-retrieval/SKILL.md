@@ -1,6 +1,6 @@
 ---
 name: code-retrieval
-description: Apply before searching code, files, docs or the web for an unknown location; skip for named files, URLs, issue keys and connected tools.
+description: Apply for behavior discovery, unclear structure, or unknown source locations. Skip for named sources, known identifiers/ranges, issue keys and connected tools.
 ---
 
 # Choose one route

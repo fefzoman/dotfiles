@@ -1,6 +1,6 @@
 ---
 name: md-to-html
-description: Convert Markdown into styled HTML, or map images and Mermaid diagrams to accessible native HTML/SVG figures, preserving content and validating the result against an approved visual reference.
+description: Convert Markdown into styled HTML, or map images and Mermaid diagrams to accessible native HTML/SVG figures. Skip plain HTML conversion when an existing renderer suffices.
 ---
 
 # Markdown to HTML

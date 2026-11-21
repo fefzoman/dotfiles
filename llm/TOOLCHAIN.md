@@ -41,7 +41,7 @@ Solid arrows show the working loop; dotted arrows show guidance and session supp
 
 ### Library-first UI work
 
-Rare UI tasks should not invent a new component system. Both clients' global policies automatically load the shared [UI engineering skill](skills/ui-engineering/SKILL.md) for application frontend work, including styling and UI reviews. The agent first inspects the existing stack, components and `DESIGN.md`, then reuses those patterns, implements relevant states, and inspects the rendered result at desktop and phone sizes with available browser tools. Backend-only work does not load it, and document conversion keeps its specialized `md-to-html` workflow.
+Load the shared [UI engineering skill](skills/ui-engineering/SKILL.md) for UI design, new components, changed interactions or responsive layouts, and UI reviews. Reuse existing patterns and verify the affected state directly for small copy or style edits. The full workflow inspects the existing stack, components and `DESIGN.md`, then checks the rendered result at desktop and phone sizes. Consult the library-selection reference only for an unresolved component choice. Use `md-to-html` for themed or figure-aware conversion; use an existing renderer for plain HTML.
 
 New applications default to React + Tailwind + shadcn/ui, with Sonner, Vaul, cmdk and NumberFlow where useful; existing stacks and explicit user preferences take precedence. The skill bundles a pinned `pick-ui-library` reference, a project design-contract template, optional shadcn/Playwright MCP configuration examples, and a Playwright/axe QA starter. None installs a framework, adds dependencies, or changes an application's files automatically. Follow the [setup guide](skills/ui-engineering/references/setup.md) to refresh all four profiles with `bash llm/ai-install.sh --docs-only` after closing running agents. Optional tools are configured before a new session; existing project tooling takes precedence.
 
@@ -88,8 +88,8 @@ claude plugin marketplace add DietrichGebert/ponytail && claude plugin install p
 
 ## 4. Local code retrieval
 
-The retrieval skill chooses bounded `rg`/`sed` reads for known identifiers and
-smart-read for behavior discovery or unclear structure. Trace imports, aliases,
+Use bounded `rg`/`sed` reads for known identifiers without loading the retrieval
+skill. Load it for behavior discovery, unclear structure or unknown sources. Trace imports, aliases,
 overrides, callers, and tests before changing shared behavior. Text matches do
 not prove symbol identity; use focused tests or report unresolved dynamic edges.
 No semantic MCP backend or language-server initialization is required.
@@ -144,7 +144,7 @@ Claude's native auto-compaction stays on; `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` is n
 
 `llm/idle_compact.py` cuts the cost of returning to a large Claude session after its prompt cache expired. On a subscription the cache lives 1 hour (5 minutes on an API key or in usage overage); the next call rewrites the whole context at 2× input price. Across nine measured sessions these rebuilds were 27% of Claude cost (largest: 6 days, median context 415K, 20 idle rebuilds of ~360K). RTK and bounded source reads shrink tool output and can't touch this. Claude now also has native idle compaction; the measurements describe the earlier sessions, not the savings over that native feature.
 
-Fix: have the model write a checkpoint while the cache is warm; on return, optionally continue from it in a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
+Resume natively when the context is still warm. For a handoff or long idle gap, a checkpoint can carry the task into a fresh chat. Estimated idle-resume share: 27% → ~7% when the fresh chat is chosen.
 
 Both clients have the model write the checkpoint from the session's full context while the cache is still warm, so it costs a cache read rather than a rewrite. Both fork the session headlessly, so the checkpoint never appears in the open chat. Floors are 2× a fresh chat's first call: 85K for Claude (median fresh start 42K) and 45K for Codex (22K); below that a restart saves little. The quota safeguard keeps its own 120K floor. Idle compaction handles ordinary idle gaps; the quota warning handles the pause forced by an exhausted quota.
 
