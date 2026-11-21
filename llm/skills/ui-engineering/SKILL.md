@@ -14,6 +14,7 @@ Use this for application UI, not document conversion covered by `md-to-html`. Re
 
 ## 1. Inspect before modifying
 
+- Keep shadcn and Playwright MCP disabled in default sessions. For this workflow, use already connected tools; if unavailable, follow the setup guide's UI-only session instructions rather than enabling them globally or claiming they can be loaded mid-session.
 - Detect framework, styling system, package manager, component libraries, design tokens, and reusable components. Read `package.json`, `components.json` if present, `DESIGN.md` if present, and 2-3 representative screens/components.
 - Never replace an established component framework, switch between Radix/Base UI, or add competing UI systems unless the user explicitly requests a migration.
 - Determine **one primary user goal** per view, its key actions, information density, and required UI states.

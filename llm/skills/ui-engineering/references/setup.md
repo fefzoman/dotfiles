@@ -32,6 +32,14 @@ Merge only missing servers from [the Claude example](claude-mcp.example.json) in
 
 Keep browser sessions on local previews with test data. Inspect third-party components before execution and avoid exposing authenticated production sessions, secrets or private data to untrusted pages or registries.
 
+Keep the Codex registrations disabled by default (`enabled = false`). For a UI-engineering session, enable only that invocation:
+
+```bash
+codex -c mcp_servers.shadcn.enabled=true -c mcp_servers.playwright.enabled=true
+```
+
+Loading the skill does not itself enable disabled MCP servers in a running session. If UI work begins without them, use existing project tools or report the limitation and start a new UI-only session. For Claude, keep these registrations project-local to frontend projects rather than adding them globally.
+
 ## Add project-level enforcement
 
 The [Playwright/axe starter](../qa/ui-quality.example.spec.ts) checks horizontal overflow and automated accessibility violations at mobile and desktop sizes, and saves screenshots. Adapt its route, expected states and core interactions to the real app. It needs `@playwright/test`, `@axe-core/playwright` and an installed browser in that project; adopt it through the project's package manager and existing test configuration rather than installing a second test stack.
