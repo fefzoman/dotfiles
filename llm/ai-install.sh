@@ -123,7 +123,7 @@ install_ai_tools() {
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
     --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/smart-read"
   UV_TOOL_BIN_DIR="$HOME/.local/bin" "$(type -P uv)" tool install \
-    --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/self-ai-doctor"
+    --python "$PYTHON_VERSION" --reinstall "$SCRIPT_DIR/agent-feedback"
 }
 
 install_feedback_hooks() {

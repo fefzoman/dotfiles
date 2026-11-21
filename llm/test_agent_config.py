@@ -222,7 +222,7 @@ class AgentInstallationTests(unittest.TestCase):
             for path in paths:
                 path.parent.mkdir()
                 path.write_text(json.dumps(original))
-            extra = ('agent-feedback-install-hooks() { PYTHONPATH="$SCRIPT_DIR/self-ai-doctor/src" '
+            extra = ('agent-feedback-install-hooks() { PYTHONPATH="$SCRIPT_DIR/agent-feedback/src" '
                      'python -P -m agent_feedback.install_hooks "$@"; }')
             snapshots = None
             for _ in range(2):

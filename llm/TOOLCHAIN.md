@@ -10,7 +10,7 @@
 
 The tools act at different stages; their savings overlap, so percentages are **never added**.
 
-This repo installs the stack for personal and work profiles of Codex and Claude Code: smart-read as a shell CLI, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile; self-ai-doctor adds opt-in, metadata-only hook diagnostics.
+This repo installs the stack for personal and work profiles of Codex and Claude Code: smart-read as a shell CLI, Ponytail as a native plugin, RTK via Codex and Claude hooks. Both clients talk to Anthropic and OpenAI directly. `token-profiler` reads local Codex and Claude sessions per profile; agent-feedback adds opt-in, metadata-only hook diagnostics.
 
 Two local safeguards complement them, neither runs `/compact` automatically:
 
@@ -253,95 +253,24 @@ Programmatic tool counts identify source call sites, not proven executions. The 
 
 Nested-call attribution has regression coverage in [the profiler tests](token-profiler/test_token_profiler.py); [the measurement guide](token-profiler/README.md) explains the estimates separately from provider-reported totals.
 
-### self-ai-doctor (agent-feedback)
+### agent-feedback
 
 When a session repeatedly fails on the same command, usage totals alone cannot
-explain what happened. `llm/self-ai-doctor/` supplies the dependency-free
-`agent-feedback` CLI: it collects allowlisted hook metadata, reports sessions,
-and diagnoses missing executables, unrecovered command failures, repeated
-approval requests and collection gaps. Analysis is deterministic and local;
-it makes no network or model requests.
+explain what happened. `llm/agent-feedback/` supplies the dependency-free
+`agent-feedback` CLI, which is deterministic and local and makes no network or
+model requests. `agent-feedback scan` reads every Claude and Codex transcript on
+the machine, ranks findings by token and time cost and suggests a concrete fix
+for each: environment, `CLAUDE.md` and `AGENTS.md`, or the request. It stores
+nothing, names no commands or files unless given `--details`, and
+`scan --since DATE` compares sessions before and after a fix. Opt-in hooks
+collect metadata-only events for registered worktrees, which `analyze`,
+`report` and the review-only `propose` patches work from.
 
-`agent-feedback scan` finds what makes agents slower and more expensive across
-every session on the machine, without hooks. It reads Claude
-(`~/.claude*/projects`) and Codex (`~/.codex*/sessions`, `archived_sessions`)
-transcripts in all profiles, applies the rules in memory and ranks findings by
-cost: the tokens of the model replies that issued the flagged calls (cache reads
-included) and the time until the next call, with idle gaps over five minutes
-excluded. Beyond the failure rules it flags re-reads of an unchanged file range,
-tool results over 20 KB and user turns with more than 50 tool calls.
-Findings can overlap, so their costs do not add up. It stores nothing, so `propose`
-cannot use its findings. Claude transcripts carry no exit codes, so only
-`command not found` errors are classified there; Codex reads files through the
-shell, so re-reads are detected for Claude only.
-
-Each finding carries suggested fixes, ranked by cost at the top of the report.
-Every suggestion names its target: the environment, `CLAUDE.md` and `AGENTS.md`,
-or the request itself. Long turns are split by their tool mix into failing,
-remote-investigation, exploration, edit-and-rerun and broad turns. Shell commands
-are labelled only with fixed families (read, remote, wait, run), so the
-split works for both clients. Re-reads are told apart by location: repository
-files, other files, saved tool outputs and background task output. By default
-the report names no commands or files. `scan --details` adds executables,
-subcommands and file paths, but never arguments, and still stores nothing. The
-thresholds are tuned on local transcripts and are heuristics, not causes.
-
-To check a fix, save a `scan` report when you apply it. Later, run
-`scan --since DATE` with the date of the fix. Only tool calls and model replies
-from that moment on count, and transcripts last modified earlier are skipped. A
-date without an offset means local midnight. The two windows differ in length,
-so compare each finding's share of tokens and its incidents per 1k tool calls,
-not its totals. A short window or a different mix of tasks can still move these
-numbers, so treat a change as a signal, not as proof.
-
-The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13,
-then merges collection hooks for this dotfiles Git worktree into all four
-personal/work profiles. Other worktrees remain unobserved. With agents closed,
-register additional Git worktrees in the desired profiles:
-
-```sh
-agent-feedback-install-hooks --repo /absolute/path/to/project
-CLAUDE_CONFIG_DIR="$HOME/.claude-work" CODEX_HOME="$HOME/.codex-work" \
-  agent-feedback-install-hooks --repo /absolute/path/to/project
-agent-feedback analyze --repo /absolute/path/to/project
-agent-feedback report --format json
-agent-feedback scan
-agent-feedback scan --since 2026-11-21
-```
-
-The hook installer defaults to both clients; `--agent claude` or `--agent codex`
-selects one. It merges into their user settings without changing permissions,
-trust or disabled-hook settings. Existing files receive private
-`.agent-feedback-backup-*` copies before atomic replacement. Strict JSON objects
-are required; duplicate keys, symlinks and hardlinks are refused. Both configs
-are checked first, but replacement is atomic per file, not across clients.
-Close config editors during installation. Reinstallation is idempotent for
-that worktree; unrelated handlers are preserved. Incoming `cwd` must resolve to
-the registered Git worktree; other worktrees are ignored before storage opens.
-
-Identity defaults to a hash of `origin:` plus the origin URL. Without origin,
-pass the same `--repository 'owner:canonical-remote'` to installation, analysis
-and proposals. Reinstall after moving the worktree or changing its origin.
-To stop collection, remove only its matching `agent-feedback:` handlers;
-restoring a backup can overwrite subsequent settings changes.
-
-State defaults to `~/.local/state/agent-feedback` (directory `0700`, SQLite
-database `0600`), with seven-day retention and a 16 MiB database quota; journals
-can need additional space. `--state-dir PATH` selects private state (before the
-subcommand for `agent-feedback`); use it consistently during installation and
-inspection. Prompts, code, commands, output and transcript paths are not stored;
-IDs, shell-command and file-path fingerprints are hashed, not guaranteed anonymous.
-State is not encrypted. Live collection fails open with a fixed warning;
-missing telemetry and empty reports do not establish hook health or correctness.
-
-`agent-feedback propose --repo PATH --issue ISSUE-ID` prints a review-only patch
-for root `AGENTS.md` and `CLAUDE.md` after at least three supported command
-incidents across two provider-scoped sessions. It never applies changes or
-claims improvement; review policy conflicts and run relevant checks yourself.
-Permission and collection-health findings cannot generate instruction patches.
-`ingest --provider PROVIDER --repository ID --mode metadata --source-id EXPORT`
-accepts immutable hook JSONL on stdin, not client stream output. Hook compatibility
-has synthetic tests, not verified live captures; task outcomes remain unknown.
+`llm/ai-install.sh` installs the package with `uv tool` and registers this
+dotfiles worktree in all four profiles. Other worktrees stay unobserved until
+registered with `agent-feedback-install-hooks`. [The agent-feedback
+guide](agent-feedback/README.md) covers the rules, suggestions, privacy
+defaults, hook installation, storage and limitations.
 
 ## 8. How the tools reinforce each other
 
@@ -371,7 +300,7 @@ Each piece has exactly one owner:
 | Startup context defaults | `llm/agent_config.py` `context_efficiency`, called by the installer | Disables the Codex automatic skills catalog and managed Superpowers plugins and enables Ponytail in both clients; keeps Codex's skill cap at 2,000 tokens and Claude's command budget at 8,000 characters |
 | Platform plugin scope | `llm/agent_config.py` `scope_plugins`, called by the installer | `WORK_PLUGINS` (currently `dlm@dlm-user`) is disabled in personal profiles; work selections and unrelated plugins are preserved |
 | smart-read | `llm/ai-install.sh` `install_ai_tools`, `install_claude_hook` | `uv tool install --reinstall llm/smart-read`; `read_hint.py` PreToolUse hook in both Claude profiles and `codex/codex-hooks.json` |
-| self-ai-doctor | `llm/ai-install.sh` `install_ai_tools`, `install_feedback_hooks` | `uv tool install --reinstall llm/self-ai-doctor`; merges dotfiles-worktree metadata hooks into all four profiles; additional worktrees use `agent-feedback-install-hooks` explicitly |
+| agent-feedback | `llm/ai-install.sh` `install_ai_tools`, `install_feedback_hooks` | `uv tool install --reinstall llm/agent-feedback`; merges dotfiles-worktree metadata hooks into all four profiles; additional worktrees use `agent-feedback-install-hooks` explicitly |
 | Superpowers | `llm/ai-install.sh` `install_superpowers`, then `agent_config.py context-efficiency` | Installs the plugin but disables automatic activation in all four profiles; enable before a new session when requested |
 
 Apply the retrieval-only migration with running agents closed, then start new sessions. Cached tools in an existing session do not disappear when persisted registrations are removed.
