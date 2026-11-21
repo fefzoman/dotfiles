@@ -19,6 +19,18 @@ EXIT_HEADER = re.compile(r"^(?:Process exited with code|Exit code:) (-?\d+)$", r
 TEXT_LIMIT = 64 * 1024
 CLAUDE_USAGE = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 IDLE_SECONDS = 300
+WRAPPERS = {"rtk", "sudo", "env", "time", "command", "exec"}
+FAMILIES = {
+    "read": {"cat", "sed", "head", "tail", "rg", "grep", "find", "fd", "ls", "nl", "wc", "awk", "tree", "less", "jq"},
+    "remote": {"aws", "gcloud", "gsutil", "bq", "az", "kubectl", "docker", "terraform", "curl", "ssh", "psql",
+               "mysql", "gh", "airflow"},
+    "wait": {"until", "while", "sleep", "watch"},
+    "run": {"python", "python3", "uv", "pytest", "npm", "npx", "node", "make", "dbt", "ruff", "go", "cargo",
+            "bash", "sh", "zsh"},
+}
+ERRORS = (("permission", r"permission denied|operation not permitted"), ("missing_file", r"no such file or directory"),
+          ("timeout", r"timed out|timeout"), ("usage", r"usage:|unrecognized argument|invalid option|unknown option"),
+          ("test_failure", r"\bFAILED\b|AssertionError|\b\d+ failed\b"))
 
 
 def transcripts(home):
@@ -180,6 +192,46 @@ def payloads(call):
     return start, result
 
 
+def command_words(command):
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        words = command.split()
+    while words:
+        if re.fullmatch(r"[A-Za-z_]\w*=.*", words[0]) or words[0] in WRAPPERS:
+            words = words[2:] if words[:2] == ["rtk", "proxy"] else words[1:]
+        elif words[0] == "cd" and "&&" in words:
+            words = words[words.index("&&") + 1:]
+        else:
+            break
+    return words
+
+
+def local(call, details):
+    """Fixed-vocabulary labels always; command and path names only with --details, never arguments."""
+    arguments = call["input"] if isinstance(call["input"], dict) else {}
+    command, path = arguments.get("command"), arguments.get("file_path")
+    words = command_words(command) if isinstance(command, str) else []
+    name = Path(words[0]).name if words else None
+    info = {"family": next((family for family, names in FAMILIES.items() if name in names), None)}
+    if isinstance(call.get("error"), str):
+        info["error"] = next((kind for kind, pattern in ERRORS if re.search(pattern, call["error"], re.I)), "other")
+    if details and name:
+        info["executable"] = name if re.fullmatch(r"[\w.+-]{1,64}", name) else "(unusual name)"
+        # A second word is shown only when it looks like a subcommand, not an argument.
+        sub = words[1] if len(words) > 1 and re.fullmatch(r"[a-z][a-z0-9-]{0,31}", words[1]) else None
+        info["command"] = f"{info['executable']} {sub}" if sub else info["executable"]
+    if isinstance(path, str) and path:
+        prefix = (call.get("cwd") or "").rstrip("/") + "/"
+        inside = not path.startswith("/") or (prefix != "/" and path.startswith(prefix))
+        info["where"] = ("tool_output" if "/tool-results/" in path
+                         else "task_output" if "/tasks/" in path and path.endswith(".output")
+                         else "repo" if inside else "outside")
+        if details:
+            info["path"] = path.removeprefix(prefix) if prefix != "/" else path
+    return info
+
+
 def repository(cwd, cache):
     if cwd not in cache:
         try:
@@ -189,7 +241,7 @@ def repository(cwd, cache):
     return cache[cwd]
 
 
-def events(home, labels, stats):
+def events(home, labels, stats, details=False):
     """Yield normalized events; fill labels (repository_id -> identity) and stats as a side effect."""
     cache, seen, billed = {}, set(), set()
     for provider, path in transcripts(home):
@@ -210,4 +262,5 @@ def events(home, labels, stats):
                 if payload["hook_event_name"] != "PreToolUse" and event["event_type"] != "collector.gap":
                     event["tool"].update({key: call[key] for key in ("tokens", "seconds", "output_bytes")
                                           if call.get(key) is not None})
+                    event["local"] = local(call, details)
                 yield event

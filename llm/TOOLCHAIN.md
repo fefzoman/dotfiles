@@ -275,6 +275,17 @@ cannot use its findings. Claude transcripts carry no exit codes, so only
 `command not found` errors are classified there; Codex reads files through the
 shell, so re-reads are detected for Claude only.
 
+Each finding carries suggested fixes, ranked by cost at the top of the report.
+Every suggestion names its target: the environment, `CLAUDE.md` and `AGENTS.md`,
+or the request itself. Long turns are split by their tool mix into failing,
+remote-investigation, exploration, edit-and-rerun and broad turns. Shell commands
+are labelled only with fixed families (read, remote, wait, run), so the
+split works for both clients. Re-reads are told apart by location: repository
+files, other files, saved tool outputs and background task output. By default
+the report names no commands or files. `scan --details` adds executables,
+subcommands and file paths, but never arguments, and still stores nothing. The
+thresholds are tuned on local transcripts and are heuristics, not causes.
+
 The full `llm/ai-install.sh` installs the package with `uv tool` and Python 3.13,
 then merges collection hooks for this dotfiles Git worktree into all four
 personal/work profiles. Other worktrees remain unobserved. With agents closed,

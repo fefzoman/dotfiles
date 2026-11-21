@@ -31,6 +31,8 @@ def parser():
             command.add_argument("--source-id", required=True, help="stable unique ID for this immutable hook JSONL export")
     for name in ("report", "scan"):
         commands.add_parser(name).add_argument("--format", choices=("markdown", "json"), default="markdown")
+    commands.choices["scan"].add_argument("--details", action="store_true",
+                                          help="name executables, subcommands and file paths in suggestions; never stored")
     for name in ("analyze", "propose"):
         command = commands.add_parser(name)
         command.add_argument("--repo", type=Path, default=Path.cwd())
@@ -69,7 +71,7 @@ def main(argv=None):
                 return 0
         elif args.command == "scan":
             labels, stats = {}, {"transcripts": 0, "tool_calls": 0, "tokens": 0, "seconds": 0}
-            findings = diagnosis.analyze(scan.events(Path.home(), labels, stats))
+            findings = diagnosis.analyze(scan.events(Path.home(), labels, stats, args.details))
             stats["seconds"] = round(stats["seconds"], 1)
             if args.format == "json":
                 print(json.dumps({**stats, "repositories": labels, "findings": findings}, indent=2))

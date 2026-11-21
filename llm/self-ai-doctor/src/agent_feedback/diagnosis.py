@@ -3,10 +3,12 @@
 from collections import defaultdict
 
 from .hooks import fingerprint
+from .suggest import suggest
 
 OVERSIZED_BYTES = 20_000
 LONG_TURN_CALLS = 50
 EVIDENCE_LINES = 10
+SUGGESTION_LINES = 15
 RULES = {
     "missing_executable": {
         "category": "environment", "classification": "suspected_cause",
@@ -130,6 +132,7 @@ def analyze(events):
             "command_fingerprint": command, "incidents": len(evidence), "sessions": len(sessions),
             "cost": cost(evidence),
             "providers": sorted({row["provider"] for row in evidence}),
+            "suggestions": suggest(rule, evidence),
             "evidence": [reference(row) for row in evidence],
             "task_outcome": "unknown", "coverage": "metadata_only",
             "eligible_for_draft": "instruction" in spec and len(evidence) >= 3 and len(sessions) >= 2,
@@ -151,6 +154,17 @@ def cost(evidence):
 
 def markdown(findings, total_tokens=None):
     lines = ["# Diagnosis and recommendations", "", "Local deterministic signals; task correctness remains unknown.", ""]
+    ranked = sorted(((row, finding) for finding in findings for row in finding["suggestions"]),
+                    key=lambda pair: (-pair[0]["tokens"], -pair[0]["incidents"]))
+    if ranked:
+        lines.extend(["## Suggested fixes", ""])
+        lines.extend(f"- [{row['target']}] {row['change']} ({row['tokens']:,} tokens, {row['incidents']} incidents"
+                     + (f" in {row['turns']} long turn{'s' * (row['turns'] != 1)}" if "turns" in row else "")
+                     + f"; {finding['rule']}, repository {finding['repository_id'][:12]})"
+                     for row, finding in ranked[:SUGGESTION_LINES])
+        if len(ranked) > SUGGESTION_LINES:
+            lines.append(f"- and {len(ranked) - SUGGESTION_LINES} more (use --format json)")
+        lines.append("")
     for finding in findings:
         lines.extend([f"## {finding['issue_id']}: {finding['rule']}", "",
                       finding["description"], "", finding["recommendation"], "",

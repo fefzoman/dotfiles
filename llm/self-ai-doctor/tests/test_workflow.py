@@ -15,6 +15,7 @@ from agent_feedback.hooks import fingerprint, normalize
 from agent_feedback.install_hooks import install, merged, read_config, replace_config
 from agent_feedback.remediation import ProposalError, propose
 from agent_feedback.repository import identity, root
+from agent_feedback.scan import local
 from agent_feedback.storage import Store
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -93,6 +94,37 @@ class DiagnosisTests(unittest.TestCase):
         self.assertEqual(finding["task_outcome"], "unknown")
         self.assertFalse(finding["eligible_for_draft"])
 
+    def test_long_turns_are_broken_down_by_tool_mix(self):
+        def read(session, index):
+            return capture(session, f"r{index}", code=None, tool_name="Read", tool_response={}, turn_id="t",
+                           tool_input={"file_path": f"/f{index}"})
+        exploring = [read("s1", index) for index in range(51)]
+        loop = [capture("s2", f"b{index}", code=0, turn_id="t") for index in range(46)]
+        loop += [capture("s2", f"e{index}", code=None, tool_name="Edit", tool_response={}, turn_id="t",
+                         tool_input={"file_path": "/x"}) for index in range(5)]
+        failing = [capture("s3", f"f{index}", code=1, turn_id="t") for index in range(51)]
+        large = [capture("s4", f"l{index}", code=0, turn_id="t", command=f"c{index}") for index in range(51)]
+        remote = [{**capture("s5", f"a{index}", code=0, turn_id="t", command=f"q{index}"), "local": {"family": "remote"}}
+                  for index in range(51)]
+        finding = next(row for row in analyze(exploring + loop + failing + large + remote) if row["rule"] == "long_turn")
+        kinds = {row["change"].split(":")[0]: (row["target"], row["turns"]) for row in finding["suggestions"]}
+        self.assertEqual(kinds, {"Exploration-heavy turns": ("instructions", 1), "Edit-and-rerun loops": ("instructions", 1),
+                                 "Turns dominated by failing calls": ("environment", 1), "Broad turns": ("request", 1),
+                                 "Remote-system investigations (cloud CLIs, containers, polling)": ("instructions", 1)})
+
+    def test_failure_suggestions_use_error_kind_and_current_path(self):
+        failures = [capture(call=str(index), code=1) for index in range(3)]
+        failures[0]["local"] = {"error": "permission"}
+        [suggestion] = next(row for row in analyze(failures) if row["rule"] == "repeated_command_failure")["suggestions"]
+        self.assertIn("failed 3 times unchanged: check sandbox and file permissions", suggestion["change"])
+        missing = recurring()
+        for event, name in zip(missing, ["sh"] * 3 + ["no-such-tool-for-agent-feedback"] * 3):
+            event["local"] = {"executable": name}
+        finding = next(row for row in analyze(missing) if row["rule"] == "missing_executable")
+        changes = [row["change"] for row in finding["suggestions"]]
+        self.assertTrue(any(change.startswith("`sh` is on this shell's PATH now") for change in changes))
+        self.assertTrue(any(change.startswith("`no-such-tool-for-agent-feedback` is not on PATH") for change in changes))
+
     def test_text_classification_does_not_retain_text_or_invent_exit_code(self):
         result = capture(code=None, tool_response=f"{SECRET}: command not found", command=SECRET)
         self.assertEqual(result["tool"]["error_family"], "missing_executable")
@@ -164,6 +196,48 @@ class ScanTests(unittest.TestCase):
         self.assertEqual(findings["missing_executable"]["cost"], {"tokens": 1105, "seconds": 10})
         self.assertEqual(findings["repeated_read"]["cost"], {"tokens": 50, "seconds": 1})
         self.assertNotIn(SECRET, stdout.getvalue())
+
+    def test_details_name_commands_and_paths_only_on_request(self):
+        with tempfile.TemporaryDirectory() as home:
+            base = {"sessionId": "d1", "cwd": "/nonexistent/work", "timestamp": "2026-11-01T00:00:00Z"}
+            uses = [("t1", "Bash", {"command": f"cd sub && RTK_DISABLED=1 rtk proxy git diff {SECRET}"}, "x" * 30_000)]
+            uses += [(f"t{index}", "Read", {"file_path": "/nonexistent/work/models/x.sql"}, "short") for index in (2, 3)]
+            uses += [(f"t{index}", "Read", {"file_path": f"/tmp/{SECRET}/tool-results/a.txt"}, "short") for index in (4, 5)]
+            uses += [(f"t{index}", "Read", {"file_path": f"/tmp/{SECRET}/tasks/b.output"}, "short") for index in (6, 7)]
+            rows = []
+            for call, name, arguments, output in uses:
+                rows.append({**base, "type": "assistant", "message": {"id": call, "content": [
+                    {"type": "tool_use", "id": call, "name": name, "input": arguments}]}})
+                rows.append({**base, "type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": call, "content": output}]}})
+            path = Path(home) / ".claude/projects/-work/d.jsonl"
+            path.parent.mkdir(parents=True)
+            path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+            outputs = []
+            for extra in ([], ["--details"]):
+                stdout = io.StringIO()
+                with patch.dict(os.environ, {"HOME": home}), contextlib.redirect_stdout(stdout):
+                    self.assertEqual(main(["scan", *extra]), 0)
+                outputs.append(stdout.getvalue())
+        default, detailed = outputs
+        self.assertIn("## Suggested fixes", default)
+        self.assertIn("Bash calls: filter the output", default)
+        self.assertIn("Saved tool outputs were re-read", default)
+        self.assertIn("Background task output was re-read while it ran", default)
+        self.assertNotIn("git diff", default)
+        self.assertNotIn("models/x.sql", default)
+        self.assertIn("`git diff`: filter the output", detailed)
+        self.assertIn("`models/x.sql` was re-read (1x)", detailed)
+        self.assertNotIn(SECRET, default + detailed)
+
+    def test_shell_commands_get_fixed_families_without_names(self):
+        def labels(command, details=False):
+            return local({"input": {"command": command}, "cwd": "/w"}, details)
+        self.assertEqual(labels(f"cd sub && RTK_DISABLED=1 rtk rg {SECRET}"), {"family": "read"})
+        self.assertEqual(labels("aws logs tail x")["family"], "remote")
+        self.assertEqual(labels(f"/usr/bin/{SECRET} --flag", True)["command"], SECRET)
+        self.assertEqual(labels("git diff --stat", True)["command"], "git diff")
+        self.assertEqual(labels(f"curl https://{SECRET}", True)["command"], "curl")
 
     def test_long_turn_and_paged_reads(self):
         turn = [capture(call=str(index), code=0, turn_id="t") for index in range(51)]
